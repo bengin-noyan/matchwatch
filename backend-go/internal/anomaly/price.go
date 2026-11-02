@@ -26,27 +26,26 @@ func priceRules(in Input, lc LineContext) []domain.Finding {
 	if ci == nil {
 		return nil
 	}
-	if ci.UOM != line.UOM {
-		return []domain.Finding{{
-			InvoiceLineID: &line.ID, Severity: domain.SeverityWarning, RuleCode: domain.RuleUOMMismatch,
-			Expected: ci.UOM, Actual: line.UOM, ImpactCurrency: in.Invoice.Currency,
-			Evidence: map[string]any{"line_id": line.LineID, "contract_item_uom": ci.UOM, "invoice_uom": line.UOM},
-		}}
-	}
-	net := line.NetUnitPrice()
 	evidence := map[string]any{"line_id": line.LineID, "source_page": ci.SourcePage,
 		"source_clause_text": ci.SourceClauseText}
 	if in.Contract != nil {
 		evidence["contract_no"] = in.Contract.Number
 	}
+	if ci.UOM != line.UOM {
+		evidence["contract_item_uom"], evidence["invoice_uom"] = ci.UOM, line.UOM
+		return []domain.Finding{{
+			InvoiceLineID: &line.ID, Severity: domain.SeverityWarning, RuleCode: domain.RuleUOMMismatch,
+			Expected: ci.UOM, Actual: line.UOM, ImpactCurrency: in.Invoice.Currency, Evidence: evidence,
+		}}
+	}
+	net := line.NetUnitPrice()
 	if in.Invoice.Currency != ci.Currency {
 		r := in.Invoice.ExchangeRate
 		if r == nil || r.Source != in.Invoice.Currency || r.Target != ci.Currency {
 			return []domain.Finding{{
 				InvoiceLineID: &line.ID, Severity: domain.SeverityInfo, RuleCode: domain.RuleFXUnverified,
 				ImpactCurrency: in.Invoice.Currency,
-				Evidence: map[string]any{"line_id": line.LineID, "invoice_currency": in.Invoice.Currency,
-					"contract_currency": ci.Currency},
+				Evidence:       fxEvidence(evidence, in.Invoice.Currency, ci.Currency),
 			}}
 		}
 		net = net.Mul(r.Rate)
@@ -55,10 +54,19 @@ func priceRules(in Input, lc LineContext) []domain.Finding {
 	if !net.GreaterThan(ci.UnitPrice) {
 		return nil
 	}
+	impact := domain.ToMinor(net.Sub(ci.UnitPrice).Mul(line.Qty))
+	if impact <= 0 {
+		return nil // below one kurus: rounding noise
+	}
 	return []domain.Finding{{
 		InvoiceLineID: &line.ID, Severity: domain.SeverityCritical, RuleCode: domain.RulePriceMismatch,
 		Expected: money(ci.UnitPrice, ci.Currency), Actual: money(net, ci.Currency),
-		ImpactMinor:    domain.ToMinor(net.Sub(ci.UnitPrice).Mul(line.Qty)),
+		ImpactMinor:    impact,
 		ImpactCurrency: ci.Currency, Evidence: evidence,
 	}}
+}
+
+func fxEvidence(ev map[string]any, invCur, conCur string) map[string]any {
+	ev["invoice_currency"], ev["contract_currency"] = invCur, conCur
+	return ev
 }

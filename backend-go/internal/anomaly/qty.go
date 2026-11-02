@@ -25,6 +25,10 @@ func qtyExceeds(in Input, lc LineContext) []domain.Finding {
 	if !line.Qty.GreaterThan(limit) {
 		return nil
 	}
+	impact := domain.ToMinor(line.Qty.Sub(lc.Delivery.AvailableTotal).Mul(line.NetUnitPrice()))
+	if impact <= 0 {
+		return nil // below one kurus: rounding noise
+	}
 	allocs := make([]string, 0, len(lc.Delivery.Allocations))
 	for _, a := range lc.Delivery.Allocations {
 		allocs = append(allocs, a.DespatchLineID.String())
@@ -37,7 +41,7 @@ func qtyExceeds(in Input, lc LineContext) []domain.Finding {
 	return []domain.Finding{{
 		InvoiceLineID: &line.ID, Severity: domain.SeverityCritical, RuleCode: domain.RuleQtyExceedsDelivery,
 		Expected: lc.Delivery.AvailableTotal.String() + " " + line.UOM, Actual: line.Qty.String() + " " + line.UOM,
-		ImpactMinor:    domain.ToMinor(line.Qty.Sub(lc.Delivery.AvailableTotal).Mul(line.NetUnitPrice())),
+		ImpactMinor:    impact,
 		ImpactCurrency: in.Invoice.Currency, Evidence: ev,
 	}}
 }

@@ -59,7 +59,8 @@ func TestPriceFXUnverified(t *testing.T) {
 	lc := baseCtx("10", "100")
 	lc.ContractItem.Currency = "USD"
 	fs := Run(baseInput(lc))
-	if len(fs) != 1 || fs[0].RuleCode != domain.RuleFXUnverified || fs[0].Severity != domain.SeverityInfo {
+	if len(fs) != 1 || fs[0].RuleCode != domain.RuleFXUnverified || fs[0].Severity != domain.SeverityInfo ||
+		fs[0].Evidence["contract_no"] != "C-1" || fs[0].Evidence["source_page"] != 3 {
 		t.Errorf("%+v", fs)
 	}
 }
@@ -68,7 +69,8 @@ func TestUOMMismatch(t *testing.T) {
 	lc := baseCtx("10", "100")
 	lc.ContractItem.UOM = "KG"
 	fs := Run(baseInput(lc))
-	if len(fs) != 1 || fs[0].RuleCode != domain.RuleUOMMismatch || fs[0].Severity != domain.SeverityWarning {
+	if len(fs) != 1 || fs[0].RuleCode != domain.RuleUOMMismatch || fs[0].Severity != domain.SeverityWarning ||
+		fs[0].Evidence["contract_no"] != "C-1" || fs[0].Evidence["source_page"] != 3 {
 		t.Errorf("%+v", fs)
 	}
 }
@@ -79,6 +81,14 @@ func TestUncontractedItem(t *testing.T) {
 	lc.Delivery.CandidateCount = 0
 	fs := Run(baseInput(lc))
 	if len(fs) != 1 || fs[0].RuleCode != domain.RuleUncontractedItem || fs[0].Severity != domain.SeverityWarning || fs[0].ImpactMinor != 0 {
+		t.Errorf("%+v", fs)
+	}
+}
+
+func TestPriceSubKurusNoFinding(t *testing.T) {
+	lc := baseCtx("3000", "1000")
+	lc.ContractItem.UnitPrice = dec("0.333333")
+	if fs := Run(baseInput(lc)); len(fs) != 0 {
 		t.Errorf("%+v", fs)
 	}
 }

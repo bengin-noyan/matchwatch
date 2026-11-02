@@ -63,3 +63,13 @@ func TestQtyContractedServiceLine(t *testing.T) {
 		t.Errorf("%+v", fs)
 	}
 }
+
+func TestQtySubKurusNoFinding(t *testing.T) {
+	lc := baseCtx("1000.0100", "400.004")
+	lc.Delivery.AvailableTotal = dec("1000")
+	in := baseInput(lc)
+	in.Contract.QtyTolerancePct = dec("0")
+	if fs := qtyFindings(t, in); len(fs) != 0 {
+		t.Errorf("%+v", fs)
+	}
+}

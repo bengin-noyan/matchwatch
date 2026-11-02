@@ -13,7 +13,7 @@ import (
 func calendarDays(a, b time.Time) int {
 	ay, am, ad := a.Date()
 	by, bm, bd := b.Date()
-	return int(time.Date(by, bm, bd, 0, 0, 0, 0, time.UTC).Sub(time.Date(ay, am, ad, 0, 0, 0, 0, time.UTC)).Hours() / 24)
+	return int(time.Date(by, bm, bd, 0, 0, 0, 0, time.UTC).Sub(time.Date(ay, am, ad, 0, 0, 0, 0, time.UTC)) / (24 * time.Hour))
 }
 
 func maturityViolation(in Input) []domain.Finding {
