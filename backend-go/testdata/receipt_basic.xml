@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ReceiptAdvice xmlns="urn:oasis:names:specification:ubl:schema:xsd:ReceiptAdvice-2" xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2" xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
+  <cbc:UBLVersionID>2.1</cbc:UBLVersionID>
+  <cbc:CustomizationID>TR1.2</cbc:CustomizationID>
+  <cbc:ProfileID>TEMELIRSALIYE</cbc:ProfileID>
+  <cbc:ID>YNT2026000000001</cbc:ID>
+  <cbc:CopyIndicator>false</cbc:CopyIndicator>
+  <cbc:UUID>5d1c8a52-3b0e-4f7a-8c1d-2e6f9a7b4c33</cbc:UUID>
+  <cbc:IssueDate>2026-02-28</cbc:IssueDate>
+  <cbc:ReceiptAdviceTypeCode>SEVK</cbc:ReceiptAdviceTypeCode>
+  <cbc:LineCountNumeric>1</cbc:LineCountNumeric>
+  <cac:DespatchDocumentReference>
+    <cbc:ID>IRS2026000000001</cbc:ID>
+    <cbc:IssueDate>2026-02-27</cbc:IssueDate>
+  </cac:DespatchDocumentReference>
+  <cac:DespatchSupplierParty>
+    <cac:Party>
+      <cac:PartyIdentification><cbc:ID schemeID="VKN">1234567890</cbc:ID></cac:PartyIdentification>
+      <cac:PartyName><cbc:Name>Demir Bağlantı A.Ş.</cbc:Name></cac:PartyName>
+    </cac:Party>
+  </cac:DespatchSupplierParty>
+  <cac:DeliveryCustomerParty>
+    <cac:Party>
+      <cac:PartyIdentification><cbc:ID schemeID="VKN">9876543210</cbc:ID></cac:PartyIdentification>
+      <cac:PartyName><cbc:Name>Yılmaz Makine San. Tic. Ltd. Şti.</cbc:Name></cac:PartyName>
+    </cac:Party>
+  </cac:DeliveryCustomerParty>
+  <cac:ReceiptLine>
+    <cbc:ID>1</cbc:ID>
+    <cbc:ReceivedQuantity unitCode="C62">950</cbc:ReceivedQuantity>
+    <cbc:RejectedQuantity unitCode="C62">50</cbc:RejectedQuantity>
+    <cac:DespatchLineReference><cbc:LineID>1</cbc:LineID></cac:DespatchLineReference>
+    <cac:Item>
+      <cbc:Name>Civata M8x20 Paslanmaz</cbc:Name>
+    </cac:Item>
+  </cac:ReceiptLine>
+</ReceiptAdvice>

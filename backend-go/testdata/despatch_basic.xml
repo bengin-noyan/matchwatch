@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DespatchAdvice xmlns="urn:oasis:names:specification:ubl:schema:xsd:DespatchAdvice-2" xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2" xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
+  <cbc:UBLVersionID>2.1</cbc:UBLVersionID>
+  <cbc:CustomizationID>TR1.2</cbc:CustomizationID>
+  <cbc:ProfileID>TEMELIRSALIYE</cbc:ProfileID>
+  <cbc:ID>IRS2026000000001</cbc:ID>
+  <cbc:CopyIndicator>false</cbc:CopyIndicator>
+  <cbc:UUID>0b0c5c4e-6d43-4b5a-9f39-3c1f0c0e9a11</cbc:UUID>
+  <cbc:IssueDate>2026-02-27</cbc:IssueDate>
+  <cbc:DespatchAdviceTypeCode>SEVK</cbc:DespatchAdviceTypeCode>
+  <cbc:LineCountNumeric>1</cbc:LineCountNumeric>
+  <cac:DespatchSupplierParty>
+    <cac:Party>
+      <cac:PartyIdentification><cbc:ID schemeID="VKN">1234567890</cbc:ID></cac:PartyIdentification>
+      <cac:PartyName><cbc:Name>Demir Bağlantı A.Ş.</cbc:Name></cac:PartyName>
+    </cac:Party>
+  </cac:DespatchSupplierParty>
+  <cac:DeliveryCustomerParty>
+    <cac:Party>
+      <cac:PartyIdentification><cbc:ID schemeID="VKN">9876543210</cbc:ID></cac:PartyIdentification>
+      <cac:PartyName><cbc:Name>Yılmaz Makine San. Tic. Ltd. Şti.</cbc:Name></cac:PartyName>
+    </cac:Party>
+  </cac:DeliveryCustomerParty>
+  <cac:Shipment>
+    <cbc:ID>1</cbc:ID>
+    <cac:Delivery>
+      <cac:Despatch>
+        <cbc:ActualDespatchDate>2026-02-27</cbc:ActualDespatchDate>
+        <cbc:ActualDespatchTime>10:30:00</cbc:ActualDespatchTime>
+      </cac:Despatch>
+    </cac:Delivery>
+  </cac:Shipment>
+  <cac:DespatchLine>
+    <cbc:ID>1</cbc:ID>
+    <cbc:DeliveredQuantity unitCode="C62">1000</cbc:DeliveredQuantity>
+    <cac:OrderLineReference><cbc:LineID>1</cbc:LineID></cac:OrderLineReference>
+    <cac:Item>
+      <cbc:Name>Civata M8x20 Paslanmaz</cbc:Name>
+      <cac:SellersItemIdentification><cbc:ID>CV-M8-20</cbc:ID></cac:SellersItemIdentification>
+      <cac:StandardItemIdentification><cbc:ID schemeID="GTIN">8690000000017</cbc:ID></cac:StandardItemIdentification>
+    </cac:Item>
+  </cac:DespatchLine>
+</DespatchAdvice>

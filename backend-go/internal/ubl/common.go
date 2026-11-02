@@ -3,7 +3,9 @@
 package ubl
 
 import (
+	"encoding/xml"
 	"fmt"
+	"io"
 	"regexp"
 	"strings"
 	"time"
@@ -90,4 +92,21 @@ func parseOptDate(field, s string) (*time.Time, error) {
 		return nil, err
 	}
 	return &t, nil
+}
+
+// decodeRoot decodes the document into v if its root element is {ns}local, else returns notMatch.
+func decodeRoot(r io.Reader, ns, local string, notMatch error, v any) error {
+	dec := xml.NewDecoder(r)
+	for {
+		tok, err := dec.Token()
+		if err != nil {
+			return err
+		}
+		if s, ok := tok.(xml.StartElement); ok {
+			if s.Name.Space != ns || s.Name.Local != local {
+				return notMatch
+			}
+			return dec.DecodeElement(v, &s)
+		}
+	}
 }
