@@ -50,12 +50,11 @@ func (tx *Tx) UpsertVendor(ctx context.Context, vkn, title string) (uuid.UUID, e
 }
 
 func (tx *Tx) InsertContract(ctx context.Context, c ContractInput) (uuid.UUID, error) {
-	// file_path has no column in the schema (migrations are fixed); FilePath is accepted but not stored.
 	var id uuid.UUID
 	err := tx.QueryRow(ctx, `INSERT INTO contracts(tenant_id, vendor_id, contract_no, valid_from, valid_until,
-		payment_term_days, currency, qty_tolerance_pct) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+		payment_term_days, currency, qty_tolerance_pct, file_path) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
 		tx.tenantID, c.VendorID, c.Number, c.ValidFrom, c.ValidUntil, c.PaymentTermDays, c.Currency,
-		num(c.QtyTolerancePct)).Scan(&id)
+		num(c.QtyTolerancePct), c.FilePath).Scan(&id)
 	if err != nil {
 		return id, wrap("insert contract", err)
 	}
@@ -76,15 +75,15 @@ func (tx *Tx) InsertContract(ctx context.Context, c ContractInput) (uuid.UUID, e
 	return id, nil
 }
 
-// InsertDespatch stores the despatch and its lines. rawPath is not persisted (no column).
+// InsertDespatch stores the despatch and its lines.
 func (tx *Tx) InsertDespatch(ctx context.Context, vendorID uuid.UUID, d *ubl.DespatchAdvice, rawPath string) (uuid.UUID, error) {
 	ship := d.IssueDate // shipment_date is NOT NULL; fall back to the issue date
 	if d.ShipmentDate != nil {
 		ship = *d.ShipmentDate
 	}
 	var id uuid.UUID
-	err := tx.QueryRow(ctx, `INSERT INTO despatch_advices(tenant_id, vendor_id, ettn, despatch_no, issue_date, shipment_date)
-		VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`, tx.tenantID, vendorID, d.ETTN, d.Number, d.IssueDate, ship).Scan(&id)
+	err := tx.QueryRow(ctx, `INSERT INTO despatch_advices(tenant_id, vendor_id, ettn, despatch_no, issue_date, shipment_date, raw_xml_path)
+		VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`, tx.tenantID, vendorID, d.ETTN, d.Number, d.IssueDate, ship, rawPath).Scan(&id)
 	if isUniqueOn(err, "ettn") {
 		return id, ErrDuplicateETTN
 	}
@@ -106,7 +105,7 @@ func (tx *Tx) InsertDespatch(ctx context.Context, vendorID uuid.UUID, d *ubl.Des
 func (tx *Tx) ApplyReceipt(ctx context.Context, vendorID uuid.UUID, r *ubl.ReceiptAdvice) (string, error) {
 	var despatchID uuid.UUID
 	err := tx.QueryRow(ctx, `SELECT id FROM despatch_advices WHERE tenant_id=$1 AND vendor_id=$2 AND despatch_no=$3
-		ORDER BY created_at DESC LIMIT 1`, tx.tenantID, vendorID, r.DespatchNumber).Scan(&despatchID)
+		ORDER BY created_at DESC, id LIMIT 1`, tx.tenantID, vendorID, r.DespatchNumber).Scan(&despatchID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", fmt.Errorf("%w: %s", ErrUnknownDespatch, r.DespatchNumber)
 	}
@@ -126,7 +125,7 @@ func (tx *Tx) ApplyReceipt(ctx context.Context, vendorID uuid.UUID, r *ubl.Recei
 	return r.DespatchNumber, nil
 }
 
-// InsertInvoice stores the invoice, its lines and despatch references. rawPath is not persisted (no column).
+// InsertInvoice stores the invoice, its lines and despatch references.
 func (tx *Tx) InsertInvoice(ctx context.Context, vendorID uuid.UUID, inv *ubl.Invoice, rawPath string) (uuid.UUID, error) {
 	var fxSrc, fxTgt *string
 	var fxRate any
@@ -135,9 +134,9 @@ func (tx *Tx) InsertInvoice(ctx context.Context, vendorID uuid.UUID, inv *ubl.In
 	}
 	var id uuid.UUID
 	err := tx.QueryRow(ctx, `INSERT INTO invoices(tenant_id, vendor_id, ettn, invoice_no, issue_date, due_date, currency,
-		fx_source, fx_target, fx_rate, payable_minor) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+		fx_source, fx_target, fx_rate, payable_minor, raw_xml_path) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
 		tx.tenantID, vendorID, inv.ETTN, inv.Number, inv.IssueDate, inv.DueDate, inv.Currency,
-		fxSrc, fxTgt, fxRate, domain.ToMinor(inv.Payable)).Scan(&id)
+		fxSrc, fxTgt, fxRate, domain.ToMinor(inv.Payable), rawPath).Scan(&id)
 	if isUniqueOn(err, "ettn") {
 		return id, ErrDuplicateETTN
 	}

@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/shopspring/decimal"
 
@@ -134,6 +135,13 @@ func TestInsertInvoiceRoundTrip(t *testing.T) {
 		if err := tx.QueryRow(ctx, `SELECT count(*) FROM invoice_despatch_refs WHERE invoice_id=$1`, id).Scan(&refs); err != nil {
 			return err
 		}
+		var rawPath string
+		if err := tx.QueryRow(ctx, `SELECT raw_xml_path FROM invoices WHERE id=$1`, id).Scan(&rawPath); err != nil {
+			return err
+		}
+		if rawPath != "raw/inv.xml" {
+			t.Errorf("raw_xml_path=%q", rawPath)
+		}
 		if refs != 1 {
 			t.Errorf("refs=%d", refs)
 		}
@@ -214,8 +222,9 @@ func TestApplyReceipt(t *testing.T) {
 	over := *r
 	over.Lines = []ubl.ReceiptLine{{DespatchLineID: "1", RejectedQty: decimal.NewFromInt(5000)}}
 	err = s.InTenant(ctx, tid, func(tx *Tx) error { _, err := tx.ApplyReceipt(ctx, v, &over); return err })
-	if err == nil {
-		t.Error("rejected > delivered accepted")
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.Code != "23514" {
+		t.Errorf("rejected > delivered: want 23514, got %v", err)
 	}
 }
 
@@ -325,7 +334,9 @@ func TestInTenantRollsBackOnPanic(t *testing.T) {
 			}
 		}()
 		s.InTenant(ctx, tid, func(tx *Tx) error {
-			tx.UpsertVendor(ctx, "5555555555", "V")
+			if _, err := tx.UpsertVendor(ctx, "5555555555", "V"); err != nil {
+				t.Error(err)
+			}
 			panic("x")
 		})
 	}()
