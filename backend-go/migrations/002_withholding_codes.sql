@@ -1,0 +1,39 @@
+-- Kaynak: GİB "UBL-TR Kod Listeleri", Versiyon 1.27 (Kasım 2021), "Tevkifat Kodları Listesi" (WithholdingTaxTotal).
+-- https://ebelge.gib.gov.tr/dosyalar/kilavuzlar/UBL-TR_Kod_Listeleri-V_1_27.pdf
+-- Oran x/10 -> percent x*10. Daha yeni bir sürüm yayımlandıysa tabloyu karşılaştırın.
+
+CREATE TABLE withholding_codes (
+  code VARCHAR(10) PRIMARY KEY,
+  name TEXT NOT NULL,
+  percent NUMERIC(5,2) NOT NULL CHECK (percent > 0 AND percent <= 100)
+);
+
+INSERT INTO withholding_codes (code, name, percent) VALUES
+  ('601', 'YAPIM İŞLERİ İLE BU İŞLERLE BİRLİKTE İFA EDİLEN MÜHENDİSLİK-MİMARLIK VE ETÜT-PROJE HİZMETLERİ', 40.00),
+  ('602', 'ETÜT, PLAN-PROJE, DANIŞMANLIK, DENETİM VE BENZERİ HİZMETLER', 90.00),
+  ('603', 'MAKİNE, TEÇHİZAT, DEMİRBAŞ VE TAŞITLARA AİT TADİL, BAKIM VE ONARIM HİZMETLERİ', 70.00),
+  ('604', 'YEMEK SERVİS HİZMETİ', 50.00),
+  ('605', 'ORGANİZASYON HİZMETİ', 50.00),
+  ('606', 'İŞGÜCÜ TEMİN HİZMETLERİ', 90.00),
+  ('607', 'ÖZEL GÜVENLİK HİZMETİ', 90.00),
+  ('608', 'YAPI DENETİM HİZMETLERİ', 90.00),
+  ('609', 'FASON OLARAK YAPTIRILAN TEKSTİL VE KONFEKSİYON İŞLERİ, ÇANTA VE AYAKKABI DİKİM İŞLERİ VE BU İŞLERE ARACILIK HİZMETLERİ', 70.00),
+  ('610', 'TURİSTİK MAĞAZALARA VERİLEN MÜŞTERİ BULMA / GÖTÜRME HİZMETLERİ', 90.00),
+  ('611', 'SPOR KULÜPLERİNİN YAYIN, REKLÂM VE İSİM HAKKI GELİRLERİNE KONU İŞLEMLERİ', 90.00),
+  ('612', 'TEMİZLİK HİZMETİ', 90.00),
+  ('613', 'ÇEVRE VE BAHÇE BAKIM HİZMETLERİ', 90.00),
+  ('614', 'SERVİS TAŞIMACILIĞI HİZMETİ', 50.00),
+  ('615', 'HER TÜRLÜ BASKI VE BASIM HİZMETLERİ', 70.00),
+  ('616', 'DİĞER HİZMETLER', 50.00),
+  ('617', 'HURDA METALDEN ELDE EDİLEN KÜLÇE TESLİMLERİ', 70.00),
+  ('618', 'HURDA METALDEN ELDE EDİLENLER DIŞINDAKİ BAKIR, ÇİNKO VE ALÜMİNYUM KÜLÇE TESLİMLERİ', 70.00),
+  ('619', 'BAKIR, ÇİNKO VE ALÜMİNYUM ÜRÜNLERİNİN TESLİMİ', 70.00),
+  ('620', 'İSTİSNADAN VAZGEÇENLERİN HURDA VE ATIK TESLİMİ', 70.00),
+  ('621', 'METAL, PLASTİK, LASTİK, KAUÇUK, KÂĞIT VE CAM HURDA VE ATIKLARDAN ELDE EDİLEN HAMMADDE TESLİMİ', 90.00),
+  ('622', 'PAMUK, TİFTİK, YÜN VE YAPAĞI İLE HAM POST VE DERİ TESLİMLERİ', 90.00),
+  ('623', 'AĞAÇ VE ORMAN ÜRÜNLERİ TESLİMİ', 50.00),
+  ('624', 'YÜK TAŞIMACILIĞI HİZMETİ', 20.00),
+  ('625', 'TİCARİ REKLAM HİZMETLERİ', 30.00),
+  ('626', 'DİĞER TESLİMLER', 20.00);
+
+GRANT SELECT ON withholding_codes TO matchwatch_app;
