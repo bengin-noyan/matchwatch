@@ -76,6 +76,31 @@ The data flow is: parse XML → persist → load audit input → match → run r
 - An LLM never computes amounts or makes approve/reject decisions.
 - `withholding_codes` is seeded from GİB "UBL-TR Kod Listeleri" V1.31 (2023). Code 619's rate is marked unverified in `002_withholding_codes.sql`.
 
+## Current status (2026-11-03, end of day)
+
+Branch `faz1-go-core` (not pushed, not merged). The Faz 1 plan is executed with subagent-driven development: one implementer and one reviewer per task. The progress ledger lives at `.superpowers/sdd/2026-11-02-faz1-go-core/progress.md` (git-ignored). It records every completed task, fix round, deferred minor and ruling. Read it first when resuming.
+
+- **Done and reviewed, Tasks 1–8:**
+  - scaffold
+  - domain
+  - Invoice parser
+  - Despatch/Receipt parser
+  - schema + forced RLS + composite FKs + withholding seed
+  - repository ingest, plus `003_document_paths.sql`
+  - matcher
+  - anomaly rules: price/qty/maturity/uncontracted/uom/fx
+- **Next: Task 9.** Duplicate, withholding and price-creep rules. It was stopped before any code was written; re-dispatch it from HEAD `ff04b53`. After that come Task 10 (audit service), Task 11 (auth + REST API) and Task 12 (smoke test + README), then the final whole-branch review.
+- **Rulings made during execution** that deviate from the plan text:
+  - The RLS policy wraps the setting in `NULLIF(...)`.
+  - `CreateTenant` takes a `financingRate`.
+  - FKs are composite.
+  - `withholding_codes.percent` is nullable.
+  - Ingest checks reject a line with more than one withholding subtotal.
+  - PRICE/QTY findings are emitted only when the impact is at least 1 kuruş.
+  - UOM/FX findings carry contract evidence.
+  - The `go` directive is 1.25.0 (required by pgx).
+- **Open for the user:** check withholding code 619's rate (70 vs "75/10"), and check for a GİB code list newer than V1.31.
+
 ## Conventions
 
 - Integration tests read `MATCHWATCH_TEST_DATABASE_URL` (app role) and `MATCHWATCH_TEST_MIGRATE_URL` (owner role). They `t.Skip` when these are unset, and they must be re-runnable against the same DB: use unique tenants and ETTNs per run.
