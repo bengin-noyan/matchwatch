@@ -1,11 +1,14 @@
--- Kaynak: GİB "UBL-TR Kod Listeleri", Versiyon 1.27 (Kasım 2021), "Tevkifat Kodları Listesi" (WithholdingTaxTotal).
--- https://ebelge.gib.gov.tr/dosyalar/kilavuzlar/UBL-TR_Kod_Listeleri-V_1_27.pdf
--- Oran x/10 -> percent x*10. Daha yeni bir sürüm yayımlandıysa tabloyu karşılaştırın.
+-- Kaynak: GİB "UBL-TR Kod Listeleri", Versiyon 1.31 (Ocak 2023, yayın 01.01.2023), "Tevkifat Kodları Listesi" (WithholdingTaxTotal).
+-- https://ebelge.gib.gov.tr/dosyalar/kilavuzlar/UBL-TR_Kod_Listeleri-V_1_31.pdf (bulunabilen en yeni sürüm)
+-- Oran x/10 -> percent x*10. 8xx kodları tam tevkifat (10/10 = 100.00). 650 "Diğer" kodu V1.27 ile listeden çıkarıldı;
+-- değişken oranlı kodlar için percent NULL kabul edilir, ancak şu an böyle bir satır yok.
+-- KAYNAK DOĞRULANMADI (kısmen): 619 için GİB belgesi "75/10" yazıyor (V1.28-V1.31; V1.27'de 7/10). Okunamayan/yazım hatası
+-- olduğu varsayılarak 7/10 = 70.00 alındı; KDVGUT (I/C-2.1.3.3.2) ile doğrulanmalı. 2025/2026 güncellemeleri kontrol edilmedi.
 
 CREATE TABLE withholding_codes (
   code VARCHAR(10) PRIMARY KEY,
   name TEXT NOT NULL,
-  percent NUMERIC(5,2) NOT NULL CHECK (percent > 0 AND percent <= 100)
+  percent NUMERIC(5,2) CHECK (percent IS NULL OR (percent > 0 AND percent <= 100))
 );
 
 INSERT INTO withholding_codes (code, name, percent) VALUES
@@ -26,7 +29,7 @@ INSERT INTO withholding_codes (code, name, percent) VALUES
   ('615', 'HER TÜRLÜ BASKI VE BASIM HİZMETLERİ', 70.00),
   ('616', 'DİĞER HİZMETLER', 50.00),
   ('617', 'HURDA METALDEN ELDE EDİLEN KÜLÇE TESLİMLERİ', 70.00),
-  ('618', 'HURDA METALDEN ELDE EDİLENLER DIŞINDAKİ BAKIR, ÇİNKO VE ALÜMİNYUM KÜLÇE TESLİMLERİ', 70.00),
+  ('618', 'HURDA METALDEN ELDE EDİLENLER DIŞINDAKİ BAKIR, ÇİNKO, DEMİR, ÇELİK, ALÜMİNYUM VE KURŞUN KÜLÇE TESLİMLERİ', 70.00),
   ('619', 'BAKIR, ÇİNKO VE ALÜMİNYUM ÜRÜNLERİNİN TESLİMİ', 70.00),
   ('620', 'İSTİSNADAN VAZGEÇENLERİN HURDA VE ATIK TESLİMİ', 70.00),
   ('621', 'METAL, PLASTİK, LASTİK, KAUÇUK, KÂĞIT VE CAM HURDA VE ATIKLARDAN ELDE EDİLEN HAMMADDE TESLİMİ', 90.00),
@@ -34,6 +37,32 @@ INSERT INTO withholding_codes (code, name, percent) VALUES
   ('623', 'AĞAÇ VE ORMAN ÜRÜNLERİ TESLİMİ', 50.00),
   ('624', 'YÜK TAŞIMACILIĞI HİZMETİ', 20.00),
   ('625', 'TİCARİ REKLAM HİZMETLERİ', 30.00),
-  ('626', 'DİĞER TESLİMLER', 20.00);
+  ('626', 'DİĞER TESLİMLER', 20.00),
+  ('627', 'DEMİR-ÇELİK ÜRÜNLERİNİN TESLİMİ', 50.00),
+  ('801', 'YAPIM İŞLERİ İLE BU İŞLERLE BİRLİKTE İFA EDİLEN MÜHENDİSLİK-MİMARLIK VE ETÜT-PROJE HİZMETLERİ', 100.00),
+  ('802', 'ETÜT, PLAN-PROJE, DANIŞMANLIK, DENETİM VE BENZERİ HİZMETLER', 100.00),
+  ('803', 'MAKİNE, TEÇHİZAT, DEMİRBAŞ VE TAŞITLARA AİT TADİL, BAKIM VE ONARIM HİZMETLERİ', 100.00),
+  ('804', 'YEMEK SERVİS HİZMETİ', 100.00),
+  ('805', 'ORGANİZASYON HİZMETİ', 100.00),
+  ('806', 'İŞGÜCÜ TEMİN HİZMETLERİ', 100.00),
+  ('807', 'ÖZEL GÜVENLİK HİZMETİ', 100.00),
+  ('808', 'YAPI DENETİM HİZMETLERİ', 100.00),
+  ('809', 'FASON OLARAK YAPTIRILAN TEKSTİL VE KONFEKSİYON İŞLERİ, ÇANTA VE AYAKKABI DİKİM İŞLERİ VE BU İŞLERE ARACILIK HİZMETLERİ', 100.00),
+  ('810', 'TURİSTİK MAĞAZALARA VERİLEN MÜŞTERİ BULMA / GÖTÜRME HİZMETLERİ', 100.00),
+  ('811', 'SPOR KULÜPLERİNİN YAYIN, REKLÂM VE İSİM HAKKI GELİRLERİNE KONU İŞLEMLERİ', 100.00),
+  ('812', 'TEMİZLİK HİZMETİ', 100.00),
+  ('813', 'ÇEVRE VE BAHÇE BAKIM HİZMETLERİ', 100.00),
+  ('814', 'SERVİS TAŞIMACILIĞI HİZMETİ', 100.00),
+  ('815', 'HER TÜRLÜ BASKI VE BASIM HİZMETLERİ', 100.00),
+  ('816', 'HURDA METALDEN ELDE EDİLEN KÜLÇE TESLİMLERİ', 100.00),
+  ('817', 'HURDA METALDEN ELDE EDİLENLER DIŞINDAKİ BAKIR, ÇİNKO, DEMİR, ÇELİK, ALÜMİNYUM VE KURŞUN KÜLÇE TESLİMİ', 100.00),
+  ('818', 'BAKIR, ÇİNKO, ALÜMİNYUM VE KURŞUN ÜRÜNLERİNİN TESLİMİ', 100.00),
+  ('819', 'İSTİSNADAN VAZGEÇENLERİN HURDA VE ATIK TESLİMİ', 100.00),
+  ('820', 'METAL, PLASTİK, LASTİK, KAUÇUK, KÂĞIT VE CAM HURDA VE ATIKLARDAN ELDE EDİLEN HAMMADDE TESLİMİ', 100.00),
+  ('821', 'PAMUK, TİFTİK, YÜN VE YAPAĞI İLE HAM POST VE DERİ TESLİMLERİ', 100.00),
+  ('822', 'AĞAÇ VE ORMAN ÜRÜNLERİ TESLİMİ', 100.00),
+  ('823', 'YÜK TAŞIMACILIĞI HİZMETİ', 100.00),
+  ('824', 'TİCARİ REKLAM HİZMETLERİ', 100.00),
+  ('825', 'DEMİR-ÇELİK ÜRÜNLERİNİN TESLİMİ', 100.00);
 
 GRANT SELECT ON withholding_codes TO matchwatch_app;

@@ -15,13 +15,14 @@ CREATE TABLE vendors (
   vkn VARCHAR(11) NOT NULL,
   name TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (tenant_id, vkn)
+  UNIQUE (tenant_id, vkn),
+  UNIQUE (tenant_id, id)
 );
 
 CREATE TABLE contracts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id UUID NOT NULL REFERENCES tenants(id),
-  vendor_id UUID NOT NULL REFERENCES vendors(id),
+  vendor_id UUID NOT NULL,
   contract_no TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','INACTIVE')),
   valid_from DATE NOT NULL,
@@ -31,13 +32,15 @@ CREATE TABLE contracts (
   qty_tolerance_pct NUMERIC(5,2) NOT NULL DEFAULT 0 CHECK (qty_tolerance_pct >= 0),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (tenant_id, contract_no),
-  CHECK (valid_from <= valid_until)
+  CHECK (valid_from <= valid_until),
+  UNIQUE (tenant_id, id),
+  FOREIGN KEY (tenant_id, vendor_id) REFERENCES vendors(tenant_id, id)
 );
 
 CREATE TABLE contract_items (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id UUID NOT NULL REFERENCES tenants(id),
-  contract_id UUID NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+  contract_id UUID NOT NULL,
   item_code TEXT NOT NULL DEFAULT '',
   barcode TEXT NOT NULL DEFAULT '',
   item_name TEXT NOT NULL,
@@ -47,27 +50,31 @@ CREATE TABLE contract_items (
   withholding_code VARCHAR(10),
   requires_delivery BOOLEAN NOT NULL DEFAULT true,
   source_clause_text TEXT NOT NULL DEFAULT '',
-  source_page INT NOT NULL DEFAULT 0
+  source_page INT NOT NULL DEFAULT 0,
+  UNIQUE (tenant_id, id),
+  FOREIGN KEY (tenant_id, contract_id) REFERENCES contracts(tenant_id, id) ON DELETE CASCADE
 );
 CREATE INDEX contract_items_contract_idx ON contract_items (tenant_id, contract_id);
 
 CREATE TABLE despatch_advices (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id UUID NOT NULL REFERENCES tenants(id),
-  vendor_id UUID NOT NULL REFERENCES vendors(id),
+  vendor_id UUID NOT NULL,
   ettn UUID NOT NULL,
   despatch_no TEXT NOT NULL,
   issue_date DATE NOT NULL,
   shipment_date DATE NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (tenant_id, ettn)
+  UNIQUE (tenant_id, ettn),
+  UNIQUE (tenant_id, id),
+  FOREIGN KEY (tenant_id, vendor_id) REFERENCES vendors(tenant_id, id)
 );
 CREATE INDEX despatch_advices_vendor_idx ON despatch_advices (tenant_id, vendor_id, issue_date);
 
 CREATE TABLE despatch_lines (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id UUID NOT NULL REFERENCES tenants(id),
-  despatch_id UUID NOT NULL REFERENCES despatch_advices(id) ON DELETE CASCADE,
+  despatch_id UUID NOT NULL,
   line_id TEXT NOT NULL,
   item_code TEXT NOT NULL DEFAULT '',
   barcode TEXT NOT NULL DEFAULT '',
@@ -75,14 +82,16 @@ CREATE TABLE despatch_lines (
   uom TEXT NOT NULL DEFAULT '',
   delivered_qty NUMERIC(19,4) NOT NULL CHECK (delivered_qty >= 0),
   rejected_qty NUMERIC(19,4) NOT NULL DEFAULT 0 CHECK (rejected_qty >= 0),
-  CHECK (rejected_qty <= delivered_qty)
+  CHECK (rejected_qty <= delivered_qty),
+  UNIQUE (tenant_id, id),
+  FOREIGN KEY (tenant_id, despatch_id) REFERENCES despatch_advices(tenant_id, id) ON DELETE CASCADE
 );
 CREATE INDEX despatch_lines_item_idx ON despatch_lines (tenant_id, item_code);
 
 CREATE TABLE invoices (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id UUID NOT NULL REFERENCES tenants(id),
-  vendor_id UUID NOT NULL REFERENCES vendors(id),
+  vendor_id UUID NOT NULL,
   ettn UUID NOT NULL,
   invoice_no TEXT NOT NULL,
   issue_date DATE NOT NULL,
@@ -94,14 +103,16 @@ CREATE TABLE invoices (
   payable_minor BIGINT NOT NULL,
   audit_status TEXT NOT NULL DEFAULT 'PENDING' CHECK (audit_status IN ('PENDING','GREEN','YELLOW','RED')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (tenant_id, ettn)
+  UNIQUE (tenant_id, ettn),
+  UNIQUE (tenant_id, id),
+  FOREIGN KEY (tenant_id, vendor_id) REFERENCES vendors(tenant_id, id)
 );
 CREATE INDEX invoices_vendor_idx ON invoices (tenant_id, vendor_id, issue_date);
 
 CREATE TABLE invoice_lines (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id UUID NOT NULL REFERENCES tenants(id),
-  invoice_id UUID NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+  invoice_id UUID NOT NULL,
   line_id TEXT NOT NULL,
   item_code TEXT NOT NULL DEFAULT '',
   barcode TEXT NOT NULL DEFAULT '',
@@ -115,7 +126,11 @@ CREATE TABLE invoice_lines (
   withholding_code VARCHAR(10),
   withholding_rate NUMERIC(5,2),
   withholding_amount_minor BIGINT NOT NULL DEFAULT 0,
-  matched_contract_item_id UUID REFERENCES contract_items(id)
+  matched_contract_item_id UUID,
+  UNIQUE (tenant_id, id),
+  FOREIGN KEY (tenant_id, invoice_id) REFERENCES invoices(tenant_id, id) ON DELETE CASCADE,
+  -- MATCH SIMPLE: a NULL matched_contract_item_id skips the check
+  FOREIGN KEY (tenant_id, matched_contract_item_id) REFERENCES contract_items(tenant_id, id)
 );
 CREATE INDEX invoice_lines_invoice_idx ON invoice_lines (tenant_id, invoice_id);
 CREATE INDEX invoice_lines_item_idx ON invoice_lines (tenant_id, item_code);
@@ -123,26 +138,29 @@ CREATE INDEX invoice_lines_item_idx ON invoice_lines (tenant_id, item_code);
 CREATE TABLE invoice_despatch_refs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id UUID NOT NULL REFERENCES tenants(id),
-  invoice_id UUID NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+  invoice_id UUID NOT NULL,
   despatch_no TEXT NOT NULL,
-  issue_date DATE
+  issue_date DATE,
+  FOREIGN KEY (tenant_id, invoice_id) REFERENCES invoices(tenant_id, id) ON DELETE CASCADE
 );
 CREATE INDEX invoice_despatch_refs_invoice_idx ON invoice_despatch_refs (tenant_id, invoice_id);
 
 CREATE TABLE despatch_allocations (
   tenant_id UUID NOT NULL REFERENCES tenants(id),
-  invoice_line_id UUID NOT NULL REFERENCES invoice_lines(id) ON DELETE CASCADE,
-  despatch_line_id UUID NOT NULL REFERENCES despatch_lines(id),
+  invoice_line_id UUID NOT NULL,
+  despatch_line_id UUID NOT NULL,
   qty NUMERIC(19,4) NOT NULL CHECK (qty > 0),
-  PRIMARY KEY (invoice_line_id, despatch_line_id)
+  PRIMARY KEY (invoice_line_id, despatch_line_id),
+  FOREIGN KEY (tenant_id, invoice_line_id) REFERENCES invoice_lines(tenant_id, id) ON DELETE CASCADE,
+  FOREIGN KEY (tenant_id, despatch_line_id) REFERENCES despatch_lines(tenant_id, id)
 );
 CREATE INDEX despatch_allocations_despatch_idx ON despatch_allocations (tenant_id, despatch_line_id);
 
 CREATE TABLE audit_findings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id UUID NOT NULL REFERENCES tenants(id),
-  invoice_id UUID NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
-  invoice_line_id UUID REFERENCES invoice_lines(id) ON DELETE CASCADE,
+  invoice_id UUID NOT NULL,
+  invoice_line_id UUID,
   severity TEXT NOT NULL CHECK (severity IN ('CRITICAL','WARNING','INFO')),
   rule_code TEXT NOT NULL CHECK (rule_code IN ('PRICE_MISMATCH','QTY_EXCEEDS_DELIVERY','UNCONTRACTED_ITEM',
     'MATURITY_VIOLATION','DUPLICATE_SUSPECT','WITHHOLDING_ERROR','PRICE_CREEP','FX_UNVERIFIED','UOM_MISMATCH')),
@@ -154,7 +172,10 @@ CREATE TABLE audit_findings (
   resolution_status TEXT NOT NULL DEFAULT 'OPEN' CHECK (resolution_status IN ('OPEN','DISPUTED','APPROVED_EXCEPTION')),
   resolution_note TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  FOREIGN KEY (tenant_id, invoice_id) REFERENCES invoices(tenant_id, id) ON DELETE CASCADE,
+  -- MATCH SIMPLE: a NULL invoice_line_id skips the check
+  FOREIGN KEY (tenant_id, invoice_line_id) REFERENCES invoice_lines(tenant_id, id) ON DELETE CASCADE
 );
 CREATE INDEX audit_findings_invoice_idx ON audit_findings (tenant_id, invoice_id);
 

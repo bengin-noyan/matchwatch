@@ -2,13 +2,18 @@ package migrate
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+
+	"github.com/bengin-noyan/matchwatch/backend-go/migrations"
 )
 
 func connect(t *testing.T, env string) *pgx.Conn {
@@ -83,6 +88,8 @@ func setup(t *testing.T) (owner, app *pgx.Conn, a, b uuid.UUID) {
 				return
 			}
 			tx.Exec(ctx, "SELECT set_config('app.current_tenant_id', $1, true)", id.String())
+			tx.Exec(ctx, "DELETE FROM invoice_lines WHERE tenant_id=$1", id)
+			tx.Exec(ctx, "DELETE FROM invoices WHERE tenant_id=$1", id)
 			tx.Exec(ctx, "DELETE FROM vendors WHERE tenant_id=$1", id)
 			tx.Exec(ctx, "DELETE FROM tenants WHERE id=$1", id)
 			tx.Commit(ctx)
@@ -99,12 +106,16 @@ func TestMigrateIdempotent(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	files, err := fs.Glob(migrations.FS, "*.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
 	var n int
 	if err := owner.QueryRow(ctx, "SELECT count(*) FROM schema_migrations").Scan(&n); err != nil {
 		t.Fatal(err)
 	}
-	if n != 2 {
-		t.Fatalf("schema_migrations rows = %d, want 2", n)
+	if n != len(files) {
+		t.Fatalf("schema_migrations rows = %d, want %d", n, len(files))
 	}
 }
 
@@ -148,8 +159,10 @@ func TestRLSWithCheck(t *testing.T) {
 	if _, err := tx.Exec(ctx, "SELECT set_config('app.current_tenant_id', $1, true)", a.String()); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := tx.Exec(ctx, `INSERT INTO vendors(tenant_id, vkn, name) VALUES ($1, '9999999999', 'X')`, b); err == nil {
-		t.Fatal("cross-tenant insert succeeded")
+	_, err = tx.Exec(ctx, `INSERT INTO vendors(tenant_id, vkn, name) VALUES ($1, '9999999999', 'X')`, b)
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.Code != "42501" {
+		t.Fatalf("want SQLSTATE 42501, got %v", err)
 	}
 }
 
@@ -169,11 +182,65 @@ func TestWithholdingCodesSeeded(t *testing.T) {
 		t.Fatalf("601 percent=%q err=%v", p, err)
 	}
 	var n int
-	app.QueryRow(ctx, "SELECT count(*) FROM withholding_codes").Scan(&n)
+	if err := app.QueryRow(ctx, "SELECT count(*) FROM withholding_codes").Scan(&n); err != nil {
+		t.Fatal(err)
+	}
 	if n <= 10 {
 		t.Fatalf("only %d codes", n)
 	}
-	if _, err := app.Exec(ctx, "DELETE FROM withholding_codes"); err == nil {
+	tx, err := app.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx)
+	if _, err := tx.Exec(ctx, "DELETE FROM withholding_codes"); err == nil {
 		t.Fatal("app can delete withholding_codes")
 	}
+}
+
+func TestCompositeFKBlocksCrossTenantLinks(t *testing.T) {
+	owner, app, a, b := setup(t)
+	ctx := context.Background()
+	var bVendor, bInvoice, aVendor uuid.UUID
+	inTenant(t, owner, b.String(), func(tx pgx.Tx) {
+		if err := tx.QueryRow(ctx, `INSERT INTO vendors(tenant_id, vkn, name) VALUES ($1, '2222222222', 'BV') RETURNING id`, b).Scan(&bVendor); err != nil {
+			t.Fatal(err)
+		}
+		if err := tx.QueryRow(ctx, `INSERT INTO invoices(tenant_id, vendor_id, ettn, invoice_no, issue_date, currency, payable_minor)
+			VALUES ($1, $2, gen_random_uuid(), 'B1', '2026-01-01', 'TRY', 100) RETURNING id`, b, bVendor).Scan(&bInvoice); err != nil {
+			t.Fatal(err)
+		}
+	})
+	inTenant(t, owner, a.String(), func(tx pgx.Tx) {
+		if err := tx.QueryRow(ctx, `SELECT id FROM vendors WHERE tenant_id=$1`, a).Scan(&aVendor); err != nil {
+			t.Fatal(err)
+		}
+	})
+	fkViolation := func(q string, args ...any) {
+		t.Helper()
+		tx, err := app.Begin(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tx.Rollback(ctx)
+		if _, err := tx.Exec(ctx, "SELECT set_config('app.current_tenant_id', $1, true)", a.String()); err != nil {
+			t.Fatal(err)
+		}
+		_, err = tx.Exec(ctx, q, args...)
+		var pgErr *pgconn.PgError
+		if !errors.As(err, &pgErr) || pgErr.Code != "23503" {
+			t.Fatalf("want FK violation 23503, got %v", err)
+		}
+	}
+	fkViolation(`INSERT INTO invoices(tenant_id, vendor_id, ettn, invoice_no, issue_date, currency, payable_minor)
+		VALUES ($1, $2, gen_random_uuid(), 'A1', '2026-01-01', 'TRY', 100)`, a, bVendor)
+	fkViolation(`INSERT INTO invoice_lines(tenant_id, invoice_id, line_id, qty, unit_price, line_extension_minor)
+		VALUES ($1, $2, '1', 1, 1, 100)`, a, bInvoice)
+	// Control: the same insert with A's own vendor is accepted.
+	inTenant(t, app, a.String(), func(tx pgx.Tx) {
+		if _, err := tx.Exec(ctx, `INSERT INTO invoices(tenant_id, vendor_id, ettn, invoice_no, issue_date, currency, payable_minor)
+			VALUES ($1, $2, gen_random_uuid(), 'A1', '2026-01-01', 'TRY', 100)`, a, aVendor); err != nil {
+			t.Fatal(err)
+		}
+	})
 }
