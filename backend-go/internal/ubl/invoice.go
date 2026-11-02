@@ -82,7 +82,7 @@ type xmlInvoice struct {
 	Payment struct {
 		DueDate string `xml:"urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2 PaymentDueDate"`
 	} `xml:"urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2 PaymentMeans"`
-	TaxTotal xmlTaxTotal `xml:"urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2 TaxTotal"`
+	TaxTotal []xmlTaxTotal `xml:"urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2 TaxTotal"`
 	Totals   struct {
 		TaxExclusive string `xml:"urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2 TaxExclusiveAmount"`
 		Payable      string `xml:"urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2 PayableAmount"`
@@ -98,8 +98,8 @@ type xmlInvoice struct {
 			Charge string `xml:"urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2 ChargeIndicator"`
 			Amount string `xml:"urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2 Amount"`
 		} `xml:"urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2 AllowanceCharge"`
-		Tax         xmlTaxTotal `xml:"urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2 TaxTotal"`
-		Withholding xmlTaxTotal `xml:"urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2 WithholdingTaxTotal"`
+		Tax         []xmlTaxTotal `xml:"urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2 TaxTotal"`
+		Withholding []xmlTaxTotal `xml:"urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2 WithholdingTaxTotal"`
 		Item        struct {
 			Name string `xml:"urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2 Name"`
 			Code struct {
@@ -146,13 +146,14 @@ func (x *xmlInvoice) convert() (*Invoice, error) {
 		ProfileID: strings.TrimSpace(x.ProfileID),
 		Currency:  strings.TrimSpace(x.Currency),
 	}
-	if _, err := uuid.Parse(inv.ETTN); err != nil {
+	u, err := uuid.Parse(inv.ETTN)
+	if err != nil {
 		return nil, &ValidationError{"UUID", "must be a valid UUID"}
 	}
+	inv.ETTN = u.String()
 	if inv.Number == "" {
 		return nil, &ValidationError{"ID", "must not be empty"}
 	}
-	var err error
 	if inv.IssueDate, err = parseDate("IssueDate", x.IssueDate); err != nil {
 		return nil, err
 	}
@@ -184,8 +185,12 @@ func (x *xmlInvoice) convert() (*Invoice, error) {
 	if inv.TaxExclusive, err = parseDecimal("TaxExclusiveAmount", x.Totals.TaxExclusive); err != nil {
 		return nil, err
 	}
-	if inv.TaxAmount, err = parseDecimal("TaxAmount", x.TaxTotal.Amount); err != nil {
-		return nil, err
+	for _, t := range x.TaxTotal {
+		amt, err := parseDecimal("TaxAmount", t.Amount)
+		if err != nil {
+			return nil, err
+		}
+		inv.TaxAmount = inv.TaxAmount.Add(amt)
 	}
 	if inv.Payable, err = parseDecimal("PayableAmount", x.Totals.Payable); err != nil {
 		return nil, err
@@ -217,7 +222,7 @@ func (x *xmlInvoice) convert() (*Invoice, error) {
 			return nil, err
 		}
 		for _, a := range l.Allowances {
-			if strings.TrimSpace(a.Charge) != "false" {
+			if !strings.EqualFold(strings.TrimSpace(a.Charge), "false") {
 				continue
 			}
 			amt, err := parseDecimal("AllowanceCharge.Amount", a.Amount)
@@ -226,21 +231,32 @@ func (x *xmlInvoice) convert() (*Invoice, error) {
 			}
 			line.Allowance = line.Allowance.Add(amt)
 		}
-		for _, s := range l.Tax.Subtotals {
-			if strings.TrimSpace(s.Category.Scheme.Code) == taxKDV {
-				if line.VATRate, err = parseDecimal("Percent", s.Percent); err != nil {
-					return nil, err
+	vat:
+		for _, t := range l.Tax {
+			for _, s := range t.Subtotals {
+				if strings.TrimSpace(s.Category.Scheme.Code) == taxKDV {
+					if line.VATRate, err = parseDecimal("Percent", s.Percent); err != nil {
+						return nil, err
+					}
+					break vat
 				}
-				break
 			}
 		}
-		if line.WithholdingAmount, err = parseDecimal("WithholdingTaxTotal.TaxAmount", l.Withholding.Amount); err != nil {
-			return nil, err
+		var wh []xmlTaxSubtotal
+		for _, t := range l.Withholding {
+			amt, err := parseDecimal("WithholdingTaxTotal.TaxAmount", t.Amount)
+			if err != nil {
+				return nil, err
+			}
+			line.WithholdingAmount = line.WithholdingAmount.Add(amt)
+			wh = append(wh, t.Subtotals...)
 		}
-		if len(l.Withholding.Subtotals) > 0 {
-			s := l.Withholding.Subtotals[0]
-			line.WithholdingCode = strings.TrimSpace(s.Category.Scheme.Code)
-			if line.WithholdingPercent, err = parseDecimal("Percent", s.Percent); err != nil {
+		if len(wh) > 1 {
+			return nil, &ValidationError{"WithholdingTaxTotal", "line " + line.LineID + ": more than one withholding subtotal"}
+		}
+		if len(wh) == 1 {
+			line.WithholdingCode = strings.TrimSpace(wh[0].Category.Scheme.Code)
+			if line.WithholdingPercent, err = parseDecimal("Percent", wh[0].Percent); err != nil {
 				return nil, err
 			}
 		}

@@ -155,3 +155,45 @@ func TestParseInvoiceAlternatePrefixes(t *testing.T) {
 	eq(t, "L2.WithholdingCode", inv.Lines[1].WithholdingCode, "601")
 	eq(t, "Supplier.VKN", inv.Supplier.VKN, "1234567890")
 }
+
+func fixtureString(t *testing.T, name string) string {
+	t.Helper()
+	b, err := os.ReadFile("../../testdata/" + name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
+
+func TestParseInvoiceCanonicalETTN(t *testing.T) {
+	const canon = "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+	for _, in := range []string{strings.ToUpper(canon), "{" + canon + "}", "urn:uuid:" + canon, strings.ReplaceAll(canon, "-", "")} {
+		x := strings.Replace(fixtureString(t, "invoice_basic.xml"), canon, in, 1)
+		inv, err := ParseInvoice(strings.NewReader(x))
+		if err != nil {
+			t.Fatalf("%q: %v", in, err)
+		}
+		eq(t, "ETTN("+in+")", inv.ETTN, canon)
+	}
+}
+
+func TestParseInvoiceMultipleTaxTotals(t *testing.T) {
+	x := strings.Replace(fixtureString(t, "invoice_basic.xml"), "<cac:LegalMonetaryTotal>",
+		`<cac:TaxTotal><cbc:TaxAmount currencyID="TRY">10.50</cbc:TaxAmount></cac:TaxTotal><cac:LegalMonetaryTotal>`, 1)
+	inv, err := ParseInvoice(strings.NewReader(x))
+	if err != nil {
+		t.Fatal(err)
+	}
+	eq(t, "TaxAmount", inv.TaxAmount.String(), "470.5")
+}
+
+func TestParseInvoiceTwoWithholdingSubtotals(t *testing.T) {
+	sub := `<cac:TaxSubtotal><cbc:Percent>10</cbc:Percent><cac:TaxCategory><cac:TaxScheme><cbc:TaxTypeCode>602</cbc:TaxTypeCode></cac:TaxScheme></cac:TaxCategory></cac:TaxSubtotal>`
+	x := strings.Replace(fixtureString(t, "invoice_basic.xml"), "</cac:WithholdingTaxTotal>", sub+"</cac:WithholdingTaxTotal>", 1)
+	_, err := ParseInvoice(strings.NewReader(x))
+	var ve *ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("err = %v, want *ValidationError", err)
+	}
+	eq(t, "Field", ve.Field, "WithholdingTaxTotal")
+}
