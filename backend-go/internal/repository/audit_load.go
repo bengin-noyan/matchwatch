@@ -133,16 +133,17 @@ func (tx *Tx) DespatchCandidates(ctx context.Context, inv domain.Invoice) ([]dom
 }
 
 // PriceHistory returns the vendor's earlier net unit prices for the same item, oldest first,
-// excluding the invoice being audited. shortcut: unbounded history, cap it if vendors accumulate thousands of lines.
+// excluding the invoice being audited. Same currency and uom, issued in [IssueDate-180d, IssueDate).
 func (tx *Tx) PriceHistory(ctx context.Context, inv domain.Invoice, line domain.InvoiceLine) ([]domain.PricePoint, error) {
 	if line.ItemCode == "" && line.Barcode == "" {
 		return nil, nil
 	}
 	rows, err := tx.Query(ctx, `SELECT i.issue_date, l.line_extension_minor, l.qty::text
 		FROM invoice_lines l JOIN invoices i ON i.tenant_id=l.tenant_id AND i.id=l.invoice_id
-		WHERE l.tenant_id=$1 AND i.vendor_id=$2 AND i.id <> $3 AND i.issue_date <= $4 AND l.qty > 0
+		WHERE l.tenant_id=$1 AND i.vendor_id=$2 AND i.id <> $3 AND i.issue_date < $4 AND i.issue_date >= $4::date - 180 AND l.qty > 0
+		  AND i.currency=$7 AND l.uom=$8
 		  AND ((l.item_code <> '' AND l.item_code=$5) OR (l.barcode <> '' AND l.barcode=$6))
-		ORDER BY i.issue_date, i.created_at, i.id, l.id`, tx.tenantID, inv.VendorID, inv.ID, inv.IssueDate, line.ItemCode, line.Barcode)
+		ORDER BY i.issue_date, i.created_at, i.id, l.id`, tx.tenantID, inv.VendorID, inv.ID, inv.IssueDate, line.ItemCode, line.Barcode, inv.Currency, line.UOM)
 	if err != nil {
 		return nil, wrap("price history", err)
 	}

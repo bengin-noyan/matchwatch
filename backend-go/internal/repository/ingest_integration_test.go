@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/shopspring/decimal"
 
+	"github.com/bengin-noyan/matchwatch/backend-go/internal/domain"
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/migrate"
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/ubl"
 )
@@ -345,5 +346,49 @@ func TestInTenantRollsBackOnPanic(t *testing.T) {
 		return tx.QueryRow(ctx, `SELECT count(*) FROM vendors`).Scan(&n)
 	}); err != nil || n != 0 {
 		t.Fatalf("n=%d err=%v", n, err)
+	}
+}
+
+func TestPriceHistoryWindowCurrencyUOM(t *testing.T) {
+	s, tid := setup(t)
+	ctx := context.Background()
+	target := parseInvoice(t)
+	day := func(off int) time.Time { return target.IssueDate.AddDate(0, 0, off) }
+	err := s.InTenant(ctx, tid, func(tx *Tx) error {
+		v, err := tx.UpsertVendor(ctx, target.Supplier.VKN, target.Supplier.Title)
+		if err != nil {
+			return err
+		}
+		add := func(off int, cur, uom string) error {
+			inv := parseInvoice(t)
+			inv.Number, inv.IssueDate, inv.Currency, inv.Lines[0].UOM = uuid.NewString()[:12], day(off), cur, uom
+			_, err := tx.InsertInvoice(ctx, v, inv, "")
+			return err
+		}
+		uom := target.Lines[0].UOM
+		for _, h := range []struct {
+			off      int
+			cur, uom string
+		}{{-10, "TRY", uom}, {-180, "TRY", uom}, // kept; -180 is the inclusive lower bound
+			{-10, "USD", uom}, {-181, "TRY", uom}, {0, "TRY", uom}, {-10, "TRY", "KGM"}} { // all excluded
+			if err := add(h.off, h.cur, h.uom); err != nil {
+				return err
+			}
+		}
+		id, err := tx.InsertInvoice(ctx, v, target, "")
+		if err != nil {
+			return err
+		}
+		pts, err := tx.PriceHistory(ctx, domain.Invoice{ID: id, VendorID: v, Currency: "TRY", IssueDate: target.IssueDate}, domain.InvoiceLine{ItemCode: target.Lines[0].ItemCode, UOM: uom})
+		if err != nil {
+			return err
+		}
+		if len(pts) != 2 || !pts[0].IssueDate.Equal(day(-180)) || !pts[1].IssueDate.Equal(day(-10)) {
+			t.Errorf("history = %+v, want the -180d and -10d TRY points", pts)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }
