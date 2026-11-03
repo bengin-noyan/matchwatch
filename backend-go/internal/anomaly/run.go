@@ -31,7 +31,10 @@ func Run(in Input) []domain.Finding {
 		out = append(out, uncontractedItem(in, lc)...)
 		out = append(out, priceRules(in, lc)...)
 		out = append(out, qtyExceeds(in, lc)...)
+		out = append(out, withholdingError(in, lc)...)
+		out = append(out, priceCreep(in, lc)...)
 	}
 	out = append(out, maturityViolation(in)...)
+	out = append(out, duplicateSuspect(in)...)
 	return out
 }
