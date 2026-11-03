@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -12,6 +13,7 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/domain"
+	"github.com/bengin-noyan/matchwatch/backend-go/internal/matcher"
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/migrate"
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/repository"
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/ubl"
@@ -56,7 +58,7 @@ func setup(t *testing.T) *env {
 	}
 	t.Cleanup(pool.Close)
 	s := repository.NewStore(pool)
-	tid, err := s.CreateTenant(ctx, "audit-"+uuid.NewString(), uuid.NewString()[:8]+"00", decimal.RequireFromString("0.4500"))
+	tid, err := s.CreateTenant(ctx, "audit-"+uuid.NewString(), "9876543210", decimal.RequireFromString("0.4500"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -298,5 +300,65 @@ func TestAuditSecondInvoiceSameDespatch(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("no QTY_EXCEEDS_DELIVERY on second invoice")
+	}
+}
+
+// TestAuditConcurrentSameDespatch: tx A holds the despatch-line lock with its allocations inserted but not yet
+// committed while audit B starts and blocks on the lock. After A commits, B must see A's allocations.
+func TestAuditConcurrentSameDespatch(t *testing.T) {
+	e := setup(t)
+	a, b := e.ingest(t, true), e.ingest(t, true)
+	ctx := context.Background()
+	started := make(chan struct{})
+	done := make(chan error, 1)
+	err := e.store.InTenant(ctx, e.tid, func(tx *repository.Tx) error {
+		if _, err := tx.ResetAudit(ctx, a); err != nil {
+			return err
+		}
+		inv, err := tx.LoadInvoice(ctx, a)
+		if err != nil {
+			return err
+		}
+		cands, err := tx.DespatchCandidates(ctx, inv) // takes the lock
+		if err != nil {
+			return err
+		}
+		var allocs []domain.Allocation
+		for _, l := range inv.Lines {
+			allocs = append(allocs, matcher.Allocate(l, cands).Allocations...)
+		}
+		if err := tx.SaveAudit(ctx, a, nil, allocs, nil, domain.AuditGreen); err != nil {
+			return err
+		}
+		go func() {
+			close(started)
+			_, err := e.svc.AuditInvoice(ctx, e.tid, b)
+			done <- err
+		}()
+		<-started
+		time.Sleep(500 * time.Millisecond) // let B reach the lock wait before A commits
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	total := e.count(t, `SELECT COALESCE(SUM(a.qty),0)::int FROM despatch_allocations a JOIN invoice_lines l ON l.id=a.invoice_line_id
+		WHERE l.invoice_id IN ($1,$2)`, a, b)
+	if total > 950 {
+		t.Fatalf("allocated %d > 950 delivered", total)
+	}
+	qty := 0
+	for _, id := range []uuid.UUID{b} {
+		for _, r := range e.findings(t, id) {
+			if r.rule == domain.RuleQtyExceedsDelivery {
+				qty++
+			}
+		}
+	}
+	if qty != 1 {
+		t.Fatalf("expected QTY_EXCEEDS_DELIVERY on B, got %d", qty)
 	}
 }

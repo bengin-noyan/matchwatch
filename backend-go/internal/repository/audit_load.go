@@ -97,23 +97,23 @@ func (tx *Tx) ActiveContract(ctx context.Context, vendorID uuid.UUID, on time.Ti
 // DespatchCandidates lists despatch lines the invoice may draw on, locking them so concurrent audits serialize.
 // Available = delivered - rejected - allocations made by other invoices.
 func (tx *Tx) DespatchCandidates(ctx context.Context, inv domain.Invoice) ([]domain.DespatchCandidate, error) {
-	const sel = `SELECT dl.id, dl.item_code, dl.barcode, dl.uom,
+	const from = ` FROM despatch_lines dl JOIN despatch_advices da ON da.tenant_id=dl.tenant_id AND da.id=dl.despatch_id
+		WHERE dl.tenant_id=$1 AND da.vendor_id=$2 AND `
+	where, args := `da.despatch_no IN (SELECT despatch_no FROM invoice_despatch_refs WHERE tenant_id=$1 AND invoice_id=$3)`,
+		[]any{tx.tenantID, inv.VendorID, inv.ID}
+	if !inv.HasDespatchRefs {
+		where, args = `da.issue_date BETWEEN $4::date - 30 AND $4::date`, append(args, inv.IssueDate)
+	}
+	// Lock first, in its own statement: the Available query below must take a fresh READ COMMITTED snapshot
+	// after any competing audit has committed its allocations (the locked rows themselves are never updated).
+	if _, err := tx.Exec(ctx, `SELECT dl.id`+from+where+` ORDER BY dl.id FOR UPDATE OF dl`, args...); err != nil {
+		return nil, wrap("lock despatch lines", err)
+	}
+	rows, err := tx.Query(ctx, `SELECT dl.id, dl.item_code, dl.barcode, dl.uom,
 		(dl.delivered_qty - dl.rejected_qty - COALESCE((SELECT SUM(a.qty) FROM despatch_allocations a
 			JOIN invoice_lines il ON il.tenant_id=a.tenant_id AND il.id=a.invoice_line_id
 			WHERE a.tenant_id=dl.tenant_id AND a.despatch_line_id=dl.id AND il.invoice_id <> $3), 0))::text,
-		da.shipment_date
-		FROM despatch_lines dl JOIN despatch_advices da ON da.tenant_id=dl.tenant_id AND da.id=dl.despatch_id
-		WHERE dl.tenant_id=$1 AND da.vendor_id=$2 AND `
-	const tail = ` ORDER BY dl.id FOR UPDATE OF dl`
-	var rows pgx.Rows
-	var err error
-	if inv.HasDespatchRefs {
-		rows, err = tx.Query(ctx, sel+`da.despatch_no IN (SELECT despatch_no FROM invoice_despatch_refs
-			WHERE tenant_id=$1 AND invoice_id=$3)`+tail, tx.tenantID, inv.VendorID, inv.ID)
-	} else {
-		rows, err = tx.Query(ctx, sel+`da.issue_date BETWEEN $4::date - 30 AND $4::date`+tail,
-			tx.tenantID, inv.VendorID, inv.ID, inv.IssueDate)
-	}
+		da.shipment_date`+from+where+` ORDER BY dl.id`, args...)
 	if err != nil {
 		return nil, wrap("despatch candidates", err)
 	}
