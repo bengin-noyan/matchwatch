@@ -17,11 +17,18 @@ type ReceiptLine struct {
 }
 
 type ReceiptAdvice struct {
-	DespatchNumber string
-	Lines          []ReceiptLine
+	DespatchNumber     string
+	Supplier, Customer Party
+	Lines              []ReceiptLine
 }
 
 type xmlReceipt struct {
+	Supplier struct {
+		Party xmlParty `xml:"urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2 Party"`
+	} `xml:"urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2 DespatchSupplierParty"`
+	Customer struct {
+		Party xmlParty `xml:"urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2 Party"`
+	} `xml:"urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2 DeliveryCustomerParty"`
 	Despatch struct {
 		ID string `xml:"urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2 ID"`
 	} `xml:"urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2 DespatchDocumentReference"`
@@ -43,6 +50,13 @@ func ParseReceipt(r io.Reader) (*ReceiptAdvice, error) {
 	if out.DespatchNumber == "" {
 		return nil, &ValidationError{"DespatchDocumentReference.ID", "must not be empty"}
 	}
+	var err error
+	if out.Supplier, err = x.Supplier.Party.party("Supplier"); err != nil {
+		return nil, err
+	}
+	if out.Customer, err = x.Customer.Party.party("Customer"); err != nil {
+		return nil, err
+	}
 	if len(x.Lines) == 0 {
 		return nil, &ValidationError{"ReceiptLine", "at least one line required"}
 	}
@@ -51,7 +65,6 @@ func ParseReceipt(r io.Reader) (*ReceiptAdvice, error) {
 		if line.DespatchLineID == "" {
 			return nil, &ValidationError{"DespatchLineReference.LineID", "must not be empty"}
 		}
-		var err error
 		if line.RejectedQty, err = parseDecimal("RejectedQuantity", l.Rejected); err != nil {
 			return nil, err
 		}

@@ -55,6 +55,9 @@ func (tx *Tx) InsertContract(ctx context.Context, c ContractInput) (uuid.UUID, e
 		payment_term_days, currency, qty_tolerance_pct, file_path) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
 		tx.tenantID, c.VendorID, c.Number, c.ValidFrom, c.ValidUntil, c.PaymentTermDays, c.Currency,
 		num(c.QtyTolerancePct), c.FilePath).Scan(&id)
+	if isUniqueOn(err, "contract_no") {
+		return id, ErrDuplicateContract
+	}
 	if err != nil {
 		return id, wrap("insert contract", err)
 	}

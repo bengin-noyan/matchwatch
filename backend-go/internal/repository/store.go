@@ -16,10 +16,11 @@ import (
 )
 
 var (
-	ErrDuplicateETTN    = errors.New("repository: duplicate ETTN")
-	ErrCustomerMismatch = errors.New("repository: customer VKN does not match tenant")
-	ErrNotFound         = errors.New("repository: not found")
-	ErrUnknownDespatch  = errors.New("repository: unknown despatch")
+	ErrDuplicateETTN     = errors.New("repository: duplicate ETTN")
+	ErrCustomerMismatch  = errors.New("repository: customer VKN does not match tenant")
+	ErrNotFound          = errors.New("repository: not found")
+	ErrUnknownDespatch   = errors.New("repository: unknown despatch")
+	ErrDuplicateContract = errors.New("repository: duplicate contract number")
 )
 
 type Store struct{ pool *pgxpool.Pool }
@@ -84,3 +85,6 @@ func wrap(op string, err error) error {
 	}
 	return fmt.Errorf("%s: %w", op, err)
 }
+
+// Ping checks database connectivity (used by /healthz).
+func (s *Store) Ping(ctx context.Context) error { return s.pool.Ping(ctx) }
