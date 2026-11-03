@@ -219,21 +219,45 @@ func (tx *Tx) InvoiceDetail(ctx context.Context, id uuid.UUID) (InvoiceDetailRow
 	return d, frows.Err()
 }
 
-// UpdateFinding records a human resolution; status must already be validated by the caller.
-func (tx *Tx) UpdateFinding(ctx context.Context, id uuid.UUID, status domain.Resolution, note string) error {
+// UpdateFinding records a human resolution and returns the finding's invoice; status must already be validated by the caller.
+func (tx *Tx) UpdateFinding(ctx context.Context, id uuid.UUID, status domain.Resolution, note string) (uuid.UUID, error) {
 	var n *string
 	if note != "" {
 		n = &note
 	}
-	tag, err := tx.Exec(ctx, `UPDATE audit_findings SET resolution_status=$1, resolution_note=$2, updated_at=now()
-		WHERE tenant_id=$3 AND id=$4`, string(status), n, tx.tenantID, id)
+	var invoiceID uuid.UUID
+	err := tx.QueryRow(ctx, `UPDATE audit_findings SET resolution_status=$1, resolution_note=$2, updated_at=now()
+		WHERE tenant_id=$3 AND id=$4 RETURNING invoice_id`, string(status), n, tx.tenantID, id).Scan(&invoiceID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return invoiceID, ErrNotFound
+	}
+	return invoiceID, wrap("update finding", err)
+}
+
+// CountedSeverities lists the severities of the invoice's findings that still count towards its status
+// (everything except APPROVED_EXCEPTION).
+func (tx *Tx) CountedSeverities(ctx context.Context, invoiceID uuid.UUID) ([]domain.Severity, error) {
+	rows, err := tx.Query(ctx, `SELECT severity FROM audit_findings
+		WHERE tenant_id=$1 AND invoice_id=$2 AND resolution_status <> 'APPROVED_EXCEPTION'`, tx.tenantID, invoiceID)
 	if err != nil {
-		return wrap("update finding", err)
+		return nil, wrap("counted severities", err)
 	}
-	if tag.RowsAffected() == 0 {
-		return ErrNotFound
+	defer rows.Close()
+	var out []domain.Severity
+	for rows.Next() {
+		var sev domain.Severity
+		if err := rows.Scan(&sev); err != nil {
+			return nil, wrap("scan severity", err)
+		}
+		out = append(out, sev)
 	}
-	return nil
+	return out, rows.Err()
+}
+
+// SetAuditStatus stores the invoice's audit status.
+func (tx *Tx) SetAuditStatus(ctx context.Context, invoiceID uuid.UUID, status domain.AuditStatus) error {
+	_, err := tx.Exec(ctx, `UPDATE invoices SET audit_status=$1 WHERE tenant_id=$2 AND id=$3`, string(status), tx.tenantID, invoiceID)
+	return wrap("set audit status", err)
 }
 
 type CurrencySummary struct {

@@ -405,3 +405,45 @@ func TestSharedETTNKeepsBothRawFiles(t *testing.T) {
 		}
 	}
 }
+
+func TestPatchFindingRefreshesAuditStatus(t *testing.T) {
+	e := setup(t, "9876543210")
+	e.loadContract()
+	code, b := e.req("POST", "/api/v1/invoices", invoiceXML(t))
+	e.mustStatus(201, code, b)
+	id := str(b["id"])
+	code, b = e.req("GET", "/api/v1/invoices/"+id, nil)
+	e.mustStatus(200, code, b)
+	status := func() string {
+		code, b := e.req("GET", "/api/v1/invoices/"+id, nil)
+		e.mustStatus(200, code, b)
+		return str(b["audit_status"])
+	}
+	if status() != "RED" {
+		t.Fatalf("initial status %s", status())
+	}
+	// CRITICALs first: RED -> YELLOW only once both are approved, GREEN once the WARNING is too
+	var crit, warn []string
+	for _, f := range list(b["findings"]) {
+		if str(obj(f)["severity"]) == "CRITICAL" {
+			crit = append(crit, str(obj(f)["id"]))
+		} else {
+			warn = append(warn, str(obj(f)["id"]))
+		}
+	}
+	approve := `{"resolution_status":"APPROVED_EXCEPTION"}`
+	for i, fid := range append(crit, warn...) {
+		code, b := e.req("PATCH", "/api/v1/findings/"+fid, []byte(approve))
+		e.mustStatus(200, code, b)
+		want := map[int]string{0: "RED", 1: "YELLOW", 2: "GREEN"}[i]
+		if got := status(); got != want {
+			t.Fatalf("after approving %d finding(s): %s, want %s", i+1, got, want)
+		}
+	}
+	// reopening one brings the status back
+	code, b = e.req("PATCH", "/api/v1/findings/"+crit[0], []byte(`{"resolution_status":"OPEN"}`))
+	e.mustStatus(200, code, b)
+	if got := status(); got != "RED" {
+		t.Fatalf("after reopening: %s", got)
+	}
+}

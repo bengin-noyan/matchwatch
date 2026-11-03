@@ -35,7 +35,7 @@ MATCHWATCH_TEST_DATABASE_URL=... MATCHWATCH_TEST_MIGRATE_URL=... go test ./... -
 
 ## Architecture
 
-The data flow is: parse XML → persist → load audit input → match → run rules → save findings. All of it happens in one tenant transaction.
+The data flow is: parse XML → persist → load audit input → match → run rules → save findings. Invoice ingest commits in its own tenant transaction; the audit (load, match, rules, save) then runs in a second one.
 
 - `internal/ubl`: XML → parser structs. Struct tags match on the **namespace URI, never the prefix**, and paths are nested structs. ETTN is stored canonical (`uuid.Parse(...).String()`). Parse errors are `*ValidationError{Field, Reason}` or `ErrNot<Doc>` and must never panic.
 - `internal/domain`: shared types and money helpers. `ToMinor` is the **only** decimal→kuruş conversion (half-away-from-zero). Rule, severity and status constants live here (`RulePriceMismatch`, `AuditRed`, `ResolutionDisputed`, …).

@@ -396,9 +396,7 @@ func (s *server) patchFinding(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 422, "INVALID_RESOLUTION", "note exceeds 2000 bytes")
 		return
 	}
-	err := s.store.InTenant(r.Context(), auth.TenantID(r.Context()), func(tx *repository.Tx) error {
-		return tx.UpdateFinding(r.Context(), id, domain.Resolution(req.ResolutionStatus), req.Note)
-	})
+	_, err := s.auditor.Resolve(r.Context(), auth.TenantID(r.Context()), id, domain.Resolution(req.ResolutionStatus), req.Note)
 	if err != nil {
 		fail(w, err)
 		return

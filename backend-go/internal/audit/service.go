@@ -80,6 +80,29 @@ func (s *Service) AuditInvoice(ctx context.Context, tenantID, invoiceID uuid.UUI
 	return status, err
 }
 
+// Resolve records a human resolution and refreshes the invoice's audit status in the same transaction.
+// It does not re-audit: OPEN findings would be rebuilt with new ids.
+func (s *Service) Resolve(ctx context.Context, tenantID, findingID uuid.UUID, res domain.Resolution, note string) (domain.AuditStatus, error) {
+	var status domain.AuditStatus
+	err := s.store.InTenant(ctx, tenantID, func(tx *repository.Tx) error {
+		invoiceID, err := tx.UpdateFinding(ctx, findingID, res, note)
+		if err != nil {
+			return err
+		}
+		sevs, err := tx.CountedSeverities(ctx, invoiceID)
+		if err != nil {
+			return err
+		}
+		fs := make([]domain.Finding, len(sevs))
+		for i, sev := range sevs {
+			fs[i].Severity = sev
+		}
+		status = anomaly.Status(fs)
+		return tx.SetAuditStatus(ctx, invoiceID, status)
+	})
+	return status, err
+}
+
 func isKept(kept []repository.KeptFinding, f domain.Finding) bool {
 	for _, k := range kept {
 		if k.RuleCode != f.RuleCode {
