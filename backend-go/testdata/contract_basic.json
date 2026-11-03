@@ -1,0 +1,32 @@
+{
+  "vendor_vkn": "1234567890",
+  "vendor_name": "Demir Bağlantı A.Ş.",
+  "contract_no": "S-2026-001",
+  "valid_from": "2026-01-01",
+  "valid_until": "2026-12-31",
+  "payment_term_days": 60,
+  "currency": "TRY",
+  "qty_tolerance_pct": "2.00",
+  "items": [
+    {
+      "item_code": "CV-M8-20",
+      "barcode": "8690000000017",
+      "name": "M8x20 paslanmaz civata",
+      "unit_price": "1.250000",
+      "currency": "TRY",
+      "uom": "C62",
+      "source_page": 3,
+      "source_clause_text": "Madde 4.1: M8x20 paslanmaz civata birim fiyatı 1,25 TL + KDV'dir."
+    },
+    {
+      "item_code": "SRV-BAKIM",
+      "name": "Makine bakım hizmeti",
+      "unit_price": "1000.000000",
+      "currency": "TRY",
+      "uom": "C62",
+      "withholding_code": "601",
+      "requires_delivery": false,
+      "source_page": 4
+    }
+  ]
+}
