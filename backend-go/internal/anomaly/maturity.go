@@ -33,6 +33,7 @@ func maturityViolation(in Input) []domain.Finding {
 		Expected: strconv.Itoa(term) + " days", Actual: strconv.Itoa(days) + " days",
 		ImpactMinor: domain.ToMinor(impact), ImpactCurrency: in.Invoice.Currency,
 		Evidence: map[string]any{"contract_no": in.Contract.Number, "payment_term_days": term,
-			"actual_days": days, "financing_rate_annual": in.FinancingRateAnnual.String()},
+			"actual_days": days, "financing_rate_annual": in.FinancingRateAnnual.String(),
+			"source_page": in.Contract.PaymentTermSourcePage, "source_clause_text": in.Contract.PaymentTermClauseText},
 	}}
 }

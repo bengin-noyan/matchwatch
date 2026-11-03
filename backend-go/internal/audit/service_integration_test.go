@@ -223,6 +223,14 @@ func TestAuditBasicInvoice(t *testing.T) {
 	if got != want {
 		t.Fatalf("got %s want %s", got, want)
 	}
+	for _, r := range e.findings(t, inv) {
+		if r.rule == domain.RuleMaturityViolation {
+			if r.evidence["source_page"] != float64(2) || r.evidence["contract_no"] != "S-2026-001" ||
+				r.evidence["source_clause_text"] != "Madde 3.2: Ödeme vadesi fatura tarihinden itibaren 60 gündür." {
+				t.Errorf("maturity evidence %+v", r.evidence)
+			}
+		}
+	}
 	var st string
 	if err := e.store.InTenant(context.Background(), e.tid, func(tx *repository.Tx) error {
 		return tx.QueryRow(context.Background(), `SELECT audit_status FROM invoices WHERE id=$1`, inv).Scan(&st)

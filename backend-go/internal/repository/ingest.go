@@ -21,6 +21,8 @@ type ContractInput struct {
 	PaymentTermDays       int
 	Currency              string
 	QtyTolerancePct       decimal.Decimal
+	PaymentTermSourcePage int // 0 = unknown
+	PaymentTermClauseText string
 	FilePath              string
 	Items                 []ContractItemInput
 }
@@ -52,9 +54,10 @@ func (tx *Tx) UpsertVendor(ctx context.Context, vkn, title string) (uuid.UUID, e
 func (tx *Tx) InsertContract(ctx context.Context, c ContractInput) (uuid.UUID, error) {
 	var id uuid.UUID
 	err := tx.QueryRow(ctx, `INSERT INTO contracts(tenant_id, vendor_id, contract_no, valid_from, valid_until,
-		payment_term_days, currency, qty_tolerance_pct, file_path) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+		payment_term_days, currency, qty_tolerance_pct, file_path, payment_term_source_page, payment_term_clause_text)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NULLIF($10,0),$11) RETURNING id`,
 		tx.tenantID, c.VendorID, c.Number, c.ValidFrom, c.ValidUntil, c.PaymentTermDays, c.Currency,
-		num(c.QtyTolerancePct), c.FilePath).Scan(&id)
+		num(c.QtyTolerancePct), c.FilePath, c.PaymentTermSourcePage, c.PaymentTermClauseText).Scan(&id)
 	if isUniqueOn(err, "contract_no") {
 		return id, ErrDuplicateContract
 	}

@@ -33,6 +33,8 @@ type contractJSON struct {
 	PaymentTermDays *int             `json:"payment_term_days"`
 	Currency        string           `json:"currency"`
 	QtyTolerancePct *decimal.Decimal `json:"qty_tolerance_pct"`
+	PaymentTermPage *int             `json:"payment_term_source_page"`
+	PaymentTermText string           `json:"payment_term_clause_text"`
 	Items           []struct {
 		ItemCode         string           `json:"item_code"`
 		Barcode          string           `json:"barcode"`
@@ -70,12 +72,18 @@ func ParseContractJSON(r io.Reader) (ContractDoc, error) {
 		return bad("currency must be three uppercase letters")
 	case j.QtyTolerancePct == nil || !sane(*j.QtyTolerancePct) || j.QtyTolerancePct.IsNegative() || j.QtyTolerancePct.GreaterThan(decimal.NewFromInt(100)):
 		return bad("qty_tolerance_pct is required and must be 0..100")
+	case j.PaymentTermPage != nil && (*j.PaymentTermPage < 1 || *j.PaymentTermPage > 100000):
+		return bad("payment_term_source_page must be >= 1")
 	case len(j.Items) == 0 || len(j.Items) > 5000:
 		return bad("items must hold 1..5000 entries")
 	}
 	doc := ContractDoc{VendorVKN: j.VendorVKN, VendorName: j.VendorName}
 	c := &doc.ContractInput
 	c.Number, c.PaymentTermDays, c.Currency, c.QtyTolerancePct = j.ContractNo, *j.PaymentTermDays, j.Currency, *j.QtyTolerancePct
+	if j.PaymentTermPage != nil {
+		c.PaymentTermSourcePage = *j.PaymentTermPage
+	}
+	c.PaymentTermClauseText = j.PaymentTermText
 	var err error
 	if c.ValidFrom, err = time.Parse("2006-01-02", j.ValidFrom); err != nil {
 		return bad("valid_from: %v", err)

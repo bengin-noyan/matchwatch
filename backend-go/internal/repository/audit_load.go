@@ -62,10 +62,11 @@ func (tx *Tx) LoadInvoice(ctx context.Context, id uuid.UUID) (domain.Invoice, er
 func (tx *Tx) ActiveContract(ctx context.Context, vendorID uuid.UUID, on time.Time) (*domain.Contract, []domain.ContractItem, error) {
 	var c domain.Contract
 	var tol string
-	err := tx.QueryRow(ctx, `SELECT id, contract_no, payment_term_days, currency, qty_tolerance_pct::text FROM contracts
+	err := tx.QueryRow(ctx, `SELECT id, contract_no, payment_term_days, currency, qty_tolerance_pct::text,
+		COALESCE(payment_term_source_page,0), payment_term_clause_text FROM contracts
 		WHERE tenant_id=$1 AND vendor_id=$2 AND status='ACTIVE' AND valid_from <= $3 AND valid_until >= $3
 		ORDER BY valid_from DESC, id LIMIT 1`, tx.tenantID, vendorID, on).
-		Scan(&c.ID, &c.Number, &c.PaymentTermDays, &c.Currency, &tol)
+		Scan(&c.ID, &c.Number, &c.PaymentTermDays, &c.Currency, &tol, &c.PaymentTermSourcePage, &c.PaymentTermClauseText)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil, nil
 	}

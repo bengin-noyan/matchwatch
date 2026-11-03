@@ -7,6 +7,8 @@
   "payment_term_days": 60,
   "currency": "TRY",
   "qty_tolerance_pct": "2.00",
+  "payment_term_source_page": 2,
+  "payment_term_clause_text": "Madde 3.2: Ödeme vadesi fatura tarihinden itibaren 60 gündür.",
   "items": [
     {
       "item_code": "CV-M8-20",

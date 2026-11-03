@@ -79,6 +79,9 @@ type Contract struct {
 	PaymentTermDays int
 	Currency        string
 	QtyTolerancePct decimal.Decimal
+	// where the payment term is written in the contract; page 0 means unknown
+	PaymentTermSourcePage int
+	PaymentTermClauseText string
 }
 
 type ContractItem struct {
