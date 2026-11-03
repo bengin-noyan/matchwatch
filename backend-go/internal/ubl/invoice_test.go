@@ -197,3 +197,21 @@ func TestParseInvoiceTwoWithholdingSubtotals(t *testing.T) {
 	}
 	eq(t, "Field", ve.Field, "WithholdingTaxTotal")
 }
+
+func TestParseInvoiceBounds(t *testing.T) {
+	base := fixtureString(t, "invoice_basic.xml")
+	for name, c := range map[string]struct{ old, new, field string }{
+		"amount":    {`"TRY">2300.00</cbc:TaxExclusiveAmount>`, `"TRY">1000000000000000</cbc:TaxExclusiveAmount>`, "TaxExclusiveAmount"},
+		"qty":       {`unitCode="C62">1000<`, `unitCode="C62">1000000000000000<`, "InvoicedQuantity"},
+		"price":     {">1.40<", ">10000000000000<", "PriceAmount"},
+		"exponent":  {`"TRY">2300.00</cbc:TaxExclusiveAmount>`, `"TRY">1e999999999</cbc:TaxExclusiveAmount>`, "TaxExclusiveAmount"},
+		"empty cur": {">TRY</cbc:DocumentCurrencyCode>", "></cbc:DocumentCurrencyCode>", "DocumentCurrencyCode"},
+		"lower cur": {">TRY</cbc:DocumentCurrencyCode>", ">try</cbc:DocumentCurrencyCode>", "DocumentCurrencyCode"},
+	} {
+		_, err := ParseInvoice(strings.NewReader(strings.Replace(base, c.old, c.new, 1)))
+		var ve *ValidationError
+		if !errors.As(err, &ve) || (c.field != "" && ve.Field != c.field) {
+			t.Errorf("%s: err = %v, want ValidationError on %s", name, err, c.field)
+		}
+	}
+}

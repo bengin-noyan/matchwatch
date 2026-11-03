@@ -61,7 +61,20 @@ func (p xmlParty) party(field string) (Party, error) {
 	return out, nil
 }
 
-// parseDecimal returns zero for empty input (optional elements).
+var (
+	maxAmount  = decimal.New(1, 15) // amounts and quantities: keeps kurus inside int64 and NUMERIC(19,4)
+	maxPrice   = decimal.New(1, 13) // NUMERIC(19,6) holds 13 integer digits
+	currencyRe = regexp.MustCompile(`^[A-Z]{3}$`)
+)
+
+func checkCurrency(field, s string) error {
+	if !currencyRe.MatchString(s) {
+		return &ValidationError{field, fmt.Sprintf("must be three uppercase letters, got %q", s)}
+	}
+	return nil
+}
+
+// parseDecimal returns zero for empty input (optional elements); |value| >= 1e15 is rejected.
 func parseDecimal(field, s string) (decimal.Decimal, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
@@ -70,6 +83,10 @@ func parseDecimal(field, s string) (decimal.Decimal, error) {
 	d, err := decimal.NewFromString(s)
 	if err != nil {
 		return decimal.Zero, &ValidationError{field, fmt.Sprintf("invalid number %q", s)}
+	}
+	// exponent check first: comparing 1e999999999 would allocate gigabytes
+	if d.Exponent() < -12 || d.Exponent() > 12 || d.Abs().GreaterThanOrEqual(maxAmount) {
+		return decimal.Zero, &ValidationError{field, fmt.Sprintf("out of range %q", s)}
 	}
 	return d, nil
 }

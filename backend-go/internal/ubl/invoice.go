@@ -146,6 +146,9 @@ func (x *xmlInvoice) convert() (*Invoice, error) {
 		ProfileID: strings.TrimSpace(x.ProfileID),
 		Currency:  strings.TrimSpace(x.Currency),
 	}
+	if err := checkCurrency("DocumentCurrencyCode", inv.Currency); err != nil {
+		return nil, err
+	}
 	u, err := uuid.Parse(inv.ETTN)
 	if err != nil {
 		return nil, &ValidationError{"UUID", "must be a valid UUID"}
@@ -220,6 +223,9 @@ func (x *xmlInvoice) convert() (*Invoice, error) {
 		}
 		if line.UnitPrice, err = parseDecimal("PriceAmount", l.Price.Amount); err != nil {
 			return nil, err
+		}
+		if line.UnitPrice.Abs().GreaterThanOrEqual(maxPrice) {
+			return nil, &ValidationError{"PriceAmount", "line " + line.LineID + ": out of range"}
 		}
 		for _, a := range l.Allowances {
 			if !strings.EqualFold(strings.TrimSpace(a.Charge), "false") {
