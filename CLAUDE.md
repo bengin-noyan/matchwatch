@@ -40,13 +40,12 @@ The data flow is: parse XML → persist → load audit input → match → run r
 - `internal/ubl`: XML → parser structs. Struct tags match on the **namespace URI, never the prefix**, and paths are nested structs. ETTN is stored canonical (`uuid.Parse(...).String()`). Parse errors are `*ValidationError{Field, Reason}` or `ErrNot<Doc>` and must never panic.
 - `internal/domain`: shared types and money helpers. `ToMinor` is the **only** decimal→kuruş conversion (half-away-from-zero). Rule, severity and status constants live here (`RulePriceMismatch`, `AuditRed`, `ResolutionDisputed`, …).
 - `internal/migrate` + `migrations/*.sql` (embedded): applied in lexical order, one transaction per file, tracked in `schema_migrations`.
-- Planned in the Faz 1 plan, not yet present:
-  - `repository`: `Store.InTenant`, ingest, audit load/save, queries.
-  - `matcher` and `anomaly`: pure functions with no DB or network access.
-  - `audit`: the idempotent re-audit service.
-  - `auth`: HS256 JWT carrying `tenant_id`.
-  - `transport/http`: REST under `/api/v1`.
-  - `cmd/api`, `cmd/devtoken`.
+- `internal/repository`: `Store.InTenant`, ingest, audit load/save (`DespatchCandidates` locks lines in one statement, then reads availability in a second), contract JSON parsing, queries.
+- `internal/matcher` and `internal/anomaly`: pure functions with no DB or network access. PRICE/QTY findings need a decimal impact above half a kuruş.
+- `internal/audit`: the idempotent re-audit service, plus `Resolve`, which recomputes `audit_status` after a PATCH.
+- `internal/auth`: HS256 JWT carrying `tenant_id`.
+- `internal/transport/http`: REST under `/api/v1`. Raw XML is stored at `STORAGE_DIR/<tenant>/<invoice|despatch>/<ettn>.xml`.
+- `cmd/api`, `cmd/devtoken`, `cmd/migrate`. `scripts/smoke.sh` is the end-to-end check (expects `"caught_minor":21412`).
 
 ### Multi-tenancy (easy to break)
 
@@ -76,30 +75,30 @@ The data flow is: parse XML → persist → load audit input → match → run r
 - An LLM never computes amounts or makes approve/reject decisions.
 - `withholding_codes` is seeded from GİB "UBL-TR Kod Listeleri" V1.31 (2023). Code 619's rate is marked unverified in `002_withholding_codes.sql`.
 
-## Current status (2026-11-03, end of day)
+## Current status (2026-11-03)
 
-Branch `faz1-go-core` (not pushed, not merged). The Faz 1 plan is executed with subagent-driven development: one implementer and one reviewer per task. The progress ledger lives at `.superpowers/sdd/2026-11-02-faz1-go-core/progress.md` (git-ignored). It records every completed task, fix round, deferred minor and ruling. Read it first when resuming.
+Faz 1 is complete on branch `faz1-go-core`: all 12 tasks, the final whole-branch review and its fix wave. It is submitted as a PR to `main`. Faz 2 and Faz 3 are not started.
 
-- **Done and reviewed, Tasks 1–8:**
-  - scaffold
-  - domain
-  - Invoice parser
-  - Despatch/Receipt parser
-  - schema + forced RLS + composite FKs + withholding seed
-  - repository ingest, plus `003_document_paths.sql`
-  - matcher
-  - anomaly rules: price/qty/maturity/uncontracted/uom/fx
-- **Next: Task 9.** Duplicate, withholding and price-creep rules. It was stopped before any code was written; re-dispatch it from HEAD `ff04b53`. After that come Task 10 (audit service), Task 11 (auth + REST API) and Task 12 (smoke test + README), then the final whole-branch review.
-- **Rulings made during execution** that deviate from the plan text:
+- **Rulings that deviate from the plan text:**
   - The RLS policy wraps the setting in `NULLIF(...)`.
   - `CreateTenant` takes a `financingRate`.
   - FKs are composite.
-  - `withholding_codes.percent` is nullable.
+  - `withholding_codes.percent` is nullable, and the loader skips NULL rows.
   - Ingest checks reject a line with more than one withholding subtotal.
-  - PRICE/QTY findings are emitted only when the impact is at least 1 kuruş.
-  - UOM/FX findings carry contract evidence.
+  - PRICE/QTY findings need a decimal impact above 0.005.
+  - The raw XML path includes the document kind.
+  - Migration `004` adds the payment-term page and clause, and `CHECK (qty > 0)`.
+  - Parser bounds: amounts and quantities below 1e15, prices below 1e13, currency `^[A-Z]{3}$`.
   - The `go` directive is 1.25.0 (required by pgx).
-- **Open for the user:** check withholding code 619's rate (70 vs "75/10"), and check for a GİB code list newer than V1.31.
+- **Known open minors:**
+  - A PATCH racing a re-audit can leave the status one step stale.
+  - FX currency codes are not format-checked.
+  - Summed allowance and tax totals are not bounded.
+  - A post-commit audit failure leaves the invoice PENDING; recover with `POST /invoices/{id}/audit`.
+- **Open for the user:**
+  - Withholding code 619's rate (70 vs "75/10").
+  - Whether a GİB code list newer than V1.31 exists.
+  - KVKK data residency.
 
 ## Conventions
 
