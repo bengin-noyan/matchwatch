@@ -1,2 +1,57 @@
 # matchwatch
+
 Satın alma sözleşmeleri, e-İrsaliye ve e-Faturaları (UBL-TR) çapraz denetleyen, 3-Way Matching ve anomali tespitiyle kurumsal harcama kaçaklarını önleyen AI iç denetim motoru.
+
+matchwatch cross-checks purchase contracts, e-Despatch and e-Invoice documents (GİB UBL-TR 1.2) and stores anomaly findings with their evidence. Faz 1 (this Go core) is rule-based and deterministic; amounts are never computed by an LLM.
+
+## Requirements
+
+Go 1.25+ and Docker (Postgres 16 + pgvector via `docker compose`).
+
+## Quick start
+
+```bash
+cp .env.example .env     # adjust; on a machine where 5432 is taken, set POSTGRES_PORT and the URLs
+make up migrate run
+```
+
+Without `make` (Windows), from the repo root, with the `.env` values exported:
+
+```bash
+docker compose up -d
+cd backend-go
+go run ./cmd/migrate      # needs MIGRATE_DATABASE_URL
+go run ./cmd/devtoken -name Demo -vkn 9876543210 -rate 0.45   # creates a tenant, prints a JWT
+go run ./cmd/api          # needs DATABASE_URL, JWT_SECRET, HTTP_ADDR, STORAGE_DIR
+```
+
+## Tests
+
+```bash
+cd backend-go && go test ./...                      # unit tests (make test)
+# integration tests need MATCHWATCH_TEST_DATABASE_URL and MATCHWATCH_TEST_MIGRATE_URL (make test-integration)
+cd backend-go && go test ./... -count=1
+bash scripts/smoke.sh                               # end-to-end: DB, API, happy-path flow
+```
+
+## API
+
+All routes under `/api/v1` need `Authorization: Bearer <tenant JWT>`.
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/healthz` | liveness (no auth) |
+| POST | `/api/v1/contracts` | load a contract (JSON) |
+| POST | `/api/v1/despatches` | ingest a DespatchAdvice (XML) |
+| POST | `/api/v1/receipts` | ingest a ReceiptAdvice (XML) |
+| POST | `/api/v1/invoices` | ingest an Invoice (XML) and audit it |
+| GET | `/api/v1/invoices` | list invoices (`status`, `limit` filters) |
+| GET | `/api/v1/invoices/{id}` | invoice with lines and findings |
+| POST | `/api/v1/invoices/{id}/audit` | re-run the audit (idempotent) |
+| PATCH | `/api/v1/findings/{id}` | set a finding's resolution |
+| GET | `/api/v1/summary` | caught/disputed totals per currency |
+
+## Docs
+
+- [`docs/spec.md`](docs/spec.md): the authoritative spec (its §4 decisions D1–D15 win).
+- Phases: Faz 1 Go core (this repo, see `docs/superpowers/plans/2026-11-02-faz1-go-core.md`); Faz 2 Python AI/PDF service and Faz 3 Vue 3 web app are not started.
