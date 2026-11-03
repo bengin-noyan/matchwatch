@@ -195,8 +195,10 @@ func TestFlowHappyPath(t *testing.T) {
 		t.Fatalf("invoice resp %v", b)
 	}
 	id := str(b["id"])
-	if ents, _ := os.ReadDir(filepath.Join(e.storage, e.tid.String())); len(ents) != 2 { // despatch + invoice
-		t.Fatalf("raw files: %v", ents)
+	for _, kind := range []string{"despatch", "invoice"} {
+		if ents, _ := os.ReadDir(filepath.Join(e.storage, e.tid.String(), kind)); len(ents) != 1 {
+			t.Fatalf("raw %s files: %v", kind, ents)
+		}
 	}
 
 	code, b = e.req("GET", "/api/v1/invoices/"+id, nil)
@@ -385,5 +387,21 @@ func TestContractValidation(t *testing.T) {
 	}
 	if code, b := e.req("POST", "/api/v1/contracts", []byte(good)); code != 409 {
 		t.Fatalf("duplicate contract_no: %d %v", code, b)
+	}
+}
+
+func TestSharedETTNKeepsBothRawFiles(t *testing.T) {
+	e := setup(t, "9876543210")
+	invXML := fixture(t, "invoice_basic.xml", invETTN, desETTN, "ABC2026000000001", "T"+uuid.NewString()[:12])
+	desXML := fixture(t, "despatch_basic.xml") // keeps desETTN, which the invoice reuses
+	for path, body := range map[string][]byte{"/api/v1/despatches": desXML, "/api/v1/invoices": invXML} {
+		code, b := e.req("POST", path, body)
+		e.mustStatus(201, code, b)
+	}
+	for kind, want := range map[string][]byte{"despatch": desXML, "invoice": invXML} {
+		got, err := os.ReadFile(filepath.Join(e.storage, e.tid.String(), kind, desETTN+".xml"))
+		if err != nil || !bytes.Equal(got, want) {
+			t.Errorf("%s raw file: err=%v, content matches=%v", kind, err, bytes.Equal(got, want))
+		}
 	}
 }

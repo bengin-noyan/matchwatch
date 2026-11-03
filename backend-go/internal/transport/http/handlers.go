@@ -85,9 +85,10 @@ func pathID(r *http.Request) (uuid.UUID, bool) {
 	return id, err == nil
 }
 
-// rawPath is built only from the tenant UUID and the canonical ETTN, never from client text.
-func (s *server) rawPath(tid uuid.UUID, ettn string) string {
-	return filepath.Join(s.storageDir, tid.String(), ettn+".xml")
+// rawPath is built only from the tenant UUID, a fixed kind and the canonical ETTN, never from client text.
+// The kind keeps an invoice and a despatch that share an ETTN (unique only per table) apart.
+func (s *server) rawPath(tid uuid.UUID, kind, ettn string) string {
+	return filepath.Join(s.storageDir, tid.String(), kind, ettn+".xml")
 }
 
 func writeRaw(path string, data []byte) error {
@@ -193,7 +194,7 @@ func (s *server) postDespatch(w http.ResponseWriter, r *http.Request) {
 	}
 	var id uuid.UUID
 	var refs []uuid.UUID
-	err = s.ingest(ctx, tid, s.rawPath(tid, d.ETTN), body, func(tx *repository.Tx, write func() error) error {
+	err = s.ingest(ctx, tid, s.rawPath(tid, "despatch", d.ETTN), body, func(tx *repository.Tx, write func() error) error {
 		if err := checkCustomer(ctx, tx, d.Customer.VKN); err != nil {
 			return err
 		}
@@ -201,7 +202,7 @@ func (s *server) postDespatch(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return err
 		}
-		if id, err = tx.InsertDespatch(ctx, v, d, s.rawPath(tid, d.ETTN)); err != nil {
+		if id, err = tx.InsertDespatch(ctx, v, d, s.rawPath(tid, "despatch", d.ETTN)); err != nil {
 			return err
 		}
 		if refs, err = tx.InvoicesReferencingDespatch(ctx, v, d.Number); err != nil {
@@ -270,7 +271,7 @@ func (s *server) postInvoice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var id uuid.UUID
-	err = s.ingest(ctx, tid, s.rawPath(tid, inv.ETTN), body, func(tx *repository.Tx, write func() error) error {
+	err = s.ingest(ctx, tid, s.rawPath(tid, "invoice", inv.ETTN), body, func(tx *repository.Tx, write func() error) error {
 		if err := checkCustomer(ctx, tx, inv.Customer.VKN); err != nil {
 			return err
 		}
@@ -278,7 +279,7 @@ func (s *server) postInvoice(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return err
 		}
-		if id, err = tx.InsertInvoice(ctx, v, inv, s.rawPath(tid, inv.ETTN)); err != nil {
+		if id, err = tx.InsertInvoice(ctx, v, inv, s.rawPath(tid, "invoice", inv.ETTN)); err != nil {
 			return err
 		}
 		return write()
