@@ -73,3 +73,18 @@ func TestQtySubKurusNoFinding(t *testing.T) {
 		t.Errorf("%+v", fs)
 	}
 }
+
+func TestQtyHalfKurusIsNoise(t *testing.T) {
+	// net 0.01/unit, 0.5 over the delivered qty, no tolerance: impact exactly 0.005
+	lc := baseCtx("1.5", "0.015")
+	lc.Delivery.AvailableTotal = dec("1")
+	in := baseInput(lc)
+	in.Contract.QtyTolerancePct = dec("0")
+	if fs := only(t, Run(in), domain.RuleQtyExceedsDelivery); len(fs) != 0 {
+		t.Errorf("half kurus: %+v", fs)
+	}
+	in.Lines[0].Line.Qty, in.Lines[0].Line.LineExtension = dec("1.6"), dec("0.016") // impact 0.006
+	if fs := only(t, Run(in), domain.RuleQtyExceedsDelivery); len(fs) != 1 || fs[0].ImpactMinor != 1 {
+		t.Errorf("just above: %+v", fs)
+	}
+}

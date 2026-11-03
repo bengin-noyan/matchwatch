@@ -6,7 +6,10 @@ import (
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/domain"
 )
 
-var hundred = decimal.NewFromInt(100)
+var (
+	hundred   = decimal.NewFromInt(100)
+	halfKurus = decimal.New(5, -3) // impacts up to 0.005 are rounding noise
+)
 
 // qtyExceeds compares invoiced qty with despatched qty (D14: service lines are exempt).
 func qtyExceeds(in Input, lc LineContext) []domain.Finding {
@@ -25,10 +28,11 @@ func qtyExceeds(in Input, lc LineContext) []domain.Finding {
 	if !line.Qty.GreaterThan(limit) {
 		return nil
 	}
-	impact := domain.ToMinor(line.Qty.Sub(lc.Delivery.AvailableTotal).Mul(line.NetUnitPrice()))
-	if impact <= 0 {
-		return nil // below one kurus: rounding noise
+	exact := line.Qty.Sub(lc.Delivery.AvailableTotal).Mul(line.NetUnitPrice())
+	if !exact.GreaterThan(halfKurus) {
+		return nil // at most half a kurus: rounding noise
 	}
+	impact := domain.ToMinor(exact)
 	allocs := make([]string, 0, len(lc.Delivery.Allocations))
 	for _, a := range lc.Delivery.Allocations {
 		allocs = append(allocs, a.DespatchLineID.String())

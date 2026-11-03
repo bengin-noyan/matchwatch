@@ -54,10 +54,11 @@ func priceRules(in Input, lc LineContext) []domain.Finding {
 	if !net.GreaterThan(ci.UnitPrice) {
 		return nil
 	}
-	impact := domain.ToMinor(net.Sub(ci.UnitPrice).Mul(line.Qty))
-	if impact <= 0 {
-		return nil // below one kurus: rounding noise
+	exact := net.Sub(ci.UnitPrice).Mul(line.Qty)
+	if !exact.GreaterThan(halfKurus) {
+		return nil // at most half a kurus: rounding noise (stored line totals are whole kurus)
 	}
+	impact := domain.ToMinor(exact)
 	return []domain.Finding{{
 		InvoiceLineID: &line.ID, Severity: domain.SeverityCritical, RuleCode: domain.RulePriceMismatch,
 		Expected: money(ci.UnitPrice, ci.Currency), Actual: money(net, ci.Currency),

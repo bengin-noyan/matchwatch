@@ -92,3 +92,15 @@ func TestPriceSubKurusNoFinding(t *testing.T) {
 		t.Errorf("%+v", fs)
 	}
 }
+
+func TestPriceHalfKurusIsNoise(t *testing.T) {
+	lc := baseCtx("2", "0.08")                // net 0.04
+	lc.ContractItem.UnitPrice = dec("0.0375") // impact exactly 0.005
+	if fs := only(t, Run(baseInput(lc)), domain.RulePriceMismatch); len(fs) != 0 {
+		t.Errorf("half kurus: %+v", fs)
+	}
+	lc.ContractItem.UnitPrice = dec("0.0374") // impact 0.0052
+	if fs := only(t, Run(baseInput(lc)), domain.RulePriceMismatch); len(fs) != 1 || fs[0].ImpactMinor != 1 {
+		t.Errorf("just above: %+v", fs)
+	}
+}
