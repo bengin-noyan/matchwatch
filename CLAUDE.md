@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 matchwatch is an internal-audit engine for Turkish companies. It cross-checks purchase contracts, e-İrsaliye (`DespatchAdvice`) and e-Fatura (`Invoice`) documents in GİB UBL-TR 1.2 format, a "3-way match", and stores anomaly findings together with their evidence.
 
 - **Spec:** `docs/spec.md` is the authority. Its §4 "Kararlar" (D1–D15) deliberately deviate from the original "LeakZero" spec, and the D-decisions win where they conflict.
-- **Phases:** Faz 1 is the Go core and is in progress. Faz 2 (the Python AI/PDF/embedding service) and Faz 3 (the Vue 3 web app) are not started.
+- **Phases:** Faz 1 is the Go core and is done (merged to `main`). Faz 2 (the Python AI/PDF/embedding service) and Faz 3 (the Vue 3 web app) are not started.
 - **Faz 1 plan:** `docs/superpowers/plans/2026-11-02-faz1-go-core.md` lists tasks, interfaces and the exact expected test values.
 
 ## Commands
@@ -77,7 +77,14 @@ The data flow is: parse XML → persist → load audit input → match → run r
 
 ## Current status (2026-11-03)
 
-Faz 1 is complete on branch `faz1-go-core`: all 12 tasks, the final whole-branch review and its fix wave. It is submitted as a PR to `main`. Faz 2 and Faz 3 are not started.
+Faz 1 is merged to `main` (PR #1, merge commit `0ceeca3`). It covers all 12 tasks, the final whole-branch review and its fix wave. Faz 2 and Faz 3 are not started.
+
+- **Next steps, in order:**
+  1. Diff the withholding codes in GİB's newer UBL-TR code-list packages (2025-04, and 2026-03, live 2026-09-14) against the V1.31 seed. Ship any new code or rate as a new migration (`005_...`), never as an edit to `002`.
+  2. Faz 2, the Python PDF contract-extraction service: brainstorm, then write a plan in `docs/superpowers/plans/`, then implement via SDD. It extracts price, payment term, clause text and source page. KVKK applies: extraction runs locally by default (see the rulings below), and an LLM never computes amounts.
+  3. Faz 3, the Vue 3 web app.
+- **Working mode:** Claude acts as Staff Architect / Principal Engineer. It decides technical and domain questions itself, records them as rulings and reports in Turkish. It does not hand these questions back to the user.
+- **Housekeeping:** the remote branch `faz1-go-core` is merged and can be deleted from the GitHub PR page.
 
 - **Rulings that deviate from the plan text:**
   - The RLS policy wraps the setting in `NULLIF(...)`.
