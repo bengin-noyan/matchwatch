@@ -2,8 +2,9 @@
 -- https://ebelge.gib.gov.tr/dosyalar/kilavuzlar/UBL-TR_Kod_Listeleri-V_1_31.pdf (bulunabilen en yeni sürüm)
 -- Oran x/10 -> percent x*10. 8xx kodları tam tevkifat (10/10 = 100.00). 650 "Diğer" kodu V1.27 ile listeden çıkarıldı;
 -- değişken oranlı kodlar için percent NULL kabul edilir, ancak şu an böyle bir satır yok.
--- KAYNAK DOĞRULANMADI (kısmen): 619 için GİB belgesi "75/10" yazıyor (V1.28-V1.31; V1.27'de 7/10). Okunamayan/yazım hatası
--- olduğu varsayılarak 7/10 = 70.00 alındı; KDVGUT (I/C-2.1.3.3.2) ile doğrulanmalı. 2025/2026 güncellemeleri kontrol edilmedi.
+-- 619: GİB belgesi "75/10" yazıyor (V1.28-V1.31; V1.27'de 7/10) — yazım hatası. KDVGUT I/C-2.1.3.3.2 uyarınca bakır, çinko,
+-- alüminyum ürünleri 01.04.2020'den beri 7/10 tevkifata tabi; 70.00 doğrulandı (2026-11-03).
+-- V1.31 sonrası paketler (2025-04, 2026-03) tevkifat listesiyle karşılaştırılmadı; yeni kod/oran yeni migration ile eklenir.
 
 CREATE TABLE withholding_codes (
   code VARCHAR(10) PRIMARY KEY,

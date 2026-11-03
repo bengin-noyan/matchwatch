@@ -73,7 +73,7 @@ The data flow is: parse XML → persist → load audit input → match → run r
 - Invoice↔despatch is n:m through `despatch_allocations` (D3). The same delivered quantity cannot be invoiced twice.
 - Every finding's `evidence_json` carries the invoice `line_id`. Contract-based findings also carry `contract_no`, `source_page` and `source_clause_text`.
 - An LLM never computes amounts or makes approve/reject decisions.
-- `withholding_codes` is seeded from GİB "UBL-TR Kod Listeleri" V1.31 (2023). Code 619's rate is marked unverified in `002_withholding_codes.sql`.
+- `withholding_codes` is seeded from GİB "UBL-TR Kod Listeleri" V1.31 (2023). Code 619 is 70% (7/10, KDVGUT; GİB's "75/10" is a typo).
 
 ## Current status (2026-11-03)
 
@@ -95,10 +95,10 @@ Faz 1 is complete on branch `faz1-go-core`: all 12 tasks, the final whole-branch
   - FX currency codes are not format-checked.
   - Summed allowance and tax totals are not bounded.
   - A post-commit audit failure leaves the invoice PENDING; recover with `POST /invoices/{id}/audit`.
-- **Open for the user:**
-  - Withholding code 619's rate (70 vs "75/10").
-  - Whether a GİB code list newer than V1.31 exists.
-  - KVKK data residency.
+- **Architect rulings (2026-11-03):**
+  - Code 619 = 70.00 is verified against KDVGUT I/C-2.1.3.3.2.
+  - GİB has published newer packages (2025-04, 2026-03, live 2026-09-14). Diff their withholding list against V1.31 before Faz 2. Any change ships as a new migration, never as an edit to `002`.
+  - KVKK: all personal and commercial data stays in Türkiye, either on a self-hosted or a TR-region Postgres plus storage, with no cross-border transfer by default. In Faz 2, documents must not go to a foreign LLM API unless there is a KVKK Art. 9 transfer basis (a standard contract filed with the Board) and the customer opts in. The default is local extraction.
 
 ## Conventions
 
