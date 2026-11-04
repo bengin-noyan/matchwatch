@@ -26,8 +26,7 @@ cd ai-service && python -m venv .venv && .venv/Scripts/python -m pip install -r 
 cd web && npm install && npm run dev  # SPA on :5173, proxies /api to the Go API on :8080
 cd web && npm test && npm run build   # Vitest, then vue-tsc + vite build into web/dist
 # one API serving the built SPA on one origin: WEB_DIR=../web/dist COOKIE_SECURE=false go run ./cmd/api
-printf 'a-long-password
-' | MIGRATE_DATABASE_URL=... go run ./cmd/onboard -name "Firma" -vkn 9876543210 -rate 0.45 -email user@firma.com.tr
+printf 'a-long-password\n' | MIGRATE_DATABASE_URL=... go run ./cmd/onboard -name "Firma" -vkn 9876543210 -rate 0.45 -email user@firma.com.tr
 python -X utf8 -I scripts/seed-demo.py http://127.0.0.1:8080 user@firma.com.tr a-long-password  # dev: months of demo documents
 
 cd backend-go
