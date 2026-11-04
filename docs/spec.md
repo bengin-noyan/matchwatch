@@ -75,6 +75,10 @@ Fatura durumu: bulgu yok → GREEN; yalnızca WARNING (INFO yok sayılır) → Y
 - **D14 Hizmet kalemleri:** `contract_items.requires_delivery` (varsayılan true). false ise miktar/irsaliye kuralı
   çalışmaz. Sözleşmesiz satırda miktar kuralı yalnız fatura bir irsaliyeye referans veriyorsa çalışır.
 - **D15 Kur ve bulgu para birimi:** `audit_findings.impact_currency` eklenir; ROI özeti para birimine göre gruplanır.
+- **D16 Semantik eşleşme öneridir (Faz 2b):** §1.3'teki "kosinüs ≥ 0.86 ile eşleştir" uygulanmaz; yerel modelde
+  benzer ama farklı ürünler (A4/A3, M8/M10) 0.86'yı geçti, aynı ürünün farklı yazımları çoğunlukla geçemedi. Embedding
+  aynı uom'daki kalemlerden en fazla 3 öneri üretir (≥ 0.50); insan onaylarsa (tedarikçi, normalize ad, uom) takma adı
+  kaydedilir ve sonraki eşleşmeler deterministik olur. Ayrıntı: `docs/superpowers/specs/2026-11-04-faz2b-semantic-matching-design.md`.
 
 ## 5. Fazlar
 
