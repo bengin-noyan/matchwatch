@@ -40,7 +40,7 @@ def create_app(settings: Settings, llm: LLM | None = None, ocr=tesseract_ocr) ->
     @app.post("/v1/extract")
     async def extract_endpoint(request: Request):
         auth = request.headers.get("authorization", "")
-        if not hmac.compare_digest(auth.encode("utf-8", "replace"), f"Bearer {settings.token}".encode()):
+        if not hmac.compare_digest(auth.encode(), f"Bearer {settings.token}".encode()):
             return _err(401, "UNAUTHORIZED")
         cl = request.headers.get("content-length", "")
         if cl.isdigit() and int(cl) > MAX_BYTES:

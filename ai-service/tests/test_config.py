@@ -32,3 +32,11 @@ def test_link_local_and_scheme_rejected(url):
 
 def test_url_whitespace_stripped():
     assert load({"AI_SERVICE_TOKEN": T, "LLM_BASE_URL": " http://ollama:11434 "}).llm_base_url == "http://ollama:11434"
+
+
+@pytest.mark.parametrize("host,ok", [("2852039166", False), ("0xa9fea9fe", False), ("134744072", False),
+    ("0x08080808", False), ("010.0.0.1", False), ("ollama", True), ("localhost", True),
+    ("::1", True), ("10.0.3.4", True), ("ollama-2", True), ("", False)])
+def test_is_private_host_forms(host, ok):
+    from matchwatch_ai.config import is_private_host
+    assert is_private_host(host) is ok

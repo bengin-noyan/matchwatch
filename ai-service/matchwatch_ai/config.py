@@ -1,5 +1,7 @@
 import ipaddress
 import os
+import re
+import socket
 from collections.abc import Mapping
 from dataclasses import dataclass
 from urllib.parse import urlparse
@@ -18,10 +20,13 @@ def is_private_host(host: str) -> bool:
     # shortcut: host adına bakar, DNS'e değil; TR bulutunda iç DNS adları (ör. ollama.internal) gerekirse izinli sonek listesi eklenir
     if not host:
         return False
-    try:
-        ip = ipaddress.ip_address(host)
-    except ValueError:
-        return host == "localhost" or "." not in host
+    try:  # inet_aton also parses decimal/hex/octal forms (2852039166, 0xa9fea9fe) the way getaddrinfo does
+        ip = ipaddress.IPv4Address(socket.inet_aton(host))
+    except OSError:
+        try:
+            ip = ipaddress.ip_address(host)
+        except ValueError:
+            return host == "localhost" or re.fullmatch(r"[a-z][a-z0-9-]*", host.lower()) is not None
     return (ip.is_private or ip.is_loopback) and not ip.is_link_local
 
 
