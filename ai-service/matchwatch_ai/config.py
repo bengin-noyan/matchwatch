@@ -15,6 +15,7 @@ class Settings:
     llm_timeout_s: int = 240
     max_chars: int = 24000
     extract_deadline_s: int = 270
+    embed_model: str = "bge-m3"
 
 
 def is_private_host(host: str) -> bool:
@@ -47,4 +48,5 @@ def load(env: Mapping[str, str] = os.environ) -> Settings:
         llm_timeout_s=int(env.get("LLM_TIMEOUT_S", "240")),
         max_chars=int(env.get("LLM_MAX_CHARS", "24000")),
         extract_deadline_s=int(env.get("EXTRACT_DEADLINE_S", "270")),
+        embed_model=env.get("EMBED_MODEL", "bge-m3"),
     )
