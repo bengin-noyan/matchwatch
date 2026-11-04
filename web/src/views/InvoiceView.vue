@@ -54,7 +54,7 @@ const openCount = computed(() => inv.value?.findings.filter((f) => f.resolution_
 <template>
   <p v-if="error" role="alert" class="text-pencil">{{ error }}</p>
   <template v-else-if="inv">
-    <RouterLink to="/" class="text-ink-soft hover:text-ink text-sm underline-offset-4 hover:underline">Faturalara dön</RouterLink>
+    <RouterLink to="/faturalar" class="text-ink-soft hover:text-ink text-sm underline-offset-4 hover:underline">Faturalara dön</RouterLink>
     <header class="mt-2 mb-8 flex flex-wrap items-start justify-between gap-4">
       <div>
         <h1 class="text-3xl font-semibold tracking-tight">{{ inv.invoice_no }}</h1>

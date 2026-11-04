@@ -37,6 +37,7 @@ onMounted(() => {
 .pencil-circle {
   position: relative;
   display: inline-block;
+  white-space: nowrap;
   padding: 0.1em 0.55em;
 }
 .loop,

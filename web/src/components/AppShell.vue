@@ -6,10 +6,11 @@ const session = useSession()
 const router = useRouter()
 
 const nav = [
-  { to: '/', label: 'Faturalar', exact: true },
+  { to: '/', label: 'Masa', exact: true },
+  { to: '/faturalar', label: 'Faturalar' },
+  { to: '/tedarikciler', label: 'Tedarikçiler' },
   { to: '/yukle', label: 'Belge yükle' },
   { to: '/taslaklar', label: 'Sözleşme taslakları' },
-  { to: '/ozet', label: 'Özet' },
 ]
 
 async function logout() {

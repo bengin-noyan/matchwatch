@@ -76,9 +76,50 @@ export interface CurrencySummary {
   disputed_count: number
 }
 
-export interface Summary {
+export interface Dashboard {
   by_currency: CurrencySummary[]
   invoices: Record<AuditStatus, number>
+  weekly: { week: string; currency: string; caught_minor: number }[]
+  by_rule: { rule_code: string; currency: string; impact_minor: number; count: number }[]
+  by_vendor: { vendor_id: string; vendor_name: string; currency: string; impact_minor: number; count: number }[]
+  open_top: {
+    finding_id: string
+    invoice_id: string
+    invoice_no: string
+    vendor_name: string
+    issue_date: string
+    rule_code: string
+    line_id: string | null
+    impact_minor: number
+    currency: string
+  }[]
+}
+
+export interface VendorRow {
+  id: string
+  name: string
+  vkn: string
+  contract_no: string
+  invoice_count: number
+  open_findings: number
+  caught: { currency: string; caught_minor: number }[]
+}
+
+export interface ContractRow {
+  id: string
+  contract_no: string
+  status: 'ACTIVE' | 'INACTIVE'
+  valid_from: string
+  valid_until: string
+  payment_term_days: number
+  currency: string
+  qty_tolerance_pct: string
+  items: ContractItemRow[]
+}
+
+export interface VendorDetail extends VendorRow {
+  contracts: ContractRow[]
+  price_history: Record<string, { invoice_id: string; invoice_no: string; issue_date: string; net_unit_price: string; currency: string; uom: string }[]>
 }
 
 export interface Me {
@@ -183,8 +224,11 @@ export const api = {
   logout: () => request<void>('POST', '/auth/logout'),
   me: () => request<Me>('GET', '/auth/me'),
 
-  invoices: (status?: AuditStatus) =>
-    request<{ items: InvoiceRow[]; total: number }>('GET', `/invoices?limit=200${status ? `&status=${status}` : ''}`),
+  invoices: (vendorId?: string) =>
+    request<{ items: InvoiceRow[]; total: number }>('GET', `/invoices?limit=200${vendorId ? `&vendor_id=${id(vendorId)}` : ''}`),
+  dashboard: (from?: string) => request<Dashboard>('GET', `/dashboard${from ? `?from=${from}` : ''}`),
+  vendors: () => request<{ items: VendorRow[] }>('GET', '/vendors'),
+  vendor: (vendorId: string) => request<VendorDetail>('GET', `/vendors/${id(vendorId)}`),
   invoice: (invoiceId: string) => request<InvoiceDetail>('GET', `/invoices/${id(invoiceId)}`),
   reaudit: (invoiceId: string) => request<{ audit_status: AuditStatus }>('POST', `/invoices/${id(invoiceId)}/audit`),
   resolve: (findingId: string, resolution_status: Resolution, note: string) =>
@@ -193,7 +237,6 @@ export const api = {
   matchLine: (lineId: string, contractItemId: string) =>
     request<{ invoice_id: string; audit_status: AuditStatus }>('POST', `/invoice-lines/${id(lineId)}/match`,
       json({ contract_item_id: contractItemId }), 'application/json'),
-  summary: () => request<Summary>('GET', '/summary'),
 
   uploadXML: (kind: 'invoices' | 'despatches' | 'receipts', xml: Blob) =>
     request<{ id?: string; audit_status?: AuditStatus; reaudited?: string[] }>('POST', `/${kind}`, xml, 'application/xml'),
