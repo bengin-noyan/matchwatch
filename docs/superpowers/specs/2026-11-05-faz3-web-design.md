@@ -140,3 +140,25 @@ değer kırmızı kalemle daire içine alınır, etkisi kenara el yazısıyla ya
 
 Çoklu rol/izin, kullanıcı davet akışı, şifre sıfırlama e-postası, takma ad listeleme/silme ekranı, mükerrer fatura
 semantik karşılaştırması, `FX_RATE_DEVIATION` kuralı, yayın altyapısı (TR bulut hesabı, TLS, yedekleme).
+
+## 6. Faz 3c — Masa (açılış ekranı) ve tedarikçi sayfası
+
+Kullanıcı ilk sürümü "çok basit" buldu ve görsel zenginlik ile işlevin birlikte gelmesini seçti (seçenek C). Grafikler
+`dataviz` skill'inin kurallarıyla yapılır.
+
+- **Masa (`/`):** üstte tek satır süzgeç (son 30 gün / 90 gün / bu yıl / tümü; para birimi). Tek kahraman rakam: seçili
+  dönemde bulunan fark (sans, ≥ 48 px, orantılı rakam, altında kırmızı kalem çizgisi; renk anlamı korunur). Altında
+  itiraz edilen, karar bekleyen bulgu, denetlenen fatura. Sonra: haftalara göre bulunan fark (tek seri, 2 px çizgi + %10
+  kırmızı kalem yıkaması, çapraz imleçli ipucu), kurala ve tedarikçiye göre fark (sıralı yatay çubuklar, tek renk, değer
+  ucunda), karar bekleyen en büyük bulgular (iş listesi), fatura durumları (ince parçalı çubuk + etiketli liste).
+- **Tedarikçiler (`/tedarikciler`, `/tedarikciler/:id`):** sözleşme şartları ve kalemleri, para birimine göre fark,
+  faturalar ve her sözleşme kalemi için **fiyat geçmişi**: faturalardaki net birim fiyat çizgisi, sözleşme fiyatı
+  mürekkeple çizilmiş referans çizgi. Çizginin üstüne çıkan noktalar kaçaktır.
+- Eski "Özet" sayfası Masa'ya katılır (`/ozet` → `/`).
+- **Renk (doğrulandı, `validate_palette.js`):** grafik serileri tek renk kırmızı kalem `#BE1E2D` (sistemin bulduğu fark).
+  Durum çubuğu: kırmızı `#BE1E2D`, açık amber `#E0A93B` (yalnızca dolgu; metin amber `#8A5C0A` kalır), bekleyen
+  `#6F7D74`, temiz `#B9C8B5`. İlk deneme (kırmızı + koyu amber) deutan görmede ΔE 1.8 ile ayırt edilemiyordu; açık amber
+  20.1'e çıkarır. İki gri bilerek nötrdür (henüz/temiz); çubuk yazısızdır ve etiket + sayı yanındaki listededir
+  (ikincil kodlama), parçalar 2 px boşlukla ayrılır.
+- Grafik geometrisi için tutarlar `Number`'a çevrilir (yalnızca piksel ölçeği); ekrana yazılan her tutar API'nin
+  kuruş/decimal değerinden biçimlenir. Her grafiğin değerleri bir tabloda da okunur (ipucu tek yol değildir).

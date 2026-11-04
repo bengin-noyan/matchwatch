@@ -40,6 +40,9 @@ func NewRouter(store *repository.Store, auditor *audit.Service, storageDir strin
 	api.HandleFunc("POST /api/v1/invoice-lines/{id}/match", s.postLineMatch)
 	api.HandleFunc("PATCH /api/v1/findings/{id}", s.patchFinding)
 	api.HandleFunc("GET /api/v1/summary", s.getSummary)
+	api.HandleFunc("GET /api/v1/dashboard", s.getDashboard)
+	api.HandleFunc("GET /api/v1/vendors", s.listVendors)
+	api.HandleFunc("GET /api/v1/vendors/{id}", s.getVendor)
 
 	root := http.NewServeMux()
 	root.HandleFunc("GET /healthz", s.healthz)
