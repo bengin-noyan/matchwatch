@@ -18,8 +18,9 @@ type Embedder interface {
 	Embed(ctx context.Context, texts []string) (string, []json.RawMessage, error)
 }
 
+// Well under the API's 60s WriteTimeout: ingest and /match audit inline, and the invoice is already committed.
 // shortcut: fixed timeout, move to config if CPU embedding of large invoices needs longer.
-const embedTimeout = 60 * time.Second
+const embedTimeout = 30 * time.Second
 
 const maxEmbedChars = 512 // ai-service limit per text
 

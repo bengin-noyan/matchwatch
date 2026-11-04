@@ -55,7 +55,7 @@ demektir. Buna karşılık **sıralama** güvenilir: 9/9 gerçek eşleşmede do�
 ### 6.1 Python servisi
 
 - `POST /v1/embed`, bearer token (extract ile aynı). Gövde `{"texts": [...]}`: 1–256 metin, her biri boş olmayan ve
-  ≤ 512 karakter; aşılırsa 400 `BAD_REQUEST`.
+  ≤ 512 karakter; aşılırsa 400 `BAD_REQUEST`. Gövde ≤ 1 MiB, aşılırsa 413 `TOO_LARGE`.
 - Yanıt `{"model": "<ad>", "vectors": [[...], ...]}`, girişle aynı sıra ve sayıda. Ollama'nın OpenAI uyumlu
   `/v1/embeddings` ucu; `EMBED_MODEL` (varsayılan `bge-m3`), `trust_env=False`, `LLM_BASE_URL` ile aynı özel host.
 - Hata: Ollama erişilemez/bozuk yanıt → 502 `LLM_UNAVAILABLE` / `LLM_BAD_OUTPUT`. Metin loglanmaz; yalnızca sayı ve süre.
@@ -80,7 +80,7 @@ Migration `006_semantic_matching.sql`:
   ham JSON dizisi pgvector literal'i olarak `$n::vector`'a gider (Go'da float yok, boyutu Postgres doğrular).
 - Denetim akışı (`audit.Service`, embedder nil değilse):
   1. Okuma transaction'ı: fatura, aktif sözleşme, takma adlar; kod/barkod/takma ad ile eşleşmeyen satırlar.
-  2. Eşleşmeyen satır yoksa AI çağrılmaz. Varsa satır adları embed edilir (transaction dışında, 60 sn bağlam).
+  2. Eşleşmeyen satır yoksa AI çağrılmaz. Varsa satır adları embed edilir (transaction dışında, 30 sn bağlam).
   3. Dönen modelle vektörü olmayan ya da farklı modelde olan sözleşme kalemleri embed edilip yazılır.
   4. Asıl denetim transaction'ı Faz 1'deki gibi; eşleşmeyen satır için pgvector sorgusu
      (`1 - (name_embedding <=> $v)`, aynı sözleşme, aynı uom, aynı model) → `PickSuggestions`.
@@ -111,4 +111,5 @@ onay → yeniden denetimde `PRICE_MISMATCH` + `match_method: "ALIAS"`.
 - R4. Fatura satırı vektörü saklanmaz (mükerrerlik işi gelince yeniden değerlendirilir).
 - R5. Takma ad anahtarı (tedarikçi, NameKey, uom); hedef somut sözleşme kalemi.
 - R6. Go vektörleri opak taşır; float Go'ya girmez.
-- R7. Embed zaman aşımı sabit 60 sn (`shortcut:` yorumlu; ayar gerekirse config'e alınır).
+- R7. Embed zaman aşımı sabit 30 sn: API'nin 60 sn `WriteTimeout`'unun altında kalmalı, çünkü fatura yükleme ve onay
+  denetimi aynı istekte çalışır (`shortcut:` yorumlu; ayar gerekirse config'e alınır).

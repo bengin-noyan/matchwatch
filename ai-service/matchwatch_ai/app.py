@@ -1,4 +1,5 @@
 import hmac
+import json
 import logging
 import time
 
@@ -13,11 +14,11 @@ from .pdftext import MAX_BYTES, PdfError, extract_pages, tesseract_ocr
 
 log = logging.getLogger("matchwatch_ai")
 _PDF_STATUS = {"NOT_PDF": 400, "TOO_LARGE": 413, "ENCRYPTED_PDF": 422}
-MAX_TEXTS, MAX_TEXT_CHARS = 256, 512
+MAX_TEXTS, MAX_TEXT_CHARS, MAX_EMBED_BYTES = 256, 512, 1 << 20
 # Fixed messages: never echo exception or upstream text (KVKK).
 _MSG = {
     "NOT_PDF": "body is not a PDF",
-    "TOO_LARGE": "PDF is too large",
+    "TOO_LARGE": "request body is too large",
     "ENCRYPTED_PDF": "PDF is encrypted",
     "LLM_UNAVAILABLE": "LLM is unavailable",
     "LLM_BAD_OUTPUT": "LLM returned unusable output",
@@ -62,8 +63,13 @@ def create_app(settings: Settings, llm: LLM | None = None, ocr=tesseract_ocr, em
     async def embed_endpoint(request: Request):
         if not authorized(request):
             return _err(401, "UNAUTHORIZED")
+        buf = bytearray()
+        async for chunk in request.stream():
+            buf += chunk
+            if len(buf) > MAX_EMBED_BYTES:
+                return _err(413, "TOO_LARGE")
         try:
-            texts = (await request.json())["texts"]
+            texts = json.loads(buf)["texts"]
         except Exception:  # noqa: BLE001 - any malformed body is a 400
             return _err(400, "BAD_REQUEST")
         if not (isinstance(texts, list) and 0 < len(texts) <= MAX_TEXTS and all(

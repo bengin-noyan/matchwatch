@@ -105,3 +105,9 @@ def test_embedder_connect_error():
     with pytest.raises(LLMError) as e:
         embedder(handler).embed(["a"])
     assert e.value.code == "LLM_UNAVAILABLE"
+
+
+def test_embed_body_too_large():
+    emb = FakeEmbedder()
+    r = client(emb).post("/v1/embed", content=b'{"texts":["' + b"x" * (1 << 20) + b'"]}', headers=AUTH)
+    assert r.status_code == 413 and r.json()["code"] == "TOO_LARGE" and emb.calls == []

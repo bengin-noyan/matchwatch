@@ -16,7 +16,7 @@
 - Yeni tenant tablosu: `ENABLE` + `FORCE ROW LEVEL SECURITY`, `NULLIF(current_setting('app.current_tenant_id', true), '')::uuid` politikası, composite FK.
 - Kalem adı/vektör loglanmaz (KVKK). Hata mesajları sabit.
 - Commit mesajında Claude atfı yok.
-- Öneri tabanı `0.50`, en fazla `3`; embed bağlam zaman aşımı `60s`; boyut `1024`; model varsayılanı `bge-m3`.
+- Öneri tabanı `0.50`, en fazla `3`; embed bağlam zaman aşımı `30s`; boyut `1024`; model varsayılanı `bge-m3`.
 
 ## Review Focus
 
