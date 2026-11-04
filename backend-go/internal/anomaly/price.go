@@ -49,6 +49,13 @@ func priceRules(in Input, lc LineContext) []domain.Finding {
 	if in.Invoice.Currency != ci.Currency {
 		r := in.Invoice.ExchangeRate
 		if r == nil || r.Source != in.Invoice.Currency || r.Target != ci.Currency {
+			r = nil
+			if fb, ok := in.FXFallback[ci.Currency]; ok { // D17: the invoice's own rate still wins (D4)
+				r = &fb
+				evidence["fx_source"], evidence["fx_rate_date"] = "TCMB", fb.TCMBDate.Format("2006-01-02")
+			}
+		}
+		if r == nil {
 			return []domain.Finding{{
 				InvoiceLineID: &line.ID, Severity: domain.SeverityInfo, RuleCode: domain.RuleFXUnverified,
 				ImpactCurrency: in.Invoice.Currency,

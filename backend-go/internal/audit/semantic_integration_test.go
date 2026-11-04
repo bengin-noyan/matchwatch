@@ -85,7 +85,7 @@ func ruleRow(rows []row, rule domain.RuleCode, line string) *row {
 func TestSemanticSuggestionThenAlias(t *testing.T) {
 	e := setup(t)
 	emb := &fakeEmbedder{}
-	e.svc = New(e.store, emb)
+	e.svc = New(e.store, emb, nil)
 	inv, line1 := e.ingestCodeless(t)
 	e.audit(t, inv)
 
@@ -136,12 +136,12 @@ func TestSemanticSuggestionThenAlias(t *testing.T) {
 
 func TestSemanticAIErrorKeepsFaz1Result(t *testing.T) {
 	e := setup(t)
-	e.svc = New(e.store, &fakeEmbedder{err: errors.New("down")})
+	e.svc = New(e.store, &fakeEmbedder{err: errors.New("down")}, nil)
 	inv, _ := e.ingestCodeless(t)
 	withAI := e.audit(t, inv)
 	got := sig(e.findings(t, inv))
 
-	e.svc = New(e.store, nil)
+	e.svc = New(e.store, nil, nil)
 	if st := e.audit(t, inv); st != withAI || fmt.Sprint(sig(e.findings(t, inv))) != fmt.Sprint(got) {
 		t.Fatalf("AI error changed the result: %s %v vs %s %v", withAI, got, st, sig(e.findings(t, inv)))
 	}

@@ -14,19 +14,14 @@ import (
 	"time"
 
 	"github.com/shopspring/decimal"
-)
 
-// Rate is TRY per Unit of Currency at TCMB's forex buying rate (D17).
-type Rate struct {
-	Currency    string
-	Unit        int64
-	ForexBuying decimal.Decimal
-}
+	"github.com/bengin-noyan/matchwatch/backend-go/internal/domain"
+)
 
 var code = regexp.MustCompile(`^[A-Z]{3}$`)
 
 // Parse reads one bulletin and returns its date and the currencies that carry a positive forex buying rate.
-func Parse(r io.Reader) (time.Time, []Rate, error) {
+func Parse(r io.Reader) (time.Time, []domain.FXQuote, error) {
 	var x struct {
 		Tarih      string `xml:"Tarih,attr"`
 		Currencies []struct {
@@ -42,14 +37,14 @@ func Parse(r io.Reader) (time.Time, []Rate, error) {
 	if err != nil {
 		return time.Time{}, nil, fmt.Errorf("tcmb: bad bulletin date %q", x.Tarih)
 	}
-	var out []Rate
+	var out []domain.FXQuote
 	for _, c := range x.Currencies {
 		fb, err := decimal.NewFromString(strings.TrimSpace(c.ForexBuying))
 		unit, uerr := decimal.NewFromString(strings.TrimSpace(c.Unit))
 		if err != nil || uerr != nil || !fb.IsPositive() || !unit.IsPositive() || !unit.IsInteger() || !code.MatchString(c.Code) {
 			continue // some currencies publish no forex rate
 		}
-		out = append(out, Rate{Currency: c.Code, Unit: unit.IntPart(), ForexBuying: fb})
+		out = append(out, domain.FXQuote{Currency: c.Code, Unit: unit.IntPart(), ForexBuying: fb})
 	}
 	if len(out) == 0 {
 		return time.Time{}, nil, errors.New("tcmb: bulletin has no rates")
@@ -68,7 +63,7 @@ func New(baseURL string) *Client {
 
 // Day fetches the bulletin published on day. published=false (no error) means TCMB published none that day
 // (weekend, holiday: HTTP 404). Any other failure is an error and must not be cached as "no bulletin".
-func (c *Client) Day(ctx context.Context, day time.Time) ([]Rate, bool, error) {
+func (c *Client) Day(ctx context.Context, day time.Time) ([]domain.FXQuote, bool, error) {
 	url := fmt.Sprintf("%s/%s/%s.xml", c.base, day.Format("200601"), day.Format("02012006"))
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {

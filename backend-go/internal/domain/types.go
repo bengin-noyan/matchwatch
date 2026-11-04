@@ -48,6 +48,14 @@ const (
 type ExchangeRate struct {
 	Source, Target string
 	Rate           decimal.Decimal
+	TCMBDate       time.Time // non-zero: derived from the TCMB bulletin of that day (D17), not from the invoice
+}
+
+// FXQuote is one TCMB bulletin line: Unit units of Currency cost ForexBuying TRY.
+type FXQuote struct {
+	Currency    string
+	Unit        int64
+	ForexBuying decimal.Decimal
 }
 
 type Invoice struct {

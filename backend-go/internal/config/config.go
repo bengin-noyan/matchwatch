@@ -16,6 +16,7 @@ type Config struct {
 	AIServiceURL       string // empty = extraction disabled
 	AIServiceToken     string
 	AIExtractTimeout   time.Duration
+	TCMBBaseURL        string // set but empty = TCMB rates disabled (D17)
 }
 
 func Load() (Config, error) {
@@ -42,6 +43,10 @@ func Load() (Config, error) {
 		return Config{}, errors.New("config: AI_EXTRACT_TIMEOUT must be a positive duration")
 	}
 	c.AIExtractTimeout = d
+	c.TCMBBaseURL = "https://www.tcmb.gov.tr/kurlar"
+	if v, ok := os.LookupEnv("TCMB_BASE_URL"); ok {
+		c.TCMBBaseURL = v
+	}
 	return c, nil
 }
 

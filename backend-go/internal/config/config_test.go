@@ -1,6 +1,7 @@
 package config
 
 import (
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -79,5 +80,20 @@ func TestAIBadTimeoutRejected(t *testing.T) {
 		if _, err := Load(); err == nil {
 			t.Fatalf("expected error for %q", v)
 		}
+	}
+}
+
+func TestTCMBBaseURL(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("DATABASE_URL", "postgres://x")
+	t.Setenv("JWT_SECRET", strings.Repeat("a", 32))
+	t.Setenv("TCMB_BASE_URL", "")
+	os.Unsetenv("TCMB_BASE_URL") // t.Setenv restores it afterwards
+	if c, err := Load(); err != nil || c.TCMBBaseURL != "https://www.tcmb.gov.tr/kurlar" {
+		t.Fatalf("unset: %q %v", c.TCMBBaseURL, err)
+	}
+	t.Setenv("TCMB_BASE_URL", "")
+	if c, err := Load(); err != nil || c.TCMBBaseURL != "" {
+		t.Fatalf("empty must disable: %q %v", c.TCMBBaseURL, err)
 	}
 }

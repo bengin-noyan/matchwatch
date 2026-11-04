@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/bengin-noyan/matchwatch/backend-go/internal/domain"
 )
 
 func fixture(t *testing.T) []byte {
@@ -27,7 +29,7 @@ func TestParseRealBulletin(t *testing.T) {
 	if day.Format("2006-01-02") != "2026-11-03" || len(rates) != 22 {
 		t.Fatalf("day=%s n=%d", day, len(rates))
 	}
-	by := map[string]Rate{}
+	by := map[string]domain.FXQuote{}
 	for _, r := range rates {
 		by[r.Currency] = r
 	}
@@ -82,5 +84,20 @@ func TestDay(t *testing.T) {
 	}
 	if _, _, err := c.Day(ctx, d(5)); err == nil {
 		t.Fatal("HTTP 500 treated as no bulletin")
+	}
+}
+
+// TestLiveTCMB hits the real service; run with MATCHWATCH_TCMB_LIVE=1.
+func TestLiveTCMB(t *testing.T) {
+	if os.Getenv("MATCHWATCH_TCMB_LIVE") == "" {
+		t.Skip("MATCHWATCH_TCMB_LIVE not set")
+	}
+	c := New("https://www.tcmb.gov.tr/kurlar")
+	rates, ok, err := c.Day(context.Background(), time.Date(2026, 11, 3, 0, 0, 0, 0, time.UTC))
+	if err != nil || !ok || len(rates) < 10 {
+		t.Fatalf("weekday: ok=%v n=%d err=%v", ok, len(rates), err)
+	}
+	if _, ok, err := c.Day(context.Background(), time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)); err != nil || ok {
+		t.Fatalf("Sunday: ok=%v err=%v", ok, err)
 	}
 }

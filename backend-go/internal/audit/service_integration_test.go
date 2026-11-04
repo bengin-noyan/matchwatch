@@ -75,7 +75,7 @@ func setup(t *testing.T) *env {
 		tx.Exec(ctx, "DELETE FROM tenants WHERE id=$1", tid)
 		tx.Commit(ctx)
 	})
-	e := &env{store: s, tid: tid, svc: New(s, nil)}
+	e := &env{store: s, tid: tid, svc: New(s, nil, nil)}
 
 	doc, err := repository.ParseContractJSON(open(t, "../../testdata/contract_basic.json"))
 	if err != nil {
