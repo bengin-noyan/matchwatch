@@ -51,3 +51,18 @@ def test_vkn_valid():
     ("ton", ("TNE", True)), ("saat", ("HUR", True)), ("ay", ("MON", True)), ("koli", ("koli", False))])
 def test_map_uom(s, r):
     assert map_uom(s) == r
+
+
+@pytest.mark.parametrize("s,c", [("TÜRK LİRASI", "TRY"), ("ABD DOLARI", "USD")])
+def test_currency_uppercase_turkish(s, c):
+    assert parse_currency(s) == c
+
+
+@pytest.mark.parametrize("s,d", [("15 EKİM 2026", "2026-10-15"), ("1 HAZİRAN 2026", "2026-06-01"),
+                                 ("15 NİSAN 2026", "2026-04-15"), ("101.01.2026", None), ("01.01.20261", None)])
+def test_date_regressions(s, d):
+    assert parse_date(s) == d
+
+
+def test_parse_days_huge_digits_no_raise():
+    assert parse_days("9" * 5000 + " gün") is None

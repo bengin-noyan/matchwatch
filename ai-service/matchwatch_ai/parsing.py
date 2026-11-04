@@ -8,7 +8,7 @@ _MONTHS = ["ocak", "şubat", "mart", "nisan", "mayıs", "haziran", "temmuz", "a�
 
 def _fold(s: str) -> str:
     # casefold() maps "I" to "i" not "ı", so unify dotless i for ALL-CAPS input
-    return s.casefold().replace("ı", "i")
+    return s.casefold().replace("ı", "i").replace("̇", "")
 
 
 _MONTH_NO = {_fold(m): i + 1 for i, m in enumerate(_MONTHS)}
@@ -38,15 +38,15 @@ def parse_tr_number(text: str) -> tuple[Decimal | None, bool]:
 
 
 _CURRENCIES = [
-    ("TRY", r"₺|\btl\b|\btry\b|türk\s+lirası"),
-    ("USD", r"\$|\busd\b|abd\s+doları"),
+    ("TRY", r"₺|\btl\b|\btry\b|türk\s+lirasi"),
+    ("USD", r"\$|\busd\b|abd\s+dolari"),
     ("EUR", r"€|\beur\b|\bavro\b|\beuro\b"),
     ("GBP", r"£|\bgbp\b|ingiliz\s+sterlini"),
 ]
 
 
 def parse_currency(text: str) -> str | None:
-    t = text.casefold()
+    t = _fold(text)
     for code, pat in _CURRENCIES:
         if re.search(pat, t):
             return code
@@ -55,7 +55,7 @@ def parse_currency(text: str) -> str | None:
 
 def parse_date(text: str) -> str | None:
     t = _fold(text)
-    m = re.search(r"(\d{1,2})[./-](\d{1,2})[./-](\d{4})", t)
+    m = re.search(r"(?<!\d)(\d{1,2})[./-](\d{1,2})[./-](\d{4})(?!\d)", t)
     if m:
         d, mo, y = map(int, m.groups())
     else:
@@ -70,7 +70,7 @@ def parse_date(text: str) -> str | None:
 
 
 def parse_days(text: str) -> int | None:
-    m = re.search(r"(\d+)\s*\)?\s*gün", text.casefold())
+    m = re.search(r"(?<!\d)(\d{1,5})(?!\d)\s*\)?\s*gün", text.casefold())
     return int(m.group(1)) if m else None
 
 
