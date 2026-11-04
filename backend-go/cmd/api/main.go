@@ -48,7 +48,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           transporthttp.NewRouter(store, audit.New(store, emb, fx), cfg.StorageDir, cfg.JWTSecret, ai, cfg.AIExtractTimeout),
+		Handler:           transporthttp.NewRouter(store, audit.New(store, emb, fx), cfg.StorageDir, cfg.JWTSecret, ai, cfg.AIExtractTimeout, cfg.CookieSecure),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       60 * time.Second,
 		WriteTimeout:      60 * time.Second,

@@ -60,12 +60,15 @@ func (s *Store) InTenant(ctx context.Context, tenantID uuid.UUID, fn func(tx *Tx
 // CreateTenant generates the id in Go so the RLS GUC can be set before the insert.
 func (s *Store) CreateTenant(ctx context.Context, name, vkn string, financingRate decimal.Decimal) (uuid.UUID, error) {
 	id := uuid.New()
-	err := s.InTenant(ctx, id, func(tx *Tx) error {
-		_, err := tx.Exec(ctx, `INSERT INTO tenants(id, name, vkn, financing_rate_annual) VALUES ($1,$2,$3,$4)`,
-			id, name, vkn, num(financingRate))
-		return err
-	})
+	err := s.InTenant(ctx, id, func(tx *Tx) error { return tx.InsertTenant(ctx, name, vkn, financingRate) })
 	return id, err
+}
+
+// InsertTenant creates the transaction's own tenant (its id is the one InTenant was given).
+func (tx *Tx) InsertTenant(ctx context.Context, name, vkn string, financingRate decimal.Decimal) error {
+	_, err := tx.Exec(ctx, `INSERT INTO tenants(id, name, vkn, financing_rate_annual) VALUES ($1,$2,$3,$4)`,
+		tx.tenantID, name, vkn, num(financingRate))
+	return err
 }
 
 // num converts a decimal to pgx's numeric without going through float.

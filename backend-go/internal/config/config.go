@@ -17,6 +17,7 @@ type Config struct {
 	AIServiceToken     string
 	AIExtractTimeout   time.Duration
 	TCMBBaseURL        string // set but empty = TCMB rates disabled (D17)
+	CookieSecure       bool   // session cookie only over HTTPS; COOKIE_SECURE=false for local http
 }
 
 func Load() (Config, error) {
@@ -43,6 +44,7 @@ func Load() (Config, error) {
 		return Config{}, errors.New("config: AI_EXTRACT_TIMEOUT must be a positive duration")
 	}
 	c.AIExtractTimeout = d
+	c.CookieSecure = os.Getenv("COOKIE_SECURE") != "false"
 	c.TCMBBaseURL = "https://www.tcmb.gov.tr/kurlar"
 	if v, ok := os.LookupEnv("TCMB_BASE_URL"); ok {
 		c.TCMBBaseURL = v
