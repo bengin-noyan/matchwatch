@@ -26,7 +26,8 @@ def test_scanned_uses_ocr_callback(scanned_pdf):
 
 @pytest.mark.skipif(shutil.which("tesseract") is None, reason="tesseract not installed")
 def test_real_ocr(scanned_pdf):
-    assert "SZL-2026-014" in extract_pages(scanned_pdf)[0].text
+    pages = extract_pages(scanned_pdf)
+    assert "1234567890" in pages[0].text and "185,50" in pages[1].text
 
 
 @pytest.mark.parametrize("data,code", [(b"hello", "NOT_PDF"), (b"%PDF-" + b"0" * (20 << 20), "TOO_LARGE")])
