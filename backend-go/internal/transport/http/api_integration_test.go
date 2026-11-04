@@ -216,7 +216,7 @@ func TestFlowHappyPath(t *testing.T) {
 
 	code, b = e.req("GET", "/api/v1/invoices?status=RED&limit=10", nil)
 	e.mustStatus(200, code, b)
-	if num(b["total"]) != "1" || len(list(b["items"])) != 1 {
+	if num(b["total"]) != "1" || len(list(b["items"])) != 1 || num(obj(list(b["items"])[0])["open_findings"]) != "3" {
 		t.Fatalf("list %v", b)
 	}
 

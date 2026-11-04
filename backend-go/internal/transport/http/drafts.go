@@ -153,6 +153,19 @@ func (s *server) postDraft(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 201, toDraftResp(d))
 }
 
+func (s *server) listDrafts(w http.ResponseWriter, r *http.Request) {
+	var out []repository.DraftSummary
+	err := s.store.InTenant(r.Context(), auth.TenantID(r.Context()), func(tx *repository.Tx) (err error) {
+		out, err = tx.ListDrafts(r.Context())
+		return
+	})
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"items": out})
+}
+
 func (s *server) getDraft(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathID(r)
 	if !ok {

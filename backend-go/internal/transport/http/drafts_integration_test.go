@@ -138,6 +138,12 @@ func TestDraftHappyPath(t *testing.T) {
 	if str(g["status"]) != "APPROVED" || str(g["contract_id"]) != str(c["id"]) {
 		t.Fatalf("approved resp %v", g)
 	}
+	code, l := e.req("GET", "/api/v1/contract-drafts", nil)
+	e.mustStatus(200, code, l)
+	if items := list(l["items"]); len(items) != 1 || str(obj(items[0])["id"]) != id || str(obj(items[0])["status"]) != "APPROVED" ||
+		str(obj(items[0])["contract_no"]) != "S-2026-001" || str(obj(items[0])["contract_id"]) != str(c["id"]) {
+		t.Fatalf("draft list %v", l)
+	}
 	pdfPath := filepath.Join(e.storage, e.tid.String(), "contract", id+".pdf")
 	if got, err := os.ReadFile(pdfPath); err != nil || string(got) != fakePDF {
 		t.Fatalf("pdf on disk: %q %v", got, err)

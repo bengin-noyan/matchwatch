@@ -34,6 +34,35 @@ type Draft struct {
 	CreatedAt, UpdatedAt  time.Time
 }
 
+type DraftSummary struct {
+	ID         uuid.UUID  `json:"id"`
+	Status     string     `json:"status"`
+	ContractNo string     `json:"contract_no"`
+	VendorName string     `json:"vendor_name"`
+	ErrorCode  string     `json:"error_code,omitempty"`
+	ContractID *uuid.UUID `json:"contract_id,omitempty"`
+	CreatedAt  time.Time  `json:"created_at"`
+}
+
+// ListDrafts returns the newest drafts first (at most 200), with the extracted contract number and vendor name.
+func (tx *Tx) ListDrafts(ctx context.Context) ([]DraftSummary, error) {
+	rows, err := tx.Query(ctx, `SELECT id, status, COALESCE(draft_json->>'contract_no',''), COALESCE(draft_json->>'vendor_name',''),
+		error_code, contract_id, created_at FROM contract_drafts WHERE tenant_id=$1 ORDER BY created_at DESC, id LIMIT 200`, tx.tenantID)
+	if err != nil {
+		return nil, wrap("list drafts", err)
+	}
+	defer rows.Close()
+	out := []DraftSummary{}
+	for rows.Next() {
+		var d DraftSummary
+		if err := rows.Scan(&d.ID, &d.Status, &d.ContractNo, &d.VendorName, &d.ErrorCode, &d.ContractID, &d.CreatedAt); err != nil {
+			return nil, wrap("scan draft", err)
+		}
+		out = append(out, d)
+	}
+	return out, rows.Err()
+}
+
 func (tx *Tx) InsertDraft(ctx context.Context, id uuid.UUID, pdfPath, sha256hex string) error {
 	_, err := tx.Exec(ctx, `INSERT INTO contract_drafts(id, tenant_id, status, pdf_path, pdf_sha256)
 		VALUES ($1,$2,'EXTRACTING',$3,$4)`, id, tx.tenantID, pdfPath, sha256hex)

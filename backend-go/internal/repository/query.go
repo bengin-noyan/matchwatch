@@ -31,15 +31,17 @@ type InvoiceRow struct {
 	Currency     string    `json:"currency"`
 	PayableMinor int64     `json:"payable_minor"`
 	AuditStatus  string    `json:"audit_status"`
+	OpenFindings int       `json:"open_findings"` // OPEN findings still waiting for a human decision
 }
 
 const invoiceCols = `i.id, i.vendor_id, v.name, i.ettn, i.invoice_no, i.issue_date::text, i.due_date::text, i.currency,
-	i.payable_minor, i.audit_status`
+	i.payable_minor, i.audit_status, (SELECT count(*) FROM audit_findings f
+		WHERE f.tenant_id=i.tenant_id AND f.invoice_id=i.id AND f.resolution_status='OPEN')`
 const invoiceFrom = ` FROM invoices i JOIN vendors v ON v.tenant_id=i.tenant_id AND v.id=i.vendor_id`
 
 func scanInvoice(row pgx.Row, r *InvoiceRow) error {
 	return row.Scan(&r.ID, &r.VendorID, &r.VendorName, &r.ETTN, &r.InvoiceNo, &r.IssueDate, &r.DueDate, &r.Currency,
-		&r.PayableMinor, &r.AuditStatus)
+		&r.PayableMinor, &r.AuditStatus, &r.OpenFindings)
 }
 
 // ListInvoices returns one page (newest first) and the total number of matches.

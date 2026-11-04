@@ -28,6 +28,7 @@ func NewRouter(store *repository.Store, auditor *audit.Service, storageDir strin
 	api.HandleFunc("GET /api/v1/auth/me", s.me)
 	api.HandleFunc("POST /api/v1/contracts", s.postContract)
 	api.HandleFunc("POST /api/v1/contract-drafts", s.postDraft)
+	api.HandleFunc("GET /api/v1/contract-drafts", s.listDrafts)
 	api.HandleFunc("GET /api/v1/contract-drafts/{id}", s.getDraft)
 	api.HandleFunc("POST /api/v1/contract-drafts/{id}/extract", s.reextractDraft)
 	api.HandleFunc("POST /api/v1/despatches", s.postDespatch)

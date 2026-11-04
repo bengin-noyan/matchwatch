@@ -46,9 +46,13 @@ func main() {
 		fx = tcmb.New(cfg.TCMBBaseURL)
 	}
 
+	handler := transporthttp.NewRouter(store, audit.New(store, emb, fx), cfg.StorageDir, cfg.JWTSecret, ai, cfg.AIExtractTimeout, cfg.CookieSecure)
+	if cfg.WebDir != "" {
+		handler = transporthttp.WithWeb(handler, cfg.WebDir)
+	}
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           transporthttp.NewRouter(store, audit.New(store, emb, fx), cfg.StorageDir, cfg.JWTSecret, ai, cfg.AIExtractTimeout, cfg.CookieSecure),
+		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       60 * time.Second,
 		WriteTimeout:      60 * time.Second,
