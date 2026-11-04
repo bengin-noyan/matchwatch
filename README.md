@@ -25,6 +25,10 @@ go run ./cmd/devtoken -name Demo -vkn 9876543210 -rate 0.45   # creates a tenant
 go run ./cmd/api          # needs DATABASE_URL, JWT_SECRET, HTTP_ADDR, STORAGE_DIR
 ```
 
+### AI extraction (optional)
+
+`docker compose --profile ai up -d` adds Ollama and the Python `ai-service` (127.0.0.1:8090). Set `AI_SERVICE_URL=http://127.0.0.1:8090` and `AI_SERVICE_TOKEN` for the API, then upload a contract PDF to `POST /api/v1/contract-drafts`, review the draft and approve it with `POST /api/v1/contracts` carrying `draft_id`. `bash scripts/smoke-ai.sh` runs this end to end.
+
 ## Tests
 
 ```bash
