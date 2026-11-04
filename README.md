@@ -65,3 +65,10 @@ All routes under `/api/v1` need `Authorization: Bearer <tenant JWT>`.
 
 - [`docs/spec.md`](docs/spec.md): the authoritative spec (its §4 decisions D1–D15 win).
 - Phases: Faz 1 Go core (this repo, see `docs/superpowers/plans/2026-11-02-faz1-go-core.md`); Faz 2 Python AI/PDF service and Faz 3 Vue 3 web app are not started.
+
+## Web app
+
+`web/` is the Vue 3 app (login, invoice list, findings with contract and invoice side by side, uploads, contract
+draft review, summary). Open an account with `cmd/onboard` (owner role; password on stdin), then either run
+`npm run dev` in `web/` against the API on `:8080`, or build it (`npm run build`) and let the API serve it with
+`WEB_DIR=../web/dist`. Set `COOKIE_SECURE=false` only for plain-http local use.
