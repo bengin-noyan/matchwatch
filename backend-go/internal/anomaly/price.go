@@ -12,11 +12,18 @@ func uncontractedItem(in Input, lc LineContext) []domain.Finding {
 	if in.Contract == nil || lc.ContractItem != nil {
 		return nil
 	}
+	ev := map[string]any{"line_id": lc.Line.LineID, "item_code": lc.Line.ItemCode, "contract_no": in.Contract.Number}
+	if len(lc.Suggestions) > 0 {
+		sug := make([]map[string]any, len(lc.Suggestions))
+		for i, s := range lc.Suggestions {
+			sug[i] = map[string]any{"contract_item_id": s.ContractItemID.String(), "item_name": s.ItemName,
+				"similarity": s.Similarity.StringFixed(4)}
+		}
+		ev["suggestions"] = sug
+	}
 	return []domain.Finding{{
 		InvoiceLineID: &lc.Line.ID, Severity: domain.SeverityWarning, RuleCode: domain.RuleUncontractedItem,
-		ImpactCurrency: in.Invoice.Currency,
-		Evidence: map[string]any{"line_id": lc.Line.LineID, "item_code": lc.Line.ItemCode,
-			"contract_no": in.Contract.Number},
+		ImpactCurrency: in.Invoice.Currency, Evidence: ev,
 	}}
 }
 
@@ -26,8 +33,8 @@ func priceRules(in Input, lc LineContext) []domain.Finding {
 	if ci == nil {
 		return nil
 	}
-	evidence := map[string]any{"line_id": line.LineID, "source_page": ci.SourcePage,
-		"source_clause_text": ci.SourceClauseText}
+	evidence := withMatch(map[string]any{"line_id": line.LineID, "source_page": ci.SourcePage,
+		"source_clause_text": ci.SourceClauseText}, lc)
 	if in.Contract != nil {
 		evidence["contract_no"] = in.Contract.Number
 	}

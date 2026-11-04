@@ -107,3 +107,31 @@ func TestAllocateEmptyCodeNeverMatchesAndZeroSkipped(t *testing.T) {
 		t.Fatalf("empty codes matched: %+v", r)
 	}
 }
+
+func TestMatchAlias(t *testing.T) {
+	hit := uuid.New()
+	items := []domain.ContractItem{{ID: uuid.New()}, {ID: hit, Name: "hit"}}
+	aliases := map[domain.AliasKey]uuid.UUID{{NameKey: "aycicek yagi 5lt", UOM: "C62"}: hit}
+	if got := MatchAlias(domain.InvoiceLine{Name: "AYÇİÇEK YAĞI 5LT", UOM: "C62"}, items, aliases); got == nil || got.Name != "hit" {
+		t.Fatalf("got %+v", got)
+	}
+	if got := MatchAlias(domain.InvoiceLine{Name: "AYÇİÇEK YAĞI 5LT", UOM: "KGM"}, items, aliases); got != nil {
+		t.Fatalf("other uom matched: %+v", got)
+	}
+	// alias pointing at an item outside the active contract is ignored
+	stale := map[domain.AliasKey]uuid.UUID{{NameKey: "aycicek yagi 5lt", UOM: "C62"}: uuid.New()}
+	if got := MatchAlias(domain.InvoiceLine{Name: "AYÇİÇEK YAĞI 5LT", UOM: "C62"}, items, stale); got != nil {
+		t.Fatalf("stale alias matched: %+v", got)
+	}
+}
+
+func TestPickSuggestions(t *testing.T) {
+	s := func(sim string) domain.Suggestion { return domain.Suggestion{ItemName: sim, Similarity: d(sim)} }
+	got := PickSuggestions([]domain.Suggestion{s("0.9100"), s("0.4999"), s("0.5000"), s("0.6000"), s("0.5500")})
+	if len(got) != 3 || got[0].ItemName != "0.9100" || got[1].ItemName != "0.5000" || got[2].ItemName != "0.6000" {
+		t.Fatalf("got %+v", got)
+	}
+	if got := PickSuggestions([]domain.Suggestion{s("0.4999")}); len(got) != 0 {
+		t.Fatalf("below floor kept: %+v", got)
+	}
+}

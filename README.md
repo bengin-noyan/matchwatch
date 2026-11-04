@@ -29,6 +29,8 @@ go run ./cmd/api          # needs DATABASE_URL, JWT_SECRET, HTTP_ADDR, STORAGE_D
 
 `docker compose --profile ai up -d` adds Ollama and the Python `ai-service` (127.0.0.1:8090). Set `AI_SERVICE_URL=http://127.0.0.1:8090` and `AI_SERVICE_TOKEN` for the API, then upload a contract PDF to `POST /api/v1/contract-drafts`, review the draft and approve it with `POST /api/v1/contracts` carrying `draft_id`. `bash scripts/smoke-ai.sh` runs this end to end.
 
+Invoice lines that match no contract item by code or barcode get up to three embedding-ranked suggestions in their `UNCONTRACTED_ITEM` finding (`evidence.suggestions`). Suggestions never match on their own (D16): confirm one with `POST /api/v1/invoice-lines/{id}/match` `{"contract_item_id": "..."}`, which stores an alias for that vendor's item name and re-audits the invoice.
+
 `EXTRACT_DEADLINE_S` (ai-service, default 270) bounds the whole extraction, retries included, and must stay below `AI_EXTRACT_TIMEOUT` (API, default 5m) so the service answers before the API gives up. On slow CPU hosts raise both together (and `LLM_TIMEOUT_S`).
 
 ## Tests

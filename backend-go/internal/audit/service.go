@@ -3,6 +3,7 @@ package audit
 
 import (
 	"context"
+	"log"
 
 	"github.com/google/uuid"
 
@@ -12,14 +13,21 @@ import (
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/repository"
 )
 
-type Service struct{ store *repository.Store }
+type Service struct {
+	store *repository.Store
+	emb   Embedder // nil = no semantic suggestions (Faz 1 behaviour)
+}
 
-func New(store *repository.Store) *Service { return &Service{store: store} }
+func New(store *repository.Store, emb Embedder) *Service { return &Service{store: store, emb: emb} }
 
 // AuditInvoice is idempotent: OPEN findings and allocations are rebuilt, DISPUTED/APPROVED_EXCEPTION ones are kept.
 func (s *Service) AuditInvoice(ctx context.Context, tenantID, invoiceID uuid.UUID) (domain.AuditStatus, error) {
+	suggestions, err := s.suggest(ctx, tenantID, invoiceID)
+	if err != nil {
+		log.Printf("audit %s: semantic suggestions skipped: %v", invoiceID, err) // the audit itself must not fail (D16)
+	}
 	var status domain.AuditStatus
-	err := s.store.InTenant(ctx, tenantID, func(tx *repository.Tx) error {
+	err = s.store.InTenant(ctx, tenantID, func(tx *repository.Tx) error {
 		kept, err := tx.ResetAudit(ctx, invoiceID)
 		if err != nil {
 			return err
@@ -36,15 +44,37 @@ func (s *Service) AuditInvoice(ctx context.Context, tenantID, invoiceID uuid.UUI
 		if err != nil {
 			return err
 		}
+		var aliases map[domain.AliasKey]uuid.UUID
+		if contract != nil {
+			if aliases, err = tx.Aliases(ctx, inv.VendorID); err != nil {
+				return err
+			}
+		}
 		in := anomaly.Input{Invoice: inv, Contract: contract}
 		var allocs []domain.Allocation
 		matched := map[uuid.UUID]uuid.UUID{}
 		for _, line := range inv.Lines {
 			lc := anomaly.LineContext{Line: line, ContractItem: matcher.MatchContractItem(line, items)}
+			if lc.ContractItem == nil {
+				if lc.ContractItem = matcher.MatchAlias(line, items, aliases); lc.ContractItem != nil {
+					lc.MatchMethod = anomaly.MatchAlias
+				}
+			}
+			delivery := line
 			if lc.ContractItem != nil {
 				matched[line.ID] = lc.ContractItem.ID
+				if lc.MatchMethod == anomaly.MatchAlias { // a code-less aliased line draws on despatches by the contract item's codes
+					if delivery.ItemCode == "" {
+						delivery.ItemCode = lc.ContractItem.ItemCode
+					}
+					if delivery.Barcode == "" {
+						delivery.Barcode = lc.ContractItem.Barcode
+					}
+				}
+			} else {
+				lc.Suggestions = suggestions[line.ID]
 			}
-			lc.Delivery = matcher.Allocate(line, cands) // cands is shared, so lines cannot reuse the same quantity
+			lc.Delivery = matcher.Allocate(delivery, cands) // cands is shared, so lines cannot reuse the same quantity
 			allocs = append(allocs, lc.Delivery.Allocations...)
 			if lc.PriceHistory, err = tx.PriceHistory(ctx, inv, line); err != nil {
 				return err

@@ -75,7 +75,7 @@ func setup(t *testing.T) *env {
 		tx.Exec(ctx, "DELETE FROM tenants WHERE id=$1", tid)
 		tx.Commit(ctx)
 	})
-	e := &env{store: s, tid: tid, svc: New(s)}
+	e := &env{store: s, tid: tid, svc: New(s, nil)}
 
 	doc, err := repository.ParseContractJSON(open(t, "../../testdata/contract_basic.json"))
 	if err != nil {
@@ -368,5 +368,28 @@ func TestAuditConcurrentSameDespatch(t *testing.T) {
 	}
 	if qty != 1 {
 		t.Fatalf("expected QTY_EXCEEDS_DELIVERY on B, got %d", qty)
+	}
+}
+
+// An invoice that references no despatch draws on the vendor's last 30 days of despatches (regression: the lock
+// statement left the invoice-id parameter untyped and the audit failed with SQLSTATE 42P18).
+func TestAuditInvoiceWithoutDespatchRefs(t *testing.T) {
+	e := setup(t)
+	inv, err := ubl.ParseInvoice(open(t, "../../testdata/invoice_basic.xml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	inv.ETTN, inv.Number, inv.DespatchRefs = uuid.NewString(), "T"+uuid.NewString()[:12], nil
+	var id uuid.UUID
+	err = e.store.InTenant(context.Background(), e.tid, func(tx *repository.Tx) error {
+		id, err = tx.InsertInvoice(context.Background(), e.vendr, inv, "")
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.audit(t, id)
+	if got := fmt.Sprint(sig(e.findings(t, id))); got != "[MATURITY_VIOLATION//9912 PRICE_MISMATCH/1/5000 QTY_EXCEEDS_DELIVERY/1/6500]" {
+		t.Fatalf("got %s", got)
 	}
 }

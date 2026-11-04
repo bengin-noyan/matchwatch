@@ -103,7 +103,8 @@ func (tx *Tx) DespatchCandidates(ctx context.Context, inv domain.Invoice) ([]dom
 	where, args := `da.despatch_no IN (SELECT despatch_no FROM invoice_despatch_refs WHERE tenant_id=$1 AND invoice_id=$3)`,
 		[]any{tx.tenantID, inv.VendorID, inv.ID}
 	if !inv.HasDespatchRefs {
-		where, args = `da.issue_date BETWEEN $4::date - 30 AND $4::date`, append(args, inv.IssueDate)
+		// $3 must still appear typed: the lock statement below uses only this where clause
+		where, args = `da.issue_date BETWEEN $4::date - 30 AND $4::date AND $3::uuid IS NOT NULL`, append(args, inv.IssueDate)
 	}
 	// Lock first, in its own statement: the Available query below must take a fresh READ COMMITTED snapshot
 	// after any competing audit has committed its allocations (the locked rows themselves are never updated).

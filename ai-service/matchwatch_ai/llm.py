@@ -49,3 +49,33 @@ class OpenAICompatLLM:
         if not isinstance(out, dict):
             raise LLMError("LLM_BAD_OUTPUT", "response is not a JSON object")
         return out
+
+
+class OpenAICompatEmbedder:
+    def __init__(self, base_url: str, model: str, timeout_s: int = 60,
+                 transport: httpx.BaseTransport | None = None):
+        self.base_url = base_url.rstrip("/")
+        self.model = model
+        self.timeout_s = timeout_s
+        self.transport = transport
+
+    def embed(self, texts: list[str]) -> list[list]:
+        try:
+            # trust_env=False: proxy env vars must never reroute item names
+            with httpx.Client(timeout=self.timeout_s, transport=self.transport, trust_env=False) as c:
+                r = c.post(f"{self.base_url}/v1/embeddings", json={"model": self.model, "input": texts})
+        except httpx.HTTPError as e:
+            raise LLMError("LLM_UNAVAILABLE", type(e).__name__) from None
+        if r.status_code != 200:
+            raise LLMError("LLM_UNAVAILABLE", f"HTTP {r.status_code}")
+        try:
+            data = sorted(r.json()["data"], key=lambda d: d["index"])
+            vecs = [d["embedding"] for d in data]
+        except (ValueError, KeyError, TypeError):
+            raise LLMError("LLM_BAD_OUTPUT", "response is not an embedding list") from None
+        ok = len(vecs) == len(texts) and all(
+            isinstance(v, list) and v and all(isinstance(x, (int, float)) and not isinstance(x, bool) for x in v)
+            for v in vecs)
+        if not ok or len({len(v) for v in vecs}) != 1:
+            raise LLMError("LLM_BAD_OUTPUT", "embedding count or shape mismatch")
+        return vecs

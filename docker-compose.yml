@@ -29,6 +29,7 @@ services:
       AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:-}
       LLM_BASE_URL: ${LLM_BASE_URL:-http://ollama:11434}
       LLM_MODEL: ${LLM_MODEL:-qwen2.5:7b-instruct}
+      EMBED_MODEL: ${EMBED_MODEL:-bge-m3}
       LLM_TIMEOUT_S: ${LLM_TIMEOUT_S:-240}
       EXTRACT_DEADLINE_S: ${EXTRACT_DEADLINE_S:-270}
     ports:

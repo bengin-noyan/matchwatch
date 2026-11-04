@@ -11,8 +11,20 @@ import (
 type LineContext struct {
 	Line         domain.InvoiceLine
 	ContractItem *domain.ContractItem
+	MatchMethod  string // MatchAlias when ContractItem came from a human-confirmed alias, else "" (code/barcode)
+	Suggestions  []domain.Suggestion
 	Delivery     matcher.DeliveryResult
 	PriceHistory []domain.PricePoint
+}
+
+const MatchAlias = "ALIAS"
+
+// withMatch records how the contract item was found when it was not a plain code/barcode hit (D16).
+func withMatch(ev map[string]any, lc LineContext) map[string]any {
+	if lc.MatchMethod != "" {
+		ev["match_method"] = lc.MatchMethod
+	}
+	return ev
 }
 
 type Input struct {

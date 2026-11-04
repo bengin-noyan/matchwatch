@@ -34,14 +34,16 @@ func main() {
 	}
 	defer pool.Close()
 	store := repository.NewStore(pool)
-	var ai transporthttp.Extractor // nil interface = disabled; a typed-nil *aiclient.Client would not be == nil
+	var ai transporthttp.Extractor // nil interfaces = disabled; a typed-nil *aiclient.Client would not be == nil
+	var emb audit.Embedder
 	if cfg.AIServiceURL != "" {
-		ai = aiclient.New(cfg.AIServiceURL, cfg.AIServiceToken, cfg.AIExtractTimeout)
+		c := aiclient.New(cfg.AIServiceURL, cfg.AIServiceToken, cfg.AIExtractTimeout)
+		ai, emb = c, c
 	}
 
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           transporthttp.NewRouter(store, audit.New(store), cfg.StorageDir, cfg.JWTSecret, ai, cfg.AIExtractTimeout),
+		Handler:           transporthttp.NewRouter(store, audit.New(store, emb), cfg.StorageDir, cfg.JWTSecret, ai, cfg.AIExtractTimeout),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       60 * time.Second,
 		WriteTimeout:      60 * time.Second,

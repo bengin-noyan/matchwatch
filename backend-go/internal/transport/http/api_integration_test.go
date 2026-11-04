@@ -72,7 +72,7 @@ func setup(t *testing.T, tenantVKN string) *env {
 		tx.Exec(ctx, "DELETE FROM tenants WHERE id=$1", e.tid)
 		tx.Commit(ctx)
 	})
-	e.srv = NewRouter(s, audit.New(s), e.storage, secret, nil, 0)
+	e.srv = NewRouter(s, audit.New(s, nil), e.storage, secret, nil, 0)
 	tok, err := auth.Sign(secret, e.tid, "test", time.Hour)
 	if err != nil {
 		t.Fatal(err)

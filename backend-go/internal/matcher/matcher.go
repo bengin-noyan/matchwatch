@@ -4,6 +4,7 @@ package matcher
 import (
 	"sort"
 
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/domain"
@@ -69,4 +70,36 @@ func Allocate(line domain.InvoiceLine, cands []domain.DespatchCandidate) Deliver
 		remaining = remaining.Sub(take)
 	}
 	return res
+}
+
+var suggestionFloor = decimal.RequireFromString("0.50")
+
+const maxSuggestions = 3
+
+// MatchAlias resolves a human-confirmed alias (D16). An alias whose item is not in the active contract is ignored.
+func MatchAlias(line domain.InvoiceLine, items []domain.ContractItem, aliases map[domain.AliasKey]uuid.UUID) *domain.ContractItem {
+	id, ok := aliases[domain.AliasKey{NameKey: domain.NameKey(line.Name), UOM: line.UOM}]
+	if !ok {
+		return nil
+	}
+	for i := range items {
+		if items[i].ID == id {
+			return &items[i]
+		}
+	}
+	return nil
+}
+
+// PickSuggestions keeps candidates (already ordered best first) at or above the floor, at most three.
+func PickSuggestions(cands []domain.Suggestion) []domain.Suggestion {
+	var out []domain.Suggestion
+	for _, c := range cands {
+		if len(out) == maxSuggestions {
+			break
+		}
+		if c.Similarity.GreaterThanOrEqual(suggestionFloor) {
+			out = append(out, c)
+		}
+	}
+	return out
 }

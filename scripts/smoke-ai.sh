@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# End-to-end AI smoke: real Postgres, Ollama + ai-service containers, real API binary, PDF -> draft -> approved contract.
+# End-to-end AI smoke: real Postgres, Ollama + ai-service containers, real API binary.
+# PDF -> draft -> approved contract, then a code-less invoice line -> suggestion -> confirmed alias -> PRICE_MISMATCH.
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
@@ -23,6 +24,7 @@ base="http://127.0.0.1:$port"
 
 docker compose --profile ai up -d --build
 docker compose exec -T ollama ollama pull "$LLM_MODEL"
+docker compose exec -T ollama ollama pull "$EMBED_MODEL"
 for i in $(seq 1 60); do
   curl -sSf http://127.0.0.1:8090/healthz >/dev/null 2>&1 && break
   [ "$i" = 60 ] && { docker compose logs ai >&2; echo "ai-service did not start" >&2; exit 1; }
@@ -79,4 +81,38 @@ code="$(curl -sS -o "$tmp/out" -w '%{http_code}' -X POST "$base/api/v1/contracts
 id="$(python -X utf8 -I -c "import json,sys;print(json.load(open(sys.argv[1]))['id'])" "$tmp/draft.json")"
 st="$(curl -sSf "$base/api/v1/contract-drafts/$id" -H "Authorization: Bearer $token" | python -X utf8 -I -c "import json,sys;print(json.load(sys.stdin)['status'])")"
 [ "$st" = APPROVED ] || { echo "draft status $st, want APPROVED" >&2; exit 1; }
+
+# Faz 2b (D16): the invoice says "BEYAZ PEYNIR TAM YAGLI 1KG" with no code; the contract item is "Beyaz Peynir 1 kg".
+inv="$(cat "$root/backend-go/testdata/invoice_semantic.xml")"
+inv="${inv//3d2c1b0a-9f8e-4d7c-8b6a-5f4e3d2c1b0a/$(python -I -c 'import uuid;print(uuid.uuid4())')}"
+printf '%s' "$inv" >"$tmp/invoice.xml"
+code="$(curl -sS --max-time 300 -o "$tmp/inv.json" -w '%{http_code}' -X POST "$base/api/v1/invoices"   -H "Authorization: Bearer $token" -H "Content-Type: application/xml" --data-binary "@$tmp/invoice.xml")"
+[ "$code" = 201 ] || { echo "POST /invoices -> $code" >&2; cat "$tmp/inv.json" "$tmp/api.log" >&2; exit 1; }
+inv_id="$(python -X utf8 -I -c "import json,sys;print(json.load(open(sys.argv[1]))['id'])" "$tmp/inv.json")"
+curl -sSf "$base/api/v1/invoices/$inv_id" -H "Authorization: Bearer $token" >"$tmp/detail.json"
+
+# Prints the suggestions, writes the confirm body and the line id, fails unless the cheese item is suggested first.
+python -X utf8 -I - "$tmp/detail.json" "$tmp/match.json" "$tmp/line_id" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1], encoding="utf-8"))
+u = [f for f in d["findings"] if f["rule_code"] == "UNCONTRACTED_ITEM" and f["line_id"] == "1"]
+sug = (u[0]["evidence"].get("suggestions") or []) if u else []
+print("suggestions:", [(s["item_name"], s["similarity"]) for s in sug])
+if not sug or sug[0]["item_name"] != "Beyaz Peynir 1 kg":
+    sys.exit("smoke-ai FAIL: 'Beyaz Peynir 1 kg' is not the top suggestion")
+json.dump({"contract_item_id": sug[0]["contract_item_id"]}, open(sys.argv[2], "w"))
+open(sys.argv[3], "w").write([l["id"] for l in d["lines"] if l["line_id"] == "1"][0])
+PY
+
+code="$(curl -sS --max-time 300 -o "$tmp/out" -w '%{http_code}' -X POST "$base/api/v1/invoice-lines/$(cat "$tmp/line_id")/match"   -H "Authorization: Bearer $token" -H "Content-Type: application/json" --data-binary "@$tmp/match.json")"
+[ "$code" = 200 ] || { echo "POST /match -> $code" >&2; cat "$tmp/out" "$tmp/api.log" >&2; exit 1; }
+curl -sSf "$base/api/v1/invoices/$inv_id" -H "Authorization: Bearer $token" >"$tmp/detail.json"
+python -X utf8 -I - "$tmp/detail.json" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1], encoding="utf-8"))
+p = [f for f in d["findings"] if f["rule_code"] == "PRICE_MISMATCH" and f["line_id"] == "1"]
+print("after alias:", [(f["rule_code"], f["financial_impact_minor"]) for f in d["findings"]])
+if not p or p[0]["financial_impact_minor"] != 4500 or p[0]["evidence"].get("match_method") != "ALIAS":
+    sys.exit("smoke-ai FAIL: want PRICE_MISMATCH 4500 with match_method ALIAS")
+PY
 echo "smoke-ai OK"
