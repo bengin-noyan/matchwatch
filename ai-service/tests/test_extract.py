@@ -227,3 +227,23 @@ def test_end_not_after_start_is_unparseable(text_pages, good_answer):
     assert out["draft"]["valid_from"] == "2026-01-01" and out["draft"]["valid_until"] is None
     w = next(w for w in out["warnings"] if w["field"] == "valid_until")
     assert w["code"] == "UNPARSEABLE" and "not after" in w["message"]
+
+
+def test_range_recovers_end_quoted_as_start(text_pages, good_answer):
+    good_answer["valid_from"]["text"] = "01.01.2026 – 31.12.2026"
+    good_answer["valid_until"]["text"] = "01.01.2026"  # the real-model mistake
+    out = extract(text_pages, FakeLLM([good_answer]))
+    assert (out["draft"]["valid_from"], out["draft"]["valid_until"]) == ("2026-01-01", "2026-12-31")
+    assert not any(w["code"] == "UNPARSEABLE" and w["field"] == "valid_until" for w in out["warnings"])
+
+
+@pytest.mark.parametrize("quote,want", [
+    ("Sözleşme No: SZL-2026-014", "SZL-2026-014"),
+    ("SZL:2026/14", "SZL:2026/14"),
+])
+def test_label_strip_keeps_colon_in_value(fixture_pages, good_answer, quote, want):
+    pages = [Page(1, fixture_pages[0] + "\nEk referans SZL:2026/14", False), Page(2, fixture_pages[1], False)]
+    good_answer["contract_no"]["text"] = quote
+    good_answer["vendor_name"]["text"] = "Satıcı: Örnek Gıda Sanayi A.Ş."
+    d = extract(pages, FakeLLM([good_answer]))["draft"]
+    assert d["contract_no"] == want and d["vendor_name"] == "Örnek Gıda Sanayi A.Ş."

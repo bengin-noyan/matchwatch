@@ -118,7 +118,8 @@ def _header_values(k: str, t: str, page: int) -> tuple[dict | None, str]:
     if k in ("vendor_name", "contract_no"):
         t = t.strip()
         c = t.find(":")
-        if 0 <= c < 40:  # drop a "Sözleşme No:" / "Satıcı:" label; the rest is still on the page
+        # drop a "Sözleşme No:" / "Satıcı:" label, but keep colons inside values like "SZL:2026/14"
+        if 0 <= c < 40 and (re.search(r"\s", t[:c]) or t[c + 1:c + 2].isspace()):
             t = t[c + 1:].strip()
         return ({k: t}, "") if t else (None, "UNPARSEABLE")
     if k in ("valid_from", "valid_until"):
@@ -201,12 +202,15 @@ def extract(pages: list[Page], llm: LLM, max_chars: int = 24000) -> dict:
             draft.update(vals)
             if k == "vendor_vkn" and not vkn_valid(vals[k]):
                 warn("VKN_CHECKSUM", field, q["page"], "VKN checksum failed; value kept for review")
-        if rng:  # a range quote fills the other end unless that field got its own value
-            for k, v in (("valid_from", rng[0]), ("valid_until", rng[1])):
-                if k not in filled:
-                    filled.add(k)
-                    pending.pop(k, None)
-                    draft[k] = v
+        if rng:  # a range quote fills a missing start, and a missing or not-after-start end
+            if "valid_from" not in filled:
+                filled.add("valid_from")
+                pending.pop("valid_from", None)
+                draft["valid_from"] = rng[0]
+            if "valid_until" not in filled or draft["valid_until"] <= draft["valid_from"]:
+                filled.add("valid_until")
+                pending.pop("valid_until", None)
+                draft["valid_until"] = rng[1]
 
         for j, it in enumerate(ans.get("items") or []):
             i = len(items)
