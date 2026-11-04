@@ -14,6 +14,7 @@ class Settings:
     llm_model: str = "qwen2.5:7b-instruct"
     llm_timeout_s: int = 240
     max_chars: int = 24000
+    extract_deadline_s: int = 270
 
 
 def is_private_host(host: str) -> bool:
@@ -45,4 +46,5 @@ def load(env: Mapping[str, str] = os.environ) -> Settings:
         llm_model=env.get("LLM_MODEL", "qwen2.5:7b-instruct"),
         llm_timeout_s=int(env.get("LLM_TIMEOUT_S", "240")),
         max_chars=int(env.get("LLM_MAX_CHARS", "24000")),
+        extract_deadline_s=int(env.get("EXTRACT_DEADLINE_S", "270")),
     )

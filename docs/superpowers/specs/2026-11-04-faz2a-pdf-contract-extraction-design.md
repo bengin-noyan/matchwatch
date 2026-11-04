@@ -136,7 +136,8 @@ Güvenlik/KVKK:
 ### 6.3 Docker Compose
 
 - `ai` servisi (`ai-service/Dockerfile`, `python:3.12-slim` + `tesseract-ocr` + `tesseract-ocr-tur`), port dışarı
-  açılmaz.
+  açılmaz. Geliştirmede Go API host üzerinde çalıştığı için `ai` yalnızca `127.0.0.1:8090`'da (loopback) yayımlanır
+  (kontrolcü kararı); üretimde hiçbir port açılmaz.
 - `ollama` servisi (`ollama/ollama`), model volume'da; ikisi de `profiles: ["ai"]` altında — Faz 1 geliştirme akışı
   (`docker compose up -d`) etkilenmez, model indirmesi istenmeden yapılmaz.
 

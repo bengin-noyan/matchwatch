@@ -18,7 +18,8 @@ def test_parse_tr_number(s, val, amb):
 
 
 @pytest.mark.parametrize("s,c", [("12,50 TL", "TRY"), ("₺10", "TRY"), ("Türk Lirası", "TRY"), ("TRY", "TRY"),
-    ("$5", "USD"), ("ABD Doları", "USD"), ("€3", "EUR"), ("Avro", "EUR"), ("Euro", "EUR"), ("GBP 4", "GBP"), ("10", None)])
+    ("$5", "USD"), ("ABD Doları", "USD"), ("€3", "EUR"), ("Avro", "EUR"), ("Euro", "EUR"), ("GBP 4", "GBP"), ("10", None),
+    ("ABD Doları (TL karşılığı)", None), ("USD olup TL karşılığı ödenir", None)])
 def test_parse_currency(s, c):
     assert parse_currency(s) == c
 

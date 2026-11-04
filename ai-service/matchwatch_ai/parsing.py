@@ -47,10 +47,8 @@ _CURRENCIES = [
 
 def parse_currency(text: str) -> str | None:
     t = _fold(text)
-    for code, pat in _CURRENCIES:
-        if re.search(pat, t):
-            return code
-    return None
+    found = [code for code, pat in _CURRENCIES if re.search(pat, t)]
+    return found[0] if len(found) == 1 else None  # two codes ("USD ... TL karşılığı") is ambiguous
 
 
 def parse_date(text: str) -> str | None:

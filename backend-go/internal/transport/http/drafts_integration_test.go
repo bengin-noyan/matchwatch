@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/aiclient"
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/audit"
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/repository"
@@ -231,14 +233,25 @@ func TestDraftDisabled(t *testing.T) {
 	if str(b["code"]) != "AI_DISABLED" {
 		t.Fatalf("resp %v", b)
 	}
-	for _, p := range []string{"GET /api/v1/contract-drafts/" + e.tid.String(), "POST /api/v1/contract-drafts/" + e.tid.String() + "/extract"} {
-		m, path, _ := strings.Cut(p, " ")
-		code, b = e.req(m, path, nil)
-		e.mustStatus(503, code, b)
-		if str(b["code"]) != "AI_DISABLED" {
-			t.Fatalf("%s resp %v", p, b)
-		}
+	code, b = e.req("POST", "/api/v1/contract-drafts/"+e.tid.String()+"/extract", nil)
+	e.mustStatus(503, code, b)
+	if str(b["code"]) != "AI_DISABLED" {
+		t.Fatalf("extract resp %v", b)
 	}
+}
+
+// reading a draft needs no extractor: only the POST routes are gated
+func TestDraftGetWithoutAI(t *testing.T) {
+	e := setup(t, "9876543210")
+	id := uuid.New()
+	err := e.store.InTenant(context.Background(), e.tid, func(tx *repository.Tx) error {
+		return tx.InsertDraft(context.Background(), id, "p", "h")
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	code, b := e.req("GET", "/api/v1/contract-drafts/"+id.String(), nil)
+	e.mustStatus(200, code, b)
 }
 
 func TestDraftSlowExtraction(t *testing.T) {
@@ -293,6 +306,20 @@ func TestDraftTooLarge(t *testing.T) {
 	e.mustStatus(413, code, b)
 	if n := e.count(`SELECT count(*) FROM contract_drafts`); n != 0 {
 		t.Fatalf("drafts %d", n)
+	}
+}
+
+func TestDraftPDFOver20MiB(t *testing.T) {
+	e := setup(t, "9876543210")
+	e.withAI(&fakeAI{}, 10*time.Second)
+	// 20 MiB + 1 byte: inside the 21 MiB multipart cap, over the PDF cap
+	code, b := e.upload("%PDF-" + strings.Repeat("x", maxPDF+1-5))
+	e.mustStatus(413, code, b)
+	if n := e.count(`SELECT count(*) FROM contract_drafts`); n != 0 {
+		t.Fatalf("drafts %d", n)
+	}
+	if code, b = e.upload("%PDF-" + strings.Repeat("x", maxPDF-5)); code != 201 {
+		t.Fatalf("exactly 20 MiB: %d %v", code, b)
 	}
 }
 

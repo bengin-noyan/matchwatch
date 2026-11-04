@@ -32,9 +32,11 @@ class FakeLLM:
     def __init__(self, answers):
         self.answers = list(answers)
         self.calls = []
+        self.timeouts = []
 
-    def complete_json(self, system, user, schema):
+    def complete_json(self, system, user, schema, timeout_s=None):
         self.calls.append(user)
+        self.timeouts.append(timeout_s)
         a = self.answers.pop(0)
         if isinstance(a, Exception):
             raise a

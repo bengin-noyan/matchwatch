@@ -57,7 +57,7 @@ def create_app(settings: Settings, llm: LLM | None = None, ocr=tesseract_ocr) ->
         pages = ocr_pages = 0
         code = "ok"
         try:
-            out = extract(extract_pages(data, ocr=ocr), llm, settings.max_chars)
+            out = extract(extract_pages(data, ocr=ocr), llm, settings.max_chars, settings.extract_deadline_s)
             pages, ocr_pages = out["meta"]["pages"], len(out["meta"]["ocr_pages"])
             out["meta"]["duration_ms"] = int((time.monotonic() - t0) * 1000)
             return out
@@ -78,4 +78,5 @@ def create_app(settings: Settings, llm: LLM | None = None, ocr=tesseract_ocr) ->
 
 
 def factory() -> FastAPI:
+    logging.basicConfig(level=logging.INFO)  # summary line only, never content
     return create_app(load())

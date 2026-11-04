@@ -15,7 +15,7 @@ class LLMError(Exception):
 class LLM(Protocol):
     model: str
 
-    def complete_json(self, system: str, user: str, schema: dict) -> dict: ...
+    def complete_json(self, system: str, user: str, schema: dict, timeout_s=None) -> dict: ...
 
 
 class OpenAICompatLLM:
@@ -26,7 +26,7 @@ class OpenAICompatLLM:
         self.timeout_s = timeout_s
         self.transport = transport
 
-    def complete_json(self, system: str, user: str, schema: dict) -> dict:
+    def complete_json(self, system: str, user: str, schema: dict, timeout_s=None) -> dict:
         body = {
             "model": self.model,
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
@@ -34,7 +34,9 @@ class OpenAICompatLLM:
             "response_format": {"type": "json_schema", "json_schema": {"name": "contract", "schema": schema}},
         }
         try:
-            with httpx.Client(timeout=self.timeout_s, transport=self.transport) as c:
+            # trust_env=False: proxy env vars must never reroute contract text
+            with httpx.Client(timeout=min(self.timeout_s, timeout_s or self.timeout_s), transport=self.transport,
+                              trust_env=False) as c:
                 r = c.post(f"{self.base_url}/v1/chat/completions", json=body)
         except httpx.HTTPError as e:
             raise LLMError("LLM_UNAVAILABLE", type(e).__name__) from None

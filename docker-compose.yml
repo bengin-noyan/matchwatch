@@ -27,9 +27,10 @@ services:
     build: ./ai-service
     environment:
       AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:-}
-      LLM_BASE_URL: http://ollama:11434
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://ollama:11434}
       LLM_MODEL: ${LLM_MODEL:-qwen2.5:7b-instruct}
       LLM_TIMEOUT_S: ${LLM_TIMEOUT_S:-240}
+      EXTRACT_DEADLINE_S: ${EXTRACT_DEADLINE_S:-270}
     ports:
       - "127.0.0.1:8090:8090" # dev only: the Go API runs on the host
     depends_on: [ollama]

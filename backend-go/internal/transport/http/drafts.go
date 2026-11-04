@@ -20,7 +20,10 @@ import (
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/repository"
 )
 
-const maxPDFBody = 20<<20 + 1<<20 // 20 MiB PDF plus multipart overhead
+const (
+	maxPDF     = 20 << 20
+	maxPDFBody = maxPDF + 1<<20 // 20 MiB PDF plus multipart overhead
+)
 
 // Extractor turns a contract PDF into a draft; *aiclient.Client implements it.
 type Extractor interface {
@@ -76,6 +79,8 @@ func readPDF(w http.ResponseWriter, r *http.Request) ([]byte, bool) {
 			writeErr(w, 413, "PAYLOAD_TOO_LARGE", "body exceeds 21 MiB")
 		case err != nil:
 			writeErr(w, 400, "BAD_REQUEST", "body must be multipart/form-data with a file field")
+		case len(b) > maxPDF:
+			writeErr(w, 413, "PAYLOAD_TOO_LARGE", "PDF exceeds 20 MiB")
 		case !bytes.HasPrefix(b, []byte("%PDF-")):
 			writeErr(w, 400, "NOT_PDF", "file is not a PDF")
 		default:
@@ -149,9 +154,6 @@ func (s *server) postDraft(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) getDraft(w http.ResponseWriter, r *http.Request) {
-	if !s.aiEnabled(w) {
-		return
-	}
 	id, ok := pathID(r)
 	if !ok {
 		writeErr(w, 404, "NOT_FOUND", "not found")

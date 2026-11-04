@@ -1,5 +1,6 @@
 """Grounded contract extraction: the LLM only quotes; Python checks every quote is on its page and parses it."""
 import re
+import time
 
 from .llm import LLM, LLMError
 from .parsing import _fold, map_uom, parse_currency, parse_date, parse_days, parse_percent, parse_tr_number, vkn_valid
@@ -60,9 +61,9 @@ def _numeric_ok(n: str, hay: str, i: int) -> bool:
 
 
 def _negative(n: str, hay: str) -> bool:
-    """A minus sign in the quote, or directly before the quoted number on the page."""
+    """A minus sign in the quote, or touching the quoted number on the page ("- 185,50" is a separator)."""
     return bool(re.search(r"[-−]\s?\d", n)) or (n[0].isdigit() and any(
-        re.search(r"[-−]\s?$", hay[:i]) for i in _starts(n, hay)))
+        re.search(r"[-−]$", hay[:i]) for i in _starts(n, hay)))
 
 
 def _is_q(v) -> bool:
@@ -78,10 +79,13 @@ def _valid(a) -> bool:
         and isinstance(it.get("is_service"), (bool, type(None))) for it in items)
 
 
-def _ask(llm: LLM, user: str) -> dict:
+def _ask(llm: LLM, user: str, end, clock) -> dict:
     for attempt in (1, 2):
+        left = end - clock()
+        if left <= 0:
+            raise LLMError("LLM_UNAVAILABLE", "extraction deadline exceeded")
         try:
-            ans = llm.complete_json(SYSTEM, user, QUOTE_SCHEMA)
+            ans = llm.complete_json(SYSTEM, user, QUOTE_SCHEMA, timeout_s=left)
             if not _valid(ans):
                 raise LLMError("LLM_BAD_OUTPUT", "response does not match schema")
             return ans
@@ -139,7 +143,9 @@ def _header_values(k: str, t: str, page: int) -> tuple[dict | None, str]:
     return ({"qty_tolerance_pct": str(v)}, "") if v is not None else (None, "UNPARSEABLE")
 
 
-def extract(pages: list[Page], llm: LLM, max_chars: int = 24000) -> dict:
+def extract(pages: list[Page], llm: LLM, max_chars: int = 24000, deadline_s=270,
+            clock=time.monotonic) -> dict:
+    end = clock() + deadline_s
     by_no = {p.number: p for p in pages}
     warnings: list[dict] = []
 
@@ -178,7 +184,7 @@ def extract(pages: list[Page], llm: LLM, max_chars: int = 24000) -> dict:
     seen: set[tuple[str, str]] = set()
 
     for group in _groups(pages, max_chars):
-        ans = _ask(llm, "\n\n".join(f"=== SAYFA {p.number} ===\n{p.text}" for p in group))
+        ans = _ask(llm, "\n\n".join(f"=== SAYFA {p.number} ===\n{p.text}" for p in group), end, clock)
 
         rng = None  # first grounded date-range quote of this group
         for k in _HEADER:

@@ -49,3 +49,16 @@ def test_errors(handler, code):
     with pytest.raises(LLMError) as e:
         make(handler).complete_json("s", "u", {})
     assert e.value.code == code
+
+
+def test_client_ignores_proxy_env_and_caps_timeout(monkeypatch):
+    seen = {}
+    real = httpx.Client
+
+    def spy(**kw):
+        seen.update(kw)
+        return real(**kw)
+
+    monkeypatch.setattr(httpx, "Client", spy)
+    make(lambda r: reply("{}")).complete_json("s", "u", {}, timeout_s=7)
+    assert seen["trust_env"] is False and seen["timeout"] == 7

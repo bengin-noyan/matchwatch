@@ -16,7 +16,7 @@ cleanup() { [ -n "$api_pid" ] && kill "$api_pid" 2>/dev/null || true; rm -rf "$t
 trap cleanup EXIT
 
 # CPU inference is slow: generous timeouts.
-export LLM_TIMEOUT_S=900 AI_EXTRACT_TIMEOUT=15m AI_SERVICE_URL=http://127.0.0.1:8090
+export LLM_TIMEOUT_S=900 EXTRACT_DEADLINE_S=870 AI_EXTRACT_TIMEOUT=15m AI_SERVICE_URL=http://127.0.0.1:8090
 port="${SMOKE_PORT:-18089}"
 export HTTP_ADDR="127.0.0.1:$port" STORAGE_DIR="$tmp/storage"
 base="http://127.0.0.1:$port"

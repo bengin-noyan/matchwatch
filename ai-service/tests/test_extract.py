@@ -247,3 +247,34 @@ def test_label_strip_keeps_colon_in_value(fixture_pages, good_answer, quote, wan
     good_answer["vendor_name"]["text"] = "Satıcı: Örnek Gıda Sanayi A.Ş."
     d = extract(pages, FakeLLM([good_answer]))["draft"]
     assert d["contract_no"] == want and d["vendor_name"] == "Örnek Gıda Sanayi A.Ş."
+
+
+@pytest.mark.parametrize("page_text,quote,price", [
+    ("Beyaz Peynir 1 kg - 185,50 TL", "185,50 TL", "185.50"), ("- 185,50 TL", "185,50 TL", "185.50"),
+    ("-185,50 TL", "185,50 TL", None), ("Fark -5,00 TL", "-5,00 TL", None)])
+def test_page_minus_only_counts_when_touching_digits(fixture_pages, good_answer, page_text, quote, price):
+    page_text = "Beyaz Peynir 1 kg" + chr(10) + page_text
+    pages = [Page(1, fixture_pages[0], False), Page(2, page_text, False)]
+    item, ws = _price(None, good_answer, quote, pages)
+    assert item["unit_price"] == price
+    assert [w["code"] for w in ws] == ([] if price else ["UNPARSEABLE"])
+
+
+def test_deadline_exceeded_never_calls_llm(text_pages, good_answer):
+    llm = FakeLLM([good_answer])
+    with pytest.raises(LLMError) as e:
+        extract(text_pages, llm, deadline_s=0)
+    assert e.value.code == "LLM_UNAVAILABLE" and llm.calls == []
+
+
+def test_call_timeout_capped_by_remaining_time(text_pages, good_answer):
+    t = iter([0.0, 10.0, 250.0, 269.0])  # start, first call, retry, (spare)
+    bad = {"vendor_vkn": 1}
+    llm = FakeLLM([bad, good_answer])
+    extract(text_pages, llm, deadline_s=270, clock=lambda: next(t))
+    assert llm.timeouts == [260.0, 20.0]
+    t = iter([0.0, 1.0, 271.0])
+    llm = FakeLLM([bad, good_answer])
+    with pytest.raises(LLMError) as e:
+        extract(text_pages, llm, deadline_s=270, clock=lambda: next(t))
+    assert e.value.code == "LLM_UNAVAILABLE" and len(llm.calls) == 1
