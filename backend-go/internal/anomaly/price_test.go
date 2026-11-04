@@ -3,6 +3,8 @@ package anomaly
 import (
 	"testing"
 
+	"github.com/google/uuid"
+
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/domain"
 )
 
@@ -102,5 +104,32 @@ func TestPriceHalfKurusIsNoise(t *testing.T) {
 	lc.ContractItem.UnitPrice = dec("0.0374") // impact 0.0052
 	if fs := only(t, Run(baseInput(lc)), domain.RulePriceMismatch); len(fs) != 1 || fs[0].ImpactMinor != 1 {
 		t.Errorf("just above: %+v", fs)
+	}
+}
+
+func TestUncontractedItemCarriesSuggestions(t *testing.T) {
+	lc := baseCtx("10", "100")
+	lc.ContractItem = nil
+	lc.Delivery.CandidateCount = 0
+	id := uuid.New()
+	lc.Suggestions = []domain.Suggestion{{ContractItemID: id, ItemName: "Ayçiçek Yağı 5 L", Similarity: dec("0.87")}}
+	fs := Run(baseInput(lc))
+	sug, ok := fs[0].Evidence["suggestions"].([]map[string]any)
+	if len(fs) != 1 || !ok || len(sug) != 1 || sug[0]["contract_item_id"] != id.String() ||
+		sug[0]["item_name"] != "Ayçiçek Yağı 5 L" || sug[0]["similarity"] != "0.8700" {
+		t.Fatalf("%+v", fs)
+	}
+}
+
+func TestAliasMatchMarksEvidence(t *testing.T) {
+	lc := baseCtx("10", "200") // net 20 > 1.25
+	lc.MatchMethod = MatchAlias
+	fs := Run(baseInput(lc))
+	if len(fs) != 1 || fs[0].RuleCode != domain.RulePriceMismatch || fs[0].Evidence["match_method"] != "ALIAS" {
+		t.Fatalf("%+v", fs)
+	}
+	lc.MatchMethod = ""
+	if fs := Run(baseInput(lc)); fs[0].Evidence["match_method"] != nil {
+		t.Fatalf("code match marked: %+v", fs[0].Evidence)
 	}
 }

@@ -39,6 +39,7 @@ func qtyExceeds(in Input, lc LineContext) []domain.Finding {
 	}
 	ev := map[string]any{"line_id": line.LineID, "available_total": lc.Delivery.AvailableTotal.String(),
 		"tolerance_pct": tol.String(), "allocations": allocs}
+	withMatch(ev, lc)
 	if lc.Delivery.CandidateCount == 0 {
 		ev["no_despatch_found"] = true
 	}

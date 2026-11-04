@@ -32,6 +32,7 @@ func withholdingError(in Input, lc LineContext) []domain.Finding {
 	}
 	ev := map[string]any{"line_id": line.LineID, "reason": reason,
 		"expected_code": expected, "actual_code": line.WithholdingCode}
+	withMatch(ev, lc)
 	if lc.ContractItem != nil {
 		ev["source_page"], ev["source_clause_text"] = lc.ContractItem.SourcePage, lc.ContractItem.SourceClauseText
 		if in.Contract != nil {
