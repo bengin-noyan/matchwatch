@@ -4,6 +4,7 @@ package config
 import (
 	"errors"
 	"os"
+	"time"
 )
 
 type Config struct {
@@ -12,6 +13,9 @@ type Config struct {
 	HTTPAddr           string
 	StorageDir         string
 	JWTSecret          []byte
+	AIServiceURL       string // empty = extraction disabled
+	AIServiceToken     string
+	AIExtractTimeout   time.Duration
 }
 
 func Load() (Config, error) {
@@ -28,6 +32,16 @@ func Load() (Config, error) {
 	if len(c.JWTSecret) < 32 {
 		return Config{}, errors.New("config: JWT_SECRET must be at least 32 bytes")
 	}
+	c.AIServiceURL = os.Getenv("AI_SERVICE_URL")
+	c.AIServiceToken = os.Getenv("AI_SERVICE_TOKEN")
+	if c.AIServiceURL != "" && len(c.AIServiceToken) < 32 {
+		return Config{}, errors.New("config: AI_SERVICE_TOKEN must be at least 32 bytes when AI_SERVICE_URL is set")
+	}
+	d, err := time.ParseDuration(getenv("AI_EXTRACT_TIMEOUT", "5m"))
+	if err != nil || d <= 0 {
+		return Config{}, errors.New("config: AI_EXTRACT_TIMEOUT must be a positive duration")
+	}
+	c.AIExtractTimeout = d
 	return c, nil
 }
 

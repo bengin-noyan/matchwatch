@@ -7,12 +7,14 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
 
 // ContractDoc is a decoded contract JSON document; the vendor still has to be upserted by the caller.
 type ContractDoc struct {
 	VendorVKN, VendorName string
+	DraftID               *uuid.UUID // set when approving a reviewed extraction draft
 	ContractInput
 }
 
@@ -27,6 +29,7 @@ var (
 type contractJSON struct {
 	VendorVKN       string           `json:"vendor_vkn"`
 	VendorName      string           `json:"vendor_name"`
+	DraftID         *uuid.UUID       `json:"draft_id"`
 	ContractNo      string           `json:"contract_no"`
 	ValidFrom       string           `json:"valid_from"`
 	ValidUntil      string           `json:"valid_until"`
@@ -77,7 +80,7 @@ func ParseContractJSON(r io.Reader) (ContractDoc, error) {
 	case len(j.Items) == 0 || len(j.Items) > 5000:
 		return bad("items must hold 1..5000 entries")
 	}
-	doc := ContractDoc{VendorVKN: j.VendorVKN, VendorName: j.VendorName}
+	doc := ContractDoc{VendorVKN: j.VendorVKN, VendorName: j.VendorName, DraftID: j.DraftID}
 	c := &doc.ContractInput
 	c.Number, c.PaymentTermDays, c.Currency, c.QtyTolerancePct = j.ContractNo, *j.PaymentTermDays, j.Currency, *j.QtyTolerancePct
 	if j.PaymentTermPage != nil {

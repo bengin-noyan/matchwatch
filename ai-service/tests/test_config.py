@@ -1,0 +1,42 @@
+import pytest
+
+from matchwatch_ai.config import load
+
+T = "t" * 32
+
+
+@pytest.mark.parametrize("url,ok", [("http://ollama:11434", True), ("http://localhost:11434", True),
+    ("http://127.0.0.1:11434", True), ("http://10.0.3.4", True), ("http://192.168.1.2", True),
+    ("https://api.openai.com", False), ("https://8.8.8.8", False), ("", False)])
+def test_llm_url_gate(url, ok):
+    env = {"AI_SERVICE_TOKEN": T, "LLM_BASE_URL": url}
+    if ok:
+        s = load(env)
+        assert s.llm_model == "qwen2.5:7b-instruct" and s.llm_timeout_s == 240 and s.max_chars == 24000
+    else:
+        with pytest.raises(ValueError):
+            load(env)
+
+
+def test_short_token_rejected():
+    with pytest.raises(ValueError):
+        load({"AI_SERVICE_TOKEN": "t" * 31, "LLM_BASE_URL": "http://ollama:11434"})
+
+
+@pytest.mark.parametrize("url", ["http://169.254.169.254/", "http://[fe80::1]:11434", "//10.0.0.1", "ftp://ollama",
+                                 "  ftp://ollama", "10.0.0.1"])
+def test_link_local_and_scheme_rejected(url):
+    with pytest.raises(ValueError):
+        load({"AI_SERVICE_TOKEN": T, "LLM_BASE_URL": url})
+
+
+def test_url_whitespace_stripped():
+    assert load({"AI_SERVICE_TOKEN": T, "LLM_BASE_URL": " http://ollama:11434 "}).llm_base_url == "http://ollama:11434"
+
+
+@pytest.mark.parametrize("host,ok", [("2852039166", False), ("0xa9fea9fe", False), ("134744072", False),
+    ("0x08080808", False), ("010.0.0.1", False), ("ollama", True), ("localhost", True),
+    ("::1", True), ("[::1]", True), ("[fe80::1]", False), ("a\x00b", False), ("ö", False), ("10.0.3.4", True), ("ollama-2", True), ("", False)])
+def test_is_private_host_forms(host, ok):
+    from matchwatch_ai.config import is_private_host
+    assert is_private_host(host) is ok

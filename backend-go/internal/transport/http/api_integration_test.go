@@ -66,13 +66,13 @@ func setup(t *testing.T, tenantVKN string) *env {
 		}
 		defer tx.Rollback(ctx)
 		tx.Exec(ctx, "SELECT set_config('app.current_tenant_id', $1, true)", e.tid.String())
-		for _, tbl := range []string{"invoices", "despatch_advices", "contracts", "vendors"} {
+		for _, tbl := range []string{"invoices", "despatch_advices", "contract_drafts", "contracts", "vendors"} {
 			tx.Exec(ctx, "DELETE FROM "+tbl+" WHERE tenant_id=$1", e.tid)
 		}
 		tx.Exec(ctx, "DELETE FROM tenants WHERE id=$1", e.tid)
 		tx.Commit(ctx)
 	})
-	e.srv = NewRouter(s, audit.New(s), e.storage, secret)
+	e.srv = NewRouter(s, audit.New(s), e.storage, secret, nil, 0)
 	tok, err := auth.Sign(secret, e.tid, "test", time.Hour)
 	if err != nil {
 		t.Fatal(err)

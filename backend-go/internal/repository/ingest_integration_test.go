@@ -52,7 +52,7 @@ func setup(t *testing.T) (*Store, uuid.UUID) {
 		}
 		defer tx.Rollback(ctx)
 		tx.Exec(ctx, "SELECT set_config('app.current_tenant_id', $1, true)", tid.String())
-		for _, tbl := range []string{"invoices", "despatch_advices", "contracts", "vendors"} {
+		for _, tbl := range []string{"invoices", "despatch_advices", "contract_drafts", "contracts", "vendors"} {
 			tx.Exec(ctx, "DELETE FROM "+tbl+" WHERE tenant_id=$1", tid)
 		}
 		tx.Exec(ctx, "DELETE FROM tenants WHERE id=$1", tid)

@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 matchwatch is an internal-audit engine for Turkish companies. It cross-checks purchase contracts, e-İrsaliye (`DespatchAdvice`) and e-Fatura (`Invoice`) documents in GİB UBL-TR 1.2 format, a "3-way match", and stores anomaly findings together with their evidence.
 
 - **Spec:** `docs/spec.md` is the authority. Its §4 "Kararlar" (D1–D15) deliberately deviate from the original "LeakZero" spec, and the D-decisions win where they conflict.
-- **Phases:** Faz 1 is the Go core and is done (merged to `main`). Faz 2 (the Python AI/PDF/embedding service) and Faz 3 (the Vue 3 web app) are not started.
+- **Phases:** Faz 1 is the Go core and is done (merged to `main`). Faz 2a (PDF contract extraction via `ai-service/`) is implemented on branch `faz2a-pdf-extraction`. Faz 2b (embedding/semantic), Faz 2c (TCMB rates) and Faz 3 (the Vue 3 web app) are not started.
 - **Faz 1 plan:** `docs/superpowers/plans/2026-11-02-faz1-go-core.md` lists tasks, interfaces and the exact expected test values.
 
 ## Commands
@@ -18,6 +18,10 @@ All Go code lives in `backend-go/` (module `github.com/bengin-noyan/matchwatch/b
 cp .env.example .env              # then adjust; .env overrides .env.example in the Makefile
 docker compose up -d              # Postgres 16 + pgvector; deploy/postgres/00-init.sh creates roles on first boot
 docker compose down -v            # reset DB (init script only runs on an empty volume)
+
+docker compose --profile ai up -d  # + Ollama and the Python ai-service on 127.0.0.1:8090 (needs AI_SERVICE_TOKEN)
+bash scripts/smoke-ai.sh          # AI end-to-end: PDF -> draft -> approved contract (pulls the ~4.7 GB model)
+cd ai-service && python -m venv .venv && .venv/Scripts/python -m pip install -r requirements-dev.txt && .venv/Scripts/python -m pytest -q
 
 cd backend-go
 go test ./...                     # unit tests; integration tests t.Skip without env
@@ -45,6 +49,8 @@ The data flow is: parse XML → persist → load audit input → match → run r
 - `internal/audit`: the idempotent re-audit service, plus `Resolve`, which recomputes `audit_status` after a PATCH.
 - `internal/auth`: HS256 JWT carrying `tenant_id`.
 - `internal/transport/http`: REST under `/api/v1`. Raw XML is stored at `STORAGE_DIR/<tenant>/<invoice|despatch>/<ettn>.xml`.
+- `ai-service/` (Python, FastAPI, port 8090): `POST /v1/extract` turns a contract PDF into a structured draft (text layer, OCR fallback, local Ollama LLM, values grounded in the page text) and `GET /healthz`. Bearer auth via `AI_SERVICE_TOKEN`; `LLM_BASE_URL` must be a private host (KVKK).
+- `internal/aiclient`: HTTP client for the ai-service. Draft flow: `POST /contract-drafts` stores the PDF and extracts into a `contract_drafts` row, a human reviews the draft, then `POST /contracts` with `draft_id` approves it (draft becomes `APPROVED`, frozen). Re-extract via `POST /contract-drafts/{id}/extract`.
 - `cmd/api`, `cmd/devtoken`, `cmd/migrate`. `scripts/smoke.sh` is the end-to-end check (expects `"caught_minor":21412`).
 
 ### Multi-tenancy (easy to break)
@@ -73,16 +79,16 @@ The data flow is: parse XML → persist → load audit input → match → run r
 - Invoice↔despatch is n:m through `despatch_allocations` (D3). The same delivered quantity cannot be invoiced twice.
 - Every finding's `evidence_json` carries the invoice `line_id`. Contract-based findings also carry `contract_no`, `source_page` and `source_clause_text`.
 - An LLM never computes amounts or makes approve/reject decisions.
-- `withholding_codes` is seeded from GİB "UBL-TR Kod Listeleri" V1.31 (2023). Code 619 is 70% (7/10, KDVGUT; GİB's "75/10" is a typo).
+- `withholding_codes` is seeded from GİB "UBL-TR Kod Listeleri" V1.31 (2023). Code 619 is 70% (7/10, KDVGUT; V1.28–V1.31 printed "75/10" as a typo, fixed by V1.43). Verified unchanged against V1.43 (2026-11-04).
 
-## Current status (2026-11-03)
+## Current status (2026-11-04)
 
-Faz 1 is merged to `main` (PR #1, merge commit `0ceeca3`). It covers all 12 tasks, the final whole-branch review and its fix wave. Faz 2 and Faz 3 are not started.
+Faz 1 is merged to `main` (PR #1, merge commit `0ceeca3`). It covers all 12 tasks, the final whole-branch review and its fix wave. Faz 2a (PDF extraction, human-approved drafts) is complete on branch `faz2a-pdf-extraction`, pending merge. Faz 2b/2c and Faz 3 are not started.
 
 - **Next steps, in order:**
-  1. Diff the withholding codes in GİB's newer UBL-TR code-list packages (2025-04, and 2026-03, live 2026-09-14) against the V1.31 seed. Ship any new code or rate as a new migration (`005_...`), never as an edit to `002`.
-  2. Faz 2, the Python PDF contract-extraction service: brainstorm, then write a plan in `docs/superpowers/plans/`, then implement via SDD. It extracts price, payment term, clause text and source page. KVKK applies: extraction runs locally by default (see the rulings below), and an LLM never computes amounts.
-  3. Faz 3, the Vue 3 web app.
+  1. Faz 2b: embedding / semantic matching of invoice lines to contract items.
+  2. Faz 2c: TCMB exchange rates for FX findings.
+  3. Faz 3, the Vue 3 web app. KVKK applies throughout (see the rulings below), and an LLM never computes amounts.
 - **Working mode:** Claude acts as Staff Architect / Principal Engineer. It decides technical and domain questions itself, records them as rulings and reports in Turkish. It does not hand these questions back to the user.
 - **Housekeeping:** the remote branch `faz1-go-core` is merged and can be deleted from the GitHub PR page.
 
@@ -104,8 +110,9 @@ Faz 1 is merged to `main` (PR #1, merge commit `0ceeca3`). It covers all 12 task
   - A post-commit audit failure leaves the invoice PENDING; recover with `POST /invoices/{id}/audit`.
 - **Architect rulings (2026-11-03):**
   - Code 619 = 70.00 is verified against KDVGUT I/C-2.1.3.3.2.
-  - GİB has published newer packages (2025-04, 2026-03, live 2026-09-14). Diff their withholding list against V1.31 before Faz 2. Any change ships as a new migration, never as an edit to `002`.
+  - GİB withholding list re-checked (2026-11-04) against "UBL-TR Kod Listeleri" V1.43 (27.07.2026, live 14.09.2026, from `UBLTR_1.2.1_Kilavuzlar.zip` on ebelge.gib.gov.tr). All 52 codes and rates match the V1.31 seed, and the V1.32–V1.43 changelog has no withholding entry, so no migration was needed. V1.43 also fixes the 619 typo (now 7/10). Future GİB changes still ship as a new migration, never as an edit to `002`.
   - KVKK: all personal and commercial data stays in Türkiye, either on a self-hosted or a TR-region Postgres plus storage, with no cross-border transfer by default. In Faz 2, documents must not go to a foreign LLM API unless there is a KVKK Art. 9 transfer basis (a standard contract filed with the Board) and the customer opts in. The default is local extraction.
+  - Delivery model (2026-11-03): matchwatch is a multi-tenant cloud SaaS, not a desktop app. All tenants share one Postgres and are isolated by RLS. It runs in a TR-region cloud (per KVKK above). "Local extraction" means the Faz 2 service runs on our own TR infrastructure, not on the customer's machine. Faz 3 ships as a Vue SPA served from the same infrastructure. `cmd/devtoken` is dev-only; real login and tenant onboarding are a Faz 3 prerequisite.
 
 ## Conventions
 

@@ -1,6 +1,10 @@
 package transporthttp
 
-import "github.com/google/uuid"
+import (
+	"encoding/json"
+
+	"github.com/google/uuid"
+)
 
 type errorBody struct {
 	Error string `json:"error"`
@@ -39,4 +43,14 @@ type patchReq struct {
 type patchResp struct {
 	ID               uuid.UUID `json:"id"`
 	ResolutionStatus string    `json:"resolution_status"`
+}
+
+type draftResp struct {
+	ID         uuid.UUID       `json:"id"`
+	Status     string          `json:"status"`
+	Draft      json.RawMessage `json:"draft"`
+	Warnings   json.RawMessage `json:"warnings"`
+	Meta       json.RawMessage `json:"meta"`
+	ErrorCode  string          `json:"error_code,omitempty"`
+	ContractID *uuid.UUID      `json:"contract_id,omitempty"`
 }

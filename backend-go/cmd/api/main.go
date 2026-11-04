@@ -13,6 +13,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/bengin-noyan/matchwatch/backend-go/internal/aiclient"
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/audit"
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/config"
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/repository"
@@ -33,10 +34,14 @@ func main() {
 	}
 	defer pool.Close()
 	store := repository.NewStore(pool)
+	var ai transporthttp.Extractor // nil interface = disabled; a typed-nil *aiclient.Client would not be == nil
+	if cfg.AIServiceURL != "" {
+		ai = aiclient.New(cfg.AIServiceURL, cfg.AIServiceToken, cfg.AIExtractTimeout)
+	}
 
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           transporthttp.NewRouter(store, audit.New(store), cfg.StorageDir, cfg.JWTSecret),
+		Handler:           transporthttp.NewRouter(store, audit.New(store), cfg.StorageDir, cfg.JWTSecret, ai, cfg.AIExtractTimeout),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       60 * time.Second,
 		WriteTimeout:      60 * time.Second,
