@@ -199,3 +199,31 @@ def test_real_llm_fixture(text_pages):
     d = extract(text_pages, llm)["draft"]
     assert d["contract_no"] == "SZL-2026-014"
     assert any(i["unit_price"] is not None for i in d["items"])
+
+
+def test_label_stripped_from_contract_no_and_vendor(text_pages, good_answer):
+    good_answer["contract_no"]["text"] = "Sözleşme No: SZL-2026-014"
+    good_answer["vendor_name"]["text"] = "Satıcı: Örnek Gıda Sanayi A.Ş."
+    d = extract(text_pages, FakeLLM([good_answer]))["draft"]
+    assert d["contract_no"] == "SZL-2026-014" and d["vendor_name"] == "Örnek Gıda Sanayi A.Ş."
+
+
+def test_date_range_quoted_in_both_fields(text_pages, good_answer):
+    good_answer["valid_from"]["text"] = good_answer["valid_until"]["text"] = "01.01.2026 – 31.12.2026"
+    d = extract(text_pages, FakeLLM([good_answer]))["draft"]
+    assert (d["valid_from"], d["valid_until"]) == ("2026-01-01", "2026-12-31")
+
+
+def test_date_range_fills_missing_end(text_pages, good_answer):
+    good_answer["valid_from"]["text"] = "Geçerlilik: 01.01.2026 – 31.12.2026"
+    good_answer["valid_until"] = None
+    d = extract(text_pages, FakeLLM([good_answer]))["draft"]
+    assert (d["valid_from"], d["valid_until"]) == ("2026-01-01", "2026-12-31")
+
+
+def test_end_not_after_start_is_unparseable(text_pages, good_answer):
+    good_answer["valid_until"]["text"] = "01.01.2026"  # the model's real-run mistake: start date as end
+    out = extract(text_pages, FakeLLM([good_answer]))
+    assert out["draft"]["valid_from"] == "2026-01-01" and out["draft"]["valid_until"] is None
+    w = next(w for w in out["warnings"] if w["field"] == "valid_until")
+    assert w["code"] == "UNPARSEABLE" and "not after" in w["message"]

@@ -26,6 +26,10 @@ SYSTEM = (
     "- Hesaplama, çevirme, biçim değiştirme, özetleme veya tahmin YAPMA. Sayıları yazıldığı gibi bırak.\n"
     "- Bir bilgi metinde yoksa ya da emin değilsen alanı null yap.\n"
     '- "page", alıntının geçtiği "=== SAYFA n ===" başlığındaki n numarasıdır.\n'
+    '- contract_no ve vendor_name etiketsiz alıntılanır: "Sözleşme No:" veya "Satıcı:" gibi etiketi alma, '
+    "yalnızca değeri al.\n"
+    "- Tarihler: bir tarih aralığında her tarihi ayrı alıntıla, yalnızca tarihin kendisini al. valid_from "
+    "başlangıç tarihi, valid_until bitiş tarihidir.\n"
     "- items: fiyat listesindeki her kalem için bir öğe; name kalem adı, unit_price birim fiyat ifadesi "
     "(para birimiyle birlikte), uom birim, clause kalemin geçtiği satır veya madde, withholding_code tevkifat "
     "kodu (yalnızca metinde kod olarak yazıyorsa), is_service kalem bir hizmetse true, malsa false, belli değilse null."
@@ -98,16 +102,30 @@ def _groups(pages: list[Page], max_chars: int) -> list[list[Page]]:
     return groups
 
 
+_DATE = re.compile(r"(?<!\d)\d{1,2}[./-]\d{1,2}[./-]\d{4}(?!\d)|\d{1,2}\s+[^\W\d]+\s+\d{4}")
+
+
+def _dates(t: str) -> list[str]:
+    """All parseable dates in the quote, in order ("01.01.2026 – 31.12.2026" -> two)."""
+    return [d for m in _DATE.finditer(t) if (d := parse_date(m.group()))]
+
+
 def _header_values(k: str, t: str, page: int) -> tuple[dict | None, str]:
     """Parse a grounded header quote -> (draft values, "") or (None, warning code)."""
     if k == "vendor_vkn":
         v = re.sub(r"\D", "", t)
         return ({k: v}, "") if v else (None, "UNPARSEABLE")
     if k in ("vendor_name", "contract_no"):
-        return {k: t.strip()}, ""
+        t = t.strip()
+        c = t.find(":")
+        if 0 <= c < 40:  # drop a "Sözleşme No:" / "Satıcı:" label; the rest is still on the page
+            t = t[c + 1:].strip()
+        return ({k: t}, "") if t else (None, "UNPARSEABLE")
     if k in ("valid_from", "valid_until"):
-        v = parse_date(t)
-        return ({k: v}, "") if v else (None, "UNPARSEABLE")
+        ds = _dates(t)
+        if not ds:
+            return None, "UNPARSEABLE"
+        return {k: ds[1] if k == "valid_until" and len(ds) > 1 else ds[0]}, ""
     if k == "payment_term":
         d = parse_days(t)
         if d is None:
@@ -161,6 +179,7 @@ def extract(pages: list[Page], llm: LLM, max_chars: int = 24000) -> dict:
     for group in _groups(pages, max_chars):
         ans = _ask(llm, "\n\n".join(f"=== SAYFA {p.number} ===\n{p.text}" for p in group))
 
+        rng = None  # first grounded date-range quote of this group
         for k in _HEADER:
             q = ans.get(k)
             if q is None or k in filled:
@@ -168,6 +187,8 @@ def extract(pages: list[Page], llm: LLM, max_chars: int = 24000) -> dict:
             field = _FIELD.get(k, k)
             before = len(warnings)
             t = ground(q, field, numeric=k in ("vendor_vkn", "qty_tolerance"))
+            if t is not None and k in ("valid_from", "valid_until") and len(ds := _dates(t)) > 1:
+                rng = rng or ds
             vals, code = _header_values(k, t, q["page"]) if t is not None else (None, "")
             if code:
                 warn(code, field, q["page"])
@@ -180,6 +201,12 @@ def extract(pages: list[Page], llm: LLM, max_chars: int = 24000) -> dict:
             draft.update(vals)
             if k == "vendor_vkn" and not vkn_valid(vals[k]):
                 warn("VKN_CHECKSUM", field, q["page"], "VKN checksum failed; value kept for review")
+        if rng:  # a range quote fills the other end unless that field got its own value
+            for k, v in (("valid_from", rng[0]), ("valid_until", rng[1])):
+                if k not in filled:
+                    filled.add(k)
+                    pending.pop(k, None)
+                    draft[k] = v
 
         for j, it in enumerate(ans.get("items") or []):
             i = len(items)
@@ -238,6 +265,9 @@ def extract(pages: list[Page], llm: LLM, max_chars: int = 24000) -> dict:
 
     for ws in pending.values():
         warnings.extend(ws)
+    if draft["valid_from"] and draft["valid_until"] and draft["valid_until"] <= draft["valid_from"]:
+        draft["valid_until"] = None
+        warn("UNPARSEABLE", "valid_until", None, "valid_until: end date is not after the start date")
     for item in items:
         item["currency"] = item["currency"] or draft["currency"]
     for p in pages:
