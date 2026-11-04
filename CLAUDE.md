@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 matchwatch is an internal-audit engine for Turkish companies. It cross-checks purchase contracts, e-İrsaliye (`DespatchAdvice`) and e-Fatura (`Invoice`) documents in GİB UBL-TR 1.2 format, a "3-way match", and stores anomaly findings together with their evidence.
 
 - **Spec:** `docs/spec.md` is the authority. Its §4 "Kararlar" (D1–D15) deliberately deviate from the original "LeakZero" spec, and the D-decisions win where they conflict.
-- **Phases:** Faz 1 is the Go core and is done (merged to `main`). Faz 2a (PDF contract extraction via `ai-service/`) is implemented on branch `faz2a-pdf-extraction`. Faz 2b (embedding/semantic), Faz 2c (TCMB rates) and Faz 3 (the Vue 3 web app) are not started.
+- **Phases:** Faz 1 is the Go core and is done (merged to `main`). Faz 2a (PDF contract extraction via `ai-service/`) is merged to `main` (PR #2). Faz 2b (semantic item suggestions + human-confirmed aliases, D16) is implemented on branch `faz2b-semantic-matching`. Faz 2c (TCMB rates) and Faz 3 (the Vue 3 web app) are not started.
 - **Faz 1 plan:** `docs/superpowers/plans/2026-11-02-faz1-go-core.md` lists tasks, interfaces and the exact expected test values.
 
 ## Commands
@@ -20,7 +20,7 @@ docker compose up -d              # Postgres 16 + pgvector; deploy/postgres/00-i
 docker compose down -v            # reset DB (init script only runs on an empty volume)
 
 docker compose --profile ai up -d  # + Ollama and the Python ai-service on 127.0.0.1:8090 (needs AI_SERVICE_TOKEN)
-bash scripts/smoke-ai.sh          # AI end-to-end: PDF -> draft -> approved contract (pulls the ~4.7 GB model)
+bash scripts/smoke-ai.sh          # AI end-to-end: PDF -> draft -> contract, then suggestion -> alias -> PRICE_MISMATCH (pulls ~6 GB of models)
 cd ai-service && python -m venv .venv && .venv/Scripts/python -m pip install -r requirements-dev.txt && .venv/Scripts/python -m pytest -q
 
 cd backend-go
@@ -49,8 +49,9 @@ The data flow is: parse XML → persist → load audit input → match → run r
 - `internal/audit`: the idempotent re-audit service, plus `Resolve`, which recomputes `audit_status` after a PATCH.
 - `internal/auth`: HS256 JWT carrying `tenant_id`.
 - `internal/transport/http`: REST under `/api/v1`. Raw XML is stored at `STORAGE_DIR/<tenant>/<invoice|despatch>/<ettn>.xml`.
-- `ai-service/` (Python, FastAPI, port 8090): `POST /v1/extract` turns a contract PDF into a structured draft (text layer, OCR fallback, local Ollama LLM, values grounded in the page text) and `GET /healthz`. Bearer auth via `AI_SERVICE_TOKEN`; `LLM_BASE_URL` must be a private host (KVKK).
+- `ai-service/` (Python, FastAPI, port 8090): `POST /v1/extract` turns a contract PDF into a structured draft (text layer, OCR fallback, local Ollama LLM, values grounded in the page text) `POST /v1/embed` embeds item names (Ollama `bge-m3`, 1024 dims) and `GET /healthz`. Bearer auth via `AI_SERVICE_TOKEN`; `LLM_BASE_URL` must be a private host (KVKK).
 - `internal/aiclient`: HTTP client for the ai-service. Draft flow: `POST /contract-drafts` stores the PDF and extracts into a `contract_drafts` row, a human reviews the draft, then `POST /contracts` with `draft_id` approves it (draft becomes `APPROVED`, frozen). Re-extract via `POST /contract-drafts/{id}/extract`.
+- Semantic matching (D16, Faz 2b): matching order is code → barcode → `item_aliases` (vendor, `domain.NameKey`, uom). Before the audit transaction, `audit.Service.suggest` embeds the still-unmatched lines (and any contract items lacking a vector for that model) and ranks same-uom items with pgvector; up to 3 suggestions ≥ 0.50 go into the `UNCONTRACTED_ITEM` evidence. Embeddings **never** auto-match: `POST /invoice-lines/{id}/match` records the human's choice as an alias and re-audits. AI errors only drop suggestions. Go carries vectors as raw JSON (`$n::text::vector`), never floats.
 - `cmd/api`, `cmd/devtoken`, `cmd/migrate`. `scripts/smoke.sh` is the end-to-end check (expects `"caught_minor":21412`).
 
 ### Multi-tenancy (easy to break)
@@ -83,12 +84,11 @@ The data flow is: parse XML → persist → load audit input → match → run r
 
 ## Current status (2026-11-04)
 
-Faz 1 is merged to `main` (PR #1, merge commit `0ceeca3`). It covers all 12 tasks, the final whole-branch review and its fix wave. Faz 2a (PDF extraction, human-approved drafts) is complete on branch `faz2a-pdf-extraction`, pending merge. Faz 2b/2c and Faz 3 are not started.
+Faz 1 is merged to `main` (PR #1, merge commit `0ceeca3`). It covers all 12 tasks, the final whole-branch review and its fix wave. Faz 2a (PDF extraction, human-approved drafts) is merged to `main` (PR #2, merge commit `aebc5d1`). Faz 2b (D16) is complete on branch `faz2b-semantic-matching`, pending merge; its smoke also found and fixed a Faz 1 bug (invoices without despatch refs failed to audit). Faz 2c and Faz 3 are not started.
 
 - **Next steps, in order:**
-  1. Faz 2b: embedding / semantic matching of invoice lines to contract items.
-  2. Faz 2c: TCMB exchange rates for FX findings.
-  3. Faz 3, the Vue 3 web app. KVKK applies throughout (see the rulings below), and an LLM never computes amounts.
+  1. Faz 2c: TCMB exchange rates for FX findings.
+  2. Faz 3, the Vue 3 web app. KVKK applies throughout (see the rulings below), and an LLM never computes amounts.
 - **Working mode:** Claude acts as Staff Architect / Principal Engineer. It decides technical and domain questions itself, records them as rulings and reports in Turkish. It does not hand these questions back to the user.
 - **Housekeeping:** the remote branch `faz1-go-core` is merged and can be deleted from the GitHub PR page.
 
