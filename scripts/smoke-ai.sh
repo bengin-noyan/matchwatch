@@ -52,7 +52,7 @@ code="$(curl -sS --max-time 1200 -o "$tmp/draft.json" -w '%{http_code}' -X POST 
 [ "$code" = 201 ] || { echo "upload -> $code" >&2; cat "$tmp/draft.json" >&2; exit 1; }
 
 # Prints status/contract_no/warnings, writes the approval body ($tmp/contract.json), fails on missing required fields.
-python -I - "$tmp/draft.json" "$tmp/contract.json" <<'PY'
+python -X utf8 -I - "$tmp/draft.json" "$tmp/contract.json" <<'PY'
 import json, sys
 r = json.load(open(sys.argv[1], encoding="utf-8"))
 d = r.get("draft") or {}
@@ -76,7 +76,7 @@ PY
 code="$(curl -sS -o "$tmp/out" -w '%{http_code}' -X POST "$base/api/v1/contracts" -H "Authorization: Bearer $token" \
   -H "Content-Type: application/json" --data-binary "@$tmp/contract.json")"
 [ "$code" = 201 ] || { echo "POST /contracts -> $code" >&2; cat "$tmp/out" >&2; exit 1; }
-id="$(python -I -c "import json,sys;print(json.load(open(sys.argv[1]))['id'])" "$tmp/draft.json")"
-st="$(curl -sSf "$base/api/v1/contract-drafts/$id" -H "Authorization: Bearer $token" | python -I -c "import json,sys;print(json.load(sys.stdin)['status'])")"
+id="$(python -X utf8 -I -c "import json,sys;print(json.load(open(sys.argv[1]))['id'])" "$tmp/draft.json")"
+st="$(curl -sSf "$base/api/v1/contract-drafts/$id" -H "Authorization: Bearer $token" | python -X utf8 -I -c "import json,sys;print(json.load(sys.stdin)['status'])")"
 [ "$st" = APPROVED ] || { echo "draft status $st, want APPROVED" >&2; exit 1; }
 echo "smoke-ai OK"

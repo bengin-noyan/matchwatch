@@ -26,7 +26,7 @@ services:
     profiles: ["ai"]
     build: ./ai-service
     environment:
-      AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN}
+      AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:-}
       LLM_BASE_URL: http://ollama:11434
       LLM_MODEL: ${LLM_MODEL:-qwen2.5:7b-instruct}
       LLM_TIMEOUT_S: ${LLM_TIMEOUT_S:-240}
