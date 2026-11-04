@@ -68,7 +68,62 @@ def test_ungrounded_item_name_drops_item(text_pages, good_answer):
     good_answer["items"][0]["name"] = {"text": "Kaşar Peyniri", "page": 2}
     out = extract(text_pages, FakeLLM([good_answer]))
     assert [i["name"] for i in out["draft"]["items"]] == ["Tereyağı 500 g", "Soğuk zincir nakliye hizmeti"]
-    assert any(w["code"] == "UNGROUNDED" and w["field"] == "items[0]" for w in out["warnings"])
+    dropped = next(w for w in out["warnings"] if w["code"] == "UNGROUNDED")
+    assert dropped["field"] == "items[0]" and "dropped" in dropped["message"]  # LLM's own index
+    # kept items' warnings follow the output list: "sefer" is now items[1]
+    assert any(w["code"] == "UNKNOWN_UOM" and w["field"] == "items[1].uom" for w in out["warnings"])
+
+
+def _price(text_pages, good_answer, text, pages=None):
+    good_answer["items"][0]["unit_price"] = {"text": text, "page": 2}
+    out = extract(pages or text_pages, FakeLLM([good_answer]))
+    return out["draft"]["items"][0], [w for w in out["warnings"] if w["field"] == "items[0].unit_price"]
+
+
+@pytest.mark.parametrize("quote", ["85,50", "250,00 TL", "1"])
+def test_partial_number_quote_is_ungrounded(text_pages, good_answer, quote):
+    item, ws = _price(text_pages, good_answer, quote)
+    assert item["unit_price"] is None and [w["code"] for w in ws] == ["UNGROUNDED"]
+
+
+def test_whole_number_quote_still_grounded(text_pages, good_answer):
+    item, ws = _price(text_pages, good_answer, "185,50 TL")
+    assert item["unit_price"] == "185.50" and ws == []
+
+
+def test_row_quote_is_ambiguous_not_first_number(text_pages, good_answer):
+    item, ws = _price(text_pages, good_answer, "Beyaz Peynir 1 kg | kg | 185,50 TL")
+    assert item["unit_price"] is None and item["name"] == "Beyaz Peynir 1 kg"
+    assert [w["code"] for w in ws] == ["AMBIGUOUS_NUMBER"] and "items[0].unit_price" in ws[0]["message"]
+
+
+@pytest.mark.parametrize("page_text,quote", [("Fark | -5,00 TL", "-5,00 TL"), ("Fark | −5,00 TL", "5,00 TL")])
+def test_negative_price_unparseable(fixture_pages, good_answer, page_text, quote):
+    pages = [Page(1, fixture_pages[0], False), Page(2, fixture_pages[1] + "\n" + page_text, False)]
+    item, ws = _price(None, good_answer, quote, pages)
+    assert item["unit_price"] is None and [w["code"] for w in ws] == ["UNPARSEABLE"]
+
+
+def test_zero_price_accepted(fixture_pages, good_answer):
+    # own page: on the fixture page "0,00 TL" also sits inside "1.250,00 TL" and is rightly rejected
+    pages = [Page(1, fixture_pages[0], False), Page(2, "Beyaz Peynir 1 kg | kg | 0,00 TL", False)]
+    item, ws = _price(None, good_answer, "0,00 TL", pages)
+    assert item["unit_price"] == "0.00" and ws == []
+
+
+def test_partial_vkn_ungrounded(text_pages, good_answer):
+    good_answer["vendor_vkn"]["text"] = "234567890"
+    out = extract(text_pages, FakeLLM([good_answer]))
+    assert out["draft"]["vendor_vkn"] is None
+    assert any(w["code"] == "UNGROUNDED" and w["field"] == "vendor_vkn" for w in out["warnings"])
+
+
+def test_negative_tolerance_unparseable(fixture_pages, good_answer):
+    pages = [Page(1, fixture_pages[0].replace("%5", "%-5"), False), Page(2, fixture_pages[1], False)]
+    good_answer["qty_tolerance"] = {"text": "%-5", "page": 1}
+    out = extract(pages, FakeLLM([good_answer]))
+    assert out["draft"]["qty_tolerance_pct"] is None
+    assert any(w["code"] == "UNPARSEABLE" and w["field"] == "qty_tolerance_pct" for w in out["warnings"])
 
 
 def test_bad_vkn_kept_with_warning(fixture_pages, good_answer):

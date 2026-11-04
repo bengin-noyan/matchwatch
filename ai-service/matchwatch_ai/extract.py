@@ -39,6 +39,28 @@ def _norm(s: str) -> str:
     return " ".join(s.casefold().split())
 
 
+def _starts(n: str, hay: str) -> list[int]:
+    out, i = [], hay.find(n)
+    while i != -1:
+        out.append(i)
+        i = hay.find(n, i + 1)
+    return out
+
+
+def _numeric_ok(n: str, hay: str, i: int) -> bool:
+    """False if the match at i is part of a longer number on the page ("85,50" inside "185,50").
+    A trailing/leading [.,] counts only when a digit follows/precedes it, so a sentence-final "%5." stays ok."""
+    pre, post = hay[:i], hay[i + len(n):]
+    return not ((n[0] in "0123456789.," and re.search(r"\d[.,]?$", pre))
+                or (n[-1] in "0123456789.," and re.match(r"[.,]?\d", post)))
+
+
+def _negative(n: str, hay: str) -> bool:
+    """A minus sign in the quote, or directly before the quoted number on the page."""
+    return bool(re.search(r"[-−]\s?\d", n)) or (n[0].isdigit() and any(
+        re.search(r"[-−]\s?$", hay[:i]) for i in _starts(n, hay)))
+
+
 def _is_q(v) -> bool:
     return v is None or (isinstance(v, dict) and isinstance(v.get("text"), str) and type(v.get("page")) is int)
 
@@ -107,16 +129,26 @@ def extract(pages: list[Page], llm: LLM, max_chars: int = 24000) -> dict:
         warnings.append(w)
         return w
 
-    def ground(q: dict | None, field: str) -> str | None:
-        """Quote text if it occurs on its page, else None (+ UNGROUNDED unless the LLM gave null)."""
+    def ground(q: dict | None, field: str, numeric: bool = False,
+               message: str = "quote not found on the given page") -> str | None:
+        """Quote text if it occurs on its page, else None (+ UNGROUNDED unless the LLM gave null).
+        numeric: every occurrence must be a whole number on the page, never part of a longer one."""
         if q is None:
             return None
         p = by_no.get(q["page"])
         n = _norm(q["text"])
-        if n and p is not None and n in _norm(p.text):
-            return q["text"]
-        warn("UNGROUNDED", field, q["page"], "quote not found on the given page")
+        if n and p is not None:
+            hay = _norm(p.text)
+            starts = _starts(n, hay)
+            if starts and (not numeric or all(_numeric_ok(n, hay, i) for i in starts)):
+                return q["text"]
+            if starts:
+                message = "quote is part of a longer number on the page"
+        warn("UNGROUNDED", field, q["page"], message)
         return None
+
+    def negative(q: dict) -> bool:
+        return _negative(_norm(q["text"]), _norm(by_no[q["page"]].text))
 
     draft = {k: None for k in ["vendor_vkn", "vendor_name", "contract_no", "valid_from", "valid_until",
                                "payment_term_days", "payment_term_source_page", "payment_term_clause_text",
@@ -135,7 +167,7 @@ def extract(pages: list[Page], llm: LLM, max_chars: int = 24000) -> dict:
                 continue
             field = _FIELD.get(k, k)
             before = len(warnings)
-            t = ground(q, field)
+            t = ground(q, field, numeric=k in ("vendor_vkn", "qty_tolerance"))
             vals, code = _header_values(k, t, q["page"]) if t is not None else (None, "")
             if code:
                 warn(code, field, q["page"])
@@ -149,13 +181,14 @@ def extract(pages: list[Page], llm: LLM, max_chars: int = 24000) -> dict:
             if k == "vendor_vkn" and not vkn_valid(vals[k]):
                 warn("VKN_CHECKSUM", field, q["page"], "VKN checksum failed; value kept for review")
 
-        for it in ans.get("items") or []:
+        for j, it in enumerate(ans.get("items") or []):
             i = len(items)
             name_q, price_q = it.get("name"), it.get("unit_price")
-            name = ground(name_q, f"items[{i}]")
+            # dropped items are reported by the LLM's own index in this chunk's answer
+            name = ground(name_q, f"items[{j}]", message="item dropped: name not found on the given page")
             if name is None:
                 if name_q is None:
-                    warn("UNGROUNDED", f"items[{i}]", None, "item without a name dropped")
+                    warn("UNGROUNDED", f"items[{j}]", None, "item dropped: no name")
                 continue
             key = (_norm(name), _norm(price_q["text"]) if price_q else "")
             if key in seen:
@@ -167,10 +200,17 @@ def extract(pages: list[Page], llm: LLM, max_chars: int = 24000) -> dict:
                     "source_page": None, "source_clause_text": ""}
             for k in ("item_code", "barcode"):
                 item[k] = (ground(it.get(k), f + k) or "").strip()
-            t = ground(price_q, f + "unit_price")
+            t = ground(price_q, f + "unit_price", numeric=True)
             if t is not None:
-                v, ambiguous = parse_tr_number(t)
-                if v is None:
+                groups = len(re.findall(r"\d[\d.,]*", t))
+                v, ambiguous = parse_tr_number(t) if groups == 1 else (None, False)
+                if groups > 1:
+                    warn("AMBIGUOUS_NUMBER", f + "unit_price", price_q["page"],
+                         f"{f}unit_price: quote contains {groups} numbers, expected exactly one")
+                elif v is not None and negative(price_q):
+                    v = None
+                    warn("UNPARSEABLE", f + "unit_price", price_q["page"], f"{f}unit_price: negative price")
+                elif v is None:
                     warn("UNPARSEABLE", f + "unit_price", price_q["page"])
                 else:
                     item["unit_price"] = str(v)
