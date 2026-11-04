@@ -20,9 +20,11 @@ def is_private_host(host: str) -> bool:
     # shortcut: host adına bakar, DNS'e değil; TR bulutunda iç DNS adları (ör. ollama.internal) gerekirse izinli sonek listesi eklenir
     if not host:
         return False
+    if host.startswith("[") and host.endswith("]"):
+        host = host[1:-1]
     try:  # inet_aton also parses decimal/hex/octal forms (2852039166, 0xa9fea9fe) the way getaddrinfo does
         ip = ipaddress.IPv4Address(socket.inet_aton(host))
-    except OSError:
+    except (OSError, ValueError):
         try:
             ip = ipaddress.ip_address(host)
         except ValueError:
