@@ -1,0 +1,97 @@
+// Package tcmb reads the Central Bank of Turkey's daily indicative rates (kurlar/YYYYMM/DDMMYYYY.xml).
+// Only a date leaves our infrastructure; no customer data is sent.
+package tcmb
+
+import (
+	"context"
+	"encoding/xml"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"regexp"
+	"strings"
+	"time"
+
+	"github.com/shopspring/decimal"
+)
+
+// Rate is TRY per Unit of Currency at TCMB's forex buying rate (D17).
+type Rate struct {
+	Currency    string
+	Unit        int64
+	ForexBuying decimal.Decimal
+}
+
+var code = regexp.MustCompile(`^[A-Z]{3}$`)
+
+// Parse reads one bulletin and returns its date and the currencies that carry a positive forex buying rate.
+func Parse(r io.Reader) (time.Time, []Rate, error) {
+	var x struct {
+		Tarih      string `xml:"Tarih,attr"`
+		Currencies []struct {
+			Code        string `xml:"CurrencyCode,attr"`
+			Unit        string `xml:"Unit"`
+			ForexBuying string `xml:"ForexBuying"`
+		} `xml:"Currency"`
+	}
+	if err := xml.NewDecoder(io.LimitReader(r, 1<<20)).Decode(&x); err != nil {
+		return time.Time{}, nil, fmt.Errorf("tcmb: bad bulletin: %w", err)
+	}
+	day, err := time.Parse("02.01.2006", x.Tarih)
+	if err != nil {
+		return time.Time{}, nil, fmt.Errorf("tcmb: bad bulletin date %q", x.Tarih)
+	}
+	var out []Rate
+	for _, c := range x.Currencies {
+		fb, err := decimal.NewFromString(strings.TrimSpace(c.ForexBuying))
+		unit, uerr := decimal.NewFromString(strings.TrimSpace(c.Unit))
+		if err != nil || uerr != nil || !fb.IsPositive() || !unit.IsPositive() || !unit.IsInteger() || !code.MatchString(c.Code) {
+			continue // some currencies publish no forex rate
+		}
+		out = append(out, Rate{Currency: c.Code, Unit: unit.IntPart(), ForexBuying: fb})
+	}
+	if len(out) == 0 {
+		return time.Time{}, nil, errors.New("tcmb: bulletin has no rates")
+	}
+	return day, out, nil
+}
+
+type Client struct {
+	base string
+	hc   *http.Client
+}
+
+func New(baseURL string) *Client {
+	return &Client{base: strings.TrimRight(baseURL, "/"), hc: &http.Client{Timeout: 10 * time.Second}}
+}
+
+// Day fetches the bulletin published on day. published=false (no error) means TCMB published none that day
+// (weekend, holiday: HTTP 404). Any other failure is an error and must not be cached as "no bulletin".
+func (c *Client) Day(ctx context.Context, day time.Time) ([]Rate, bool, error) {
+	url := fmt.Sprintf("%s/%s/%s.xml", c.base, day.Format("200601"), day.Format("02012006"))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, false, err
+	}
+	resp, err := c.hc.Do(req)
+	if err != nil {
+		return nil, false, fmt.Errorf("tcmb: %s unavailable", day.Format("2006-01-02"))
+	}
+	defer resp.Body.Close()
+	switch resp.StatusCode {
+	case http.StatusOK:
+	case http.StatusNotFound:
+		return nil, false, nil
+	default:
+		return nil, false, fmt.Errorf("tcmb: %s: HTTP %d", day.Format("2006-01-02"), resp.StatusCode)
+	}
+	got, rates, err := Parse(resp.Body)
+	if err != nil {
+		return nil, false, err
+	}
+	if !got.Equal(time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, time.UTC)) {
+		return nil, false, fmt.Errorf("tcmb: asked %s, bulletin is %s", day.Format("2006-01-02"), got.Format("2006-01-02"))
+	}
+	return rates, true, nil
+}
