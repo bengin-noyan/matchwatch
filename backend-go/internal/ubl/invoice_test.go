@@ -215,3 +215,24 @@ func TestParseInvoiceBounds(t *testing.T) {
 		}
 	}
 }
+
+func TestParseInvoiceBadExchangeRate(t *testing.T) {
+	b, err := os.ReadFile("../../testdata/invoice_usd.xml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for field, repl := range map[string][2]string{
+		"SourceCurrencyCode": {"<cbc:SourceCurrencyCode>USD</cbc:SourceCurrencyCode>", "<cbc:SourceCurrencyCode>usd</cbc:SourceCurrencyCode>"},
+		"TargetCurrencyCode": {"<cbc:TargetCurrencyCode>TRY</cbc:TargetCurrencyCode>", "<cbc:TargetCurrencyCode>TL</cbc:TargetCurrencyCode>"},
+		"CalculationRate":    {"<cbc:CalculationRate>34.500000</cbc:CalculationRate>", "<cbc:CalculationRate>0</cbc:CalculationRate>"},
+	} {
+		if !strings.Contains(string(b), repl[0]) {
+			t.Fatalf("fixture lacks %q", repl[0])
+		}
+		_, err := ParseInvoice(strings.NewReader(strings.Replace(string(b), repl[0], repl[1], 1)))
+		var ve *ValidationError
+		if !errors.As(err, &ve) || ve.Field != field {
+			t.Errorf("%s: err = %v", field, err)
+		}
+	}
+}
