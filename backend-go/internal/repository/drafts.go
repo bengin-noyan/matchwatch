@@ -72,16 +72,31 @@ func (tx *Tx) updateDraft(ctx context.Context, id uuid.UUID, set string, args ..
 	return nil
 }
 
+// updateUnapproved changes extraction state; an APPROVED draft is frozen and yields ErrDraftApproved.
+func (tx *Tx) updateUnapproved(ctx context.Context, id uuid.UUID, set string, args ...any) error {
+	tag, err := tx.Exec(ctx, `UPDATE contract_drafts SET `+set+`, updated_at=now() WHERE id=$1 AND status <> 'APPROVED'`, append([]any{id}, args...)...)
+	if err != nil {
+		return wrap("update draft", err)
+	}
+	if tag.RowsAffected() > 0 {
+		return nil
+	}
+	if _, err := tx.GetDraft(ctx, id); err != nil {
+		return err // ErrNotFound when the draft does not exist (or belongs to another tenant)
+	}
+	return ErrDraftApproved
+}
+
 func (tx *Tx) SetDraftResult(ctx context.Context, id uuid.UUID, draft, warnings, meta json.RawMessage) error {
-	return tx.updateDraft(ctx, id, `status='READY', error_code='', draft_json=$2, warnings_json=$3, meta_json=$4`, draft, warnings, meta)
+	return tx.updateUnapproved(ctx, id, `status='READY', error_code='', draft_json=$2, warnings_json=$3, meta_json=$4`, draft, warnings, meta)
 }
 
 func (tx *Tx) SetDraftFailed(ctx context.Context, id uuid.UUID, code string) error {
-	return tx.updateDraft(ctx, id, `status='FAILED', error_code=$2`, code)
+	return tx.updateUnapproved(ctx, id, `status='FAILED', error_code=$2`, code)
 }
 
 func (tx *Tx) SetDraftExtracting(ctx context.Context, id uuid.UUID) error {
-	return tx.updateDraft(ctx, id, `status='EXTRACTING', error_code=''`)
+	return tx.updateUnapproved(ctx, id, `status='EXTRACTING', error_code=''`)
 }
 
 func (tx *Tx) ApproveDraft(ctx context.Context, id, contractID uuid.UUID) error {

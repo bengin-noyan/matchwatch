@@ -24,6 +24,8 @@ type fakeAI struct {
 	err   error
 	delay time.Duration
 	calls int
+	// optional: Extract signals started, then waits for release (ignoring ctx unless it is cancelled)
+	started, release chan struct{}
 }
 
 func (f *fakeAI) set(err error) {
@@ -37,6 +39,14 @@ func (f *fakeAI) Extract(ctx context.Context, pdf []byte) (aiclient.Result, erro
 	err, delay := f.err, f.delay
 	f.calls++
 	f.mu.Unlock()
+	if f.release != nil {
+		close(f.started)
+		select {
+		case <-f.release:
+		case <-ctx.Done():
+			return aiclient.Result{}, ctx.Err()
+		}
+	}
 	if delay > 0 {
 		select {
 		case <-time.After(delay):
@@ -283,5 +293,29 @@ func TestDraftTooLarge(t *testing.T) {
 	e.mustStatus(413, code, b)
 	if n := e.count(`SELECT count(*) FROM contract_drafts`); n != 0 {
 		t.Fatalf("drafts %d", n)
+	}
+}
+
+func TestDraftSurvivesClientDisconnect(t *testing.T) {
+	e := setup(t, "9876543210")
+	ai := &fakeAI{started: make(chan struct{}), release: make(chan struct{})}
+	e.withAI(ai, 10*time.Second)
+	body, ct := multipartPDF(t, fakePDF)
+	ctx, cancel := context.WithCancel(context.Background())
+	req := httptest.NewRequest("POST", "/api/v1/contract-drafts", bytes.NewReader(body)).WithContext(ctx)
+	req.Header.Set("Authorization", "Bearer "+e.token)
+	req.Header.Set("Content-Type", ct)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		e.srv.ServeHTTP(httptest.NewRecorder(), req)
+	}()
+	<-ai.started
+	cancel() // client goes away mid-extraction
+	time.Sleep(50 * time.Millisecond)
+	close(ai.release)
+	<-done
+	if n := e.count(`SELECT count(*) FROM contract_drafts WHERE status='READY'`); n != 1 {
+		t.Fatalf("READY drafts %d, want 1 (extraction must survive the disconnect)", n)
 	}
 }

@@ -187,3 +187,36 @@ func cleanupTenant(t *testing.T, tid uuid.UUID) {
 		tx.Commit(ctx)
 	})
 }
+
+func TestDraftUpdatesRefuseApproved(t *testing.T) {
+	s, tid := setup(t)
+	ctx := context.Background()
+	id := uuid.New()
+	err := s.InTenant(ctx, tid, func(tx *Tx) error {
+		if err := tx.InsertDraft(ctx, id, "p.pdf", "abc"); err != nil {
+			return err
+		}
+		if err := tx.SetDraftResult(ctx, id, json.RawMessage(`{}`), json.RawMessage(`[]`), json.RawMessage(`{}`)); err != nil {
+			return err
+		}
+		if err := tx.ApproveDraft(ctx, id, draftContract(t, ctx, tx)); err != nil {
+			return err
+		}
+		if err := tx.SetDraftResult(ctx, id, json.RawMessage(`{}`), json.RawMessage(`[]`), json.RawMessage(`{}`)); !errors.Is(err, ErrDraftApproved) {
+			t.Errorf("SetDraftResult after approve: %v", err)
+		}
+		if err := tx.SetDraftFailed(ctx, id, "X"); !errors.Is(err, ErrDraftApproved) {
+			t.Errorf("SetDraftFailed after approve: %v", err)
+		}
+		if err := tx.SetDraftExtracting(ctx, id); !errors.Is(err, ErrDraftApproved) {
+			t.Errorf("SetDraftExtracting after approve: %v", err)
+		}
+		if err := tx.SetDraftFailed(ctx, uuid.New(), "X"); !errors.Is(err, ErrNotFound) {
+			t.Errorf("SetDraftFailed on missing draft: %v", err)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}

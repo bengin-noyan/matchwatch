@@ -85,12 +85,12 @@ func readPDF(w http.ResponseWriter, r *http.Request) ([]byte, bool) {
 	}
 }
 
-// extractInto runs the extraction and stores its outcome; the outcome is written even if the client has gone.
+// extractInto runs the extraction and stores its outcome; both survive a client disconnect (design §6.4).
 func (s *server) extractInto(ctx context.Context, tid, id uuid.UUID, pdf []byte) (repository.Draft, error) {
-	ectx, cancel := context.WithTimeout(ctx, s.extractTimeout)
+	wctx := context.WithoutCancel(ctx)
+	ectx, cancel := context.WithTimeout(wctx, s.extractTimeout)
 	res, xerr := s.ai.Extract(ectx, pdf)
 	cancel()
-	wctx := context.WithoutCancel(ctx)
 	var d repository.Draft
 	err := s.store.InTenant(wctx, tid, func(tx *repository.Tx) error {
 		var aerr *aiclient.Error
@@ -117,6 +117,8 @@ func (s *server) postDraft(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.extendWrite(w)
+	// a slow 21 MiB upload must not be cut off by the server's ReadTimeout; httptest ignores this too
+	_ = http.NewResponseController(w).SetReadDeadline(time.Now().Add(s.extractTimeout))
 	ctx, tid := r.Context(), auth.TenantID(r.Context())
 	pdf, ok := readPDF(w, r)
 	if !ok {
