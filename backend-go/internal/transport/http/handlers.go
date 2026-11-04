@@ -51,6 +51,10 @@ func fail(w http.ResponseWriter, err error) {
 		writeErr(w, 409, "DUPLICATE_CONTRACT", "a contract with this number already exists")
 	case errors.Is(err, repository.ErrUnknownDespatch):
 		writeErr(w, 404, "DESPATCH_NOT_FOUND", "referenced despatch not found")
+	case errors.Is(err, repository.ErrDraftNotReady):
+		writeErr(w, 409, "DRAFT_NOT_READY", "draft is not ready for approval")
+	case errors.Is(err, repository.ErrDraftApproved):
+		writeErr(w, 409, "DRAFT_APPROVED", "draft is already approved")
 	case errors.Is(err, repository.ErrNotFound):
 		writeErr(w, 404, "NOT_FOUND", "not found")
 	case errors.As(err, &pgErr) && pgErr.Code == "23514": // CHECK, e.g. rejected_qty > delivered_qty
@@ -154,12 +158,26 @@ func (s *server) postContract(w http.ResponseWriter, r *http.Request) {
 	}
 	var id uuid.UUID
 	err = s.store.InTenant(r.Context(), tid, func(tx *repository.Tx) error {
+		if doc.DraftID != nil {
+			d, err := tx.LockDraft(r.Context(), *doc.DraftID)
+			switch {
+			case err != nil:
+				return err
+			case d.Status == repository.DraftApproved:
+				return repository.ErrDraftApproved
+			case d.Status != repository.DraftReady:
+				return repository.ErrDraftNotReady
+			}
+			doc.FilePath = d.PDFPath
+		}
 		var err error
 		if doc.VendorID, err = tx.UpsertVendor(r.Context(), doc.VendorVKN, name); err != nil {
 			return err
 		}
-		id, err = tx.InsertContract(r.Context(), doc.ContractInput)
-		return err
+		if id, err = tx.InsertContract(r.Context(), doc.ContractInput); err != nil || doc.DraftID == nil {
+			return err
+		}
+		return tx.ApproveDraft(r.Context(), *doc.DraftID, id)
 	})
 	if err != nil {
 		fail(w, err)
