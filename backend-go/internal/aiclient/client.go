@@ -48,13 +48,18 @@ func (c *Client) Extract(ctx context.Context, pdf []byte) (Result, error) {
 		return Result{}, unavailable // url.Error may embed the URL; drop it
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponse))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponse+1))
 	unavailable.Status = resp.StatusCode
 	if err != nil {
 		return Result{}, unavailable
 	}
+	if len(body) > maxResponse {
+		return Result{}, &Error{Code: "AI_RESPONSE_TOO_LARGE", Status: resp.StatusCode}
+	}
 	if resp.StatusCode != http.StatusOK {
-		var eb struct{ Code string }
+		var eb struct {
+			Code string `json:"code"`
+		}
 		if json.Unmarshal(body, &eb) != nil || eb.Code == "" {
 			return Result{}, unavailable
 		}
@@ -62,7 +67,7 @@ func (c *Client) Extract(ctx context.Context, pdf []byte) (Result, error) {
 	}
 	var r Result
 	var raw struct{ Draft, Warnings, Meta json.RawMessage }
-	if json.Unmarshal(body, &raw) != nil || len(raw.Draft) == 0 {
+	if json.Unmarshal(body, &raw) != nil || len(raw.Draft) == 0 || string(raw.Draft) == "null" {
 		return Result{}, unavailable
 	}
 	r = Result(raw)

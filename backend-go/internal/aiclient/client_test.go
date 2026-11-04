@@ -85,3 +85,25 @@ func TestExtractTimeout(t *testing.T) {
 		t.Fatalf("%+v", e)
 	}
 }
+
+func TestExtractTooLarge(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write(make([]byte, maxResponse+1))
+	}))
+	defer srv.Close()
+	_, err := New(srv.URL, "t", 10*time.Second).Extract(context.Background(), nil)
+	if e := code(t, err); e.Code != "AI_RESPONSE_TOO_LARGE" || e.Status != 200 {
+		t.Fatalf("%+v", e)
+	}
+}
+
+func TestExtractNullDraft(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"draft":null,"warnings":[],"meta":{}}`))
+	}))
+	defer srv.Close()
+	_, err := New(srv.URL, "t", time.Second).Extract(context.Background(), nil)
+	if e := code(t, err); e.Code != "AI_UNAVAILABLE" || e.Status != 200 {
+		t.Fatalf("%+v", e)
+	}
+}

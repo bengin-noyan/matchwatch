@@ -73,9 +73,11 @@ func TestAIShortTokenRejected(t *testing.T) {
 }
 
 func TestAIBadTimeoutRejected(t *testing.T) {
-	baseEnv(t)
-	t.Setenv("AI_EXTRACT_TIMEOUT", "abc")
-	if _, err := Load(); err == nil {
-		t.Fatal("expected error")
+	for _, v := range []string{"abc", "0", "-1s"} {
+		baseEnv(t)
+		t.Setenv("AI_EXTRACT_TIMEOUT", v)
+		if _, err := Load(); err == nil {
+			t.Fatalf("expected error for %q", v)
+		}
 	}
 }

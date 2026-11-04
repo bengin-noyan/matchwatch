@@ -38,8 +38,8 @@ func Load() (Config, error) {
 		return Config{}, errors.New("config: AI_SERVICE_TOKEN must be at least 32 bytes when AI_SERVICE_URL is set")
 	}
 	d, err := time.ParseDuration(getenv("AI_EXTRACT_TIMEOUT", "5m"))
-	if err != nil {
-		return Config{}, errors.New("config: AI_EXTRACT_TIMEOUT is not a valid duration")
+	if err != nil || d <= 0 {
+		return Config{}, errors.New("config: AI_EXTRACT_TIMEOUT must be a positive duration")
 	}
 	c.AIExtractTimeout = d
 	return c, nil
