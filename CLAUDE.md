@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 matchwatch is an internal-audit engine for Turkish companies. It cross-checks purchase contracts, e-İrsaliye (`DespatchAdvice`) and e-Fatura (`Invoice`) documents in GİB UBL-TR 1.2 format, a "3-way match", and stores anomaly findings together with their evidence.
 
 - **Spec:** `docs/spec.md` is the authority. Its §4 "Kararlar" (D1–D15) deliberately deviate from the original "LeakZero" spec, and the D-decisions win where they conflict.
-- **Phases:** Faz 1 is the Go core and is done (merged to `main`). Faz 2a (PDF contract extraction via `ai-service/`) is merged to `main` (PR #2). Faz 2b (semantic item suggestions + human-confirmed aliases, D16) is implemented on branch `faz2b-semantic-matching`. Faz 2c (TCMB rates) and Faz 3 (the Vue 3 web app) are not started.
+- **Phases:** Faz 1 is the Go core and is done (merged to `main`). Faz 2a (PDF contract extraction via `ai-service/`) is merged to `main` (PR #2). Faz 2b (semantic item suggestions + human-confirmed aliases, D16) is in PR #3 (branch `faz2b-semantic-matching`). Faz 2c (TCMB rates, D17) is implemented on branch `faz2c-tcmb-rates`, stacked on 2b. Faz 3 (the Vue 3 web app) is not started.
 - **Faz 1 plan:** `docs/superpowers/plans/2026-11-02-faz1-go-core.md` lists tasks, interfaces and the exact expected test values.
 
 ## Commands
@@ -52,6 +52,7 @@ The data flow is: parse XML → persist → load audit input → match → run r
 - `ai-service/` (Python, FastAPI, port 8090): `POST /v1/extract` turns a contract PDF into a structured draft (text layer, OCR fallback, local Ollama LLM, values grounded in the page text) `POST /v1/embed` embeds item names (Ollama `bge-m3`, 1024 dims) and `GET /healthz`. Bearer auth via `AI_SERVICE_TOKEN`; `LLM_BASE_URL` must be a private host (KVKK).
 - `internal/aiclient`: HTTP client for the ai-service. Draft flow: `POST /contract-drafts` stores the PDF and extracts into a `contract_drafts` row, a human reviews the draft, then `POST /contracts` with `draft_id` approves it (draft becomes `APPROVED`, frozen). Re-extract via `POST /contract-drafts/{id}/extract`.
 - Semantic matching (D16, Faz 2b): matching order is code → barcode → `item_aliases` (vendor, `domain.NameKey`, uom). Before the audit transaction, `audit.Service.suggest` embeds the still-unmatched lines (and any contract items lacking a vector for that model) and ranks same-uom items with pgvector; up to 3 suggestions ≥ 0.50 go into the `UNCONTRACTED_ITEM` evidence. Embeddings **never** auto-match: `POST /invoice-lines/{id}/match` records the human's choice as an alias and re-audits. AI errors only drop suggestions. Go carries vectors as raw JSON (`$n::text::vector`), never floats.
+- TCMB rates (D17, Faz 2c): `internal/tcmb` fetches `kurlar/YYYYMM/DDMMYYYY.xml` (404 = no bulletin). `audit.Service.fxFallback` runs before the audit transaction: when the invoice's own `PricingExchangeRate` does not reach a contract item currency, it walks back from the day before the issue date (≤ 10 days) through the global `fx_days`/`fx_rates` cache, fetching missing days, and hands TRY-crossed forex-buying rates to `priceRules` (`anomaly.Input.FXFallback`). The invoice's rate still wins; no rate → `FX_UNVERIFIED`. `TCMB_BASE_URL` set but empty disables it. Only a date leaves our infrastructure.
 - `cmd/api`, `cmd/devtoken`, `cmd/migrate`. `scripts/smoke.sh` is the end-to-end check (expects `"caught_minor":21412`).
 
 ### Multi-tenancy (easy to break)
@@ -84,11 +85,10 @@ The data flow is: parse XML → persist → load audit input → match → run r
 
 ## Current status (2026-11-04)
 
-Faz 1 is merged to `main` (PR #1, merge commit `0ceeca3`). It covers all 12 tasks, the final whole-branch review and its fix wave. Faz 2a (PDF extraction, human-approved drafts) is merged to `main` (PR #2, merge commit `aebc5d1`). Faz 2b (D16) is complete on branch `faz2b-semantic-matching`, pending merge; its smoke also found and fixed a Faz 1 bug (invoices without despatch refs failed to audit). Faz 2c and Faz 3 are not started.
+Faz 1 is merged to `main` (PR #1, merge commit `0ceeca3`). It covers all 12 tasks, the final whole-branch review and its fix wave. Faz 2a (PDF extraction, human-approved drafts) is merged to `main` (PR #2, merge commit `aebc5d1`). Faz 2b (D16) is in PR #3, pending merge; its smoke also found and fixed a Faz 1 bug (invoices without despatch refs failed to audit). Faz 2c (D17) is complete on branch `faz2c-tcmb-rates` (stacked on 2b; open its PR after #3 merges). Faz 3 is not started.
 
 - **Next steps, in order:**
-  1. Faz 2c: TCMB exchange rates for FX findings.
-  2. Faz 3, the Vue 3 web app. KVKK applies throughout (see the rulings below), and an LLM never computes amounts.
+  1. Faz 3, the Vue 3 web app. KVKK applies throughout (see the rulings below), and an LLM never computes amounts.
 - **Working mode:** Claude acts as Staff Architect / Principal Engineer. It decides technical and domain questions itself, records them as rulings and reports in Turkish. It does not hand these questions back to the user.
 - **Housekeeping:** the remote branch `faz1-go-core` is merged and can be deleted from the GitHub PR page.
 
@@ -105,7 +105,6 @@ Faz 1 is merged to `main` (PR #1, merge commit `0ceeca3`). It covers all 12 task
   - The `go` directive is 1.25.0 (required by pgx).
 - **Known open minors:**
   - A PATCH racing a re-audit can leave the status one step stale.
-  - FX currency codes are not format-checked.
   - Summed allowance and tax totals are not bounded.
   - A post-commit audit failure leaves the invoice PENDING; recover with `POST /invoices/{id}/audit`.
 - **Architect rulings (2026-11-03):**

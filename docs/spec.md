@@ -79,6 +79,11 @@ Fatura durumu: bulgu yok → GREEN; yalnızca WARNING (INFO yok sayılır) → Y
   benzer ama farklı ürünler (A4/A3, M8/M10) 0.86'yı geçti, aynı ürünün farklı yazımları çoğunlukla geçemedi. Embedding
   aynı uom'daki kalemlerden en fazla 3 öneri üretir (≥ 0.50); insan onaylarsa (tedarikçi, normalize ad, uom) takma adı
   kaydedilir ve sonraki eşleşmeler deterministik olur. Ayrıntı: `docs/superpowers/specs/2026-11-04-faz2b-semantic-matching-design.md`.
+- **D17 TCMB kuru (Faz 2c):** D4'te faturanın `PricingExchangeRate`'i sözleşme para birimine gitmiyorsa ya da yoksa,
+  fatura tarihinden **önceki** en yakın iş gününün TCMB bülteninden **döviz alış** kuru kullanılır (KDVK md. 26 uygulaması;
+  15:30'da ilan edilen kur ertesi gün için geçerlidir). Çapraz kur TRY üzerinden, `Unit` ile düzeltilir. En fazla 10 gün
+  geriye gidilir; TCMB'ye ulaşılamazsa `FX_UNVERIFIED` kalır. Kanıt: `fx_source: TCMB`, `fx_rate`, `fx_rate_date`.
+  Bültenler global `fx_days`/`fx_rates` tablolarında saklanır; 404 (tatil) önbelleğe alınır, diğer hatalar alınmaz.
 
 ## 5. Fazlar
 

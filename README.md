@@ -31,6 +31,8 @@ go run ./cmd/api          # needs DATABASE_URL, JWT_SECRET, HTTP_ADDR, STORAGE_D
 
 Invoice lines that match no contract item by code or barcode get up to three embedding-ranked suggestions in their `UNCONTRACTED_ITEM` finding (`evidence.suggestions`). Suggestions never match on their own (D16): confirm one with `POST /api/v1/invoice-lines/{id}/match` `{"contract_item_id": "..."}`, which stores an alias for that vendor's item name and re-audits the invoice.
 
+When an invoice's currency differs from the contract's and the invoice carries no usable `PricingExchangeRate`, the price rule uses TCMB's forex buying rate from the last bulletin before the invoice date (D17), fetched from `TCMB_BASE_URL` (default `https://www.tcmb.gov.tr/kurlar`) and cached in the database. Set `TCMB_BASE_URL=` (empty) to turn this off; findings then fall back to `FX_UNVERIFIED`.
+
 `EXTRACT_DEADLINE_S` (ai-service, default 270) bounds the whole extraction, retries included, and must stay below `AI_EXTRACT_TIMEOUT` (API, default 5m) so the service answers before the API gives up. On slow CPU hosts raise both together (and `LLM_TIMEOUT_S`).
 
 ## Tests
