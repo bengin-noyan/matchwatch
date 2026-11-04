@@ -37,8 +37,7 @@ def extract_pages(
     try:
         doc = pdfium.PdfDocument(data)
     except pdfium.PdfiumError as e:
-        # pdfium has no typed password error; it reports it in the message
-        if "password" in str(e).lower():
+        if e.err_code == pdfium.raw.FPDF_ERR_PASSWORD:
             raise PdfError("ENCRYPTED_PDF") from e
         raise PdfError("NOT_PDF") from e
     try:
@@ -46,12 +45,25 @@ def extract_pages(
             raise PdfError("TOO_LARGE")
         pages = []
         for i, page in enumerate(doc, start=1):
-            text = page.get_textpage().get_text_range().replace("\r\n", "\n")
-            used_ocr = False
-            if len(text.strip()) < MIN_TEXT_CHARS and ocr is not None:
-                text = ocr(page.render(scale=300 / 72).to_pil())
-                used_ocr = True
-            pages.append(Page(i, text, used_ocr))
+            try:
+                tp = page.get_textpage()
+                try:
+                    text = tp.get_text_range().replace("\r\n", "\n")
+                finally:
+                    tp.close()
+                used_ocr = False
+                if len(text.strip()) < MIN_TEXT_CHARS and ocr is not None:
+                    bitmap = page.render(scale=300 / 72)
+                    img = bitmap.to_pil()
+                    try:
+                        text = ocr(img)
+                    finally:
+                        img.close()
+                        bitmap.close()
+                    used_ocr = True
+                pages.append(Page(i, text, used_ocr))
+            finally:
+                page.close()
         return pages
     finally:
         doc.close()
