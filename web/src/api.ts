@@ -156,6 +156,16 @@ export interface FindingList {
   counts: Record<string, number> // matches per rule code, ignoring the rule filter
 }
 
+export interface AliasRow {
+  id: string
+  vendor_id: string
+  vendor_name: string
+  name_key: string // the invoice item name, normalized: lowercase, Turkish letters folded
+  uom: string
+  contract_item: ContractItemRow
+  created_at: string
+}
+
 export interface VendorRow {
   id: string
   name: string
@@ -312,6 +322,8 @@ export const api = {
   decideMany: (findingIds: string[], resolution_status: Resolution, note: string) =>
     request<{ updated: number }>('POST', '/findings/decisions',
       json({ finding_ids: findingIds, resolution_status, note }), 'application/json'),
+  aliases: (vendorId?: string) => request<{ items: AliasRow[] }>('GET', `/aliases${vendorId ? `?vendor_id=${id(vendorId)}` : ''}`),
+  deleteAlias: (aliasId: string) => request<{ reaudited: string[] }>('DELETE', `/aliases/${id(aliasId)}`),
   matchLine: (lineId: string, contractItemId: string) =>
     request<{ invoice_id: string; audit_status: AuditStatus }>('POST', `/invoice-lines/${id(lineId)}/match`,
       json({ contract_item_id: contractItemId }), 'application/json'),

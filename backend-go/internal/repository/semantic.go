@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -124,4 +125,79 @@ func (tx *Tx) UpsertAlias(ctx context.Context, lineID, itemID uuid.UUID) (uuid.U
 		ON CONFLICT (tenant_id, vendor_id, name_key, uom) DO UPDATE SET contract_item_id=EXCLUDED.contract_item_id, created_at=now()`,
 		tx.tenantID, vendorID, key, uom, itemID)
 	return invoiceID, wrap("upsert alias", err)
+}
+
+// AliasRow is one human-confirmed item alias with the contract item it points to.
+type AliasRow struct {
+	ID           uuid.UUID       `json:"id"`
+	VendorID     uuid.UUID       `json:"vendor_id"`
+	VendorName   string          `json:"vendor_name"`
+	NameKey      string          `json:"name_key"` // the invoice item name, normalized (domain.NameKey)
+	UOM          string          `json:"uom"`
+	ContractItem ContractItemRow `json:"contract_item"`
+	CreatedAt    time.Time       `json:"created_at"` // when it was confirmed (or last re-pointed)
+}
+
+// ListAliases returns the tenant's aliases, optionally for one vendor, by vendor and name.
+// shortcut: no paging; a tenant is expected to hold hundreds of aliases, not tens of thousands.
+func (tx *Tx) ListAliases(ctx context.Context, vendorID *uuid.UUID) ([]AliasRow, error) {
+	rows, err := tx.Query(ctx, `SELECT a.id, a.vendor_id, v.name, a.name_key, a.uom, a.created_at,
+		ci.id, c.contract_no, ci.item_code, ci.item_name, ci.unit_price::text, ci.currency, ci.uom, ci.source_page, ci.source_clause_text
+		FROM item_aliases a
+		JOIN vendors v ON v.tenant_id=a.tenant_id AND v.id=a.vendor_id
+		JOIN contract_items ci ON ci.tenant_id=a.tenant_id AND ci.id=a.contract_item_id
+		JOIN contracts c ON c.tenant_id=ci.tenant_id AND c.id=ci.contract_id
+		WHERE a.tenant_id=$1 AND ($2::uuid IS NULL OR a.vendor_id=$2) ORDER BY v.name, a.name_key, a.uom`, tx.tenantID, vendorID)
+	if err != nil {
+		return nil, wrap("list aliases", err)
+	}
+	defer rows.Close()
+	out := []AliasRow{}
+	for rows.Next() {
+		var a AliasRow
+		ci := &a.ContractItem
+		if err := rows.Scan(&a.ID, &a.VendorID, &a.VendorName, &a.NameKey, &a.UOM, &a.CreatedAt,
+			&ci.ID, &ci.ContractNo, &ci.ItemCode, &ci.Name, &ci.UnitPrice, &ci.Currency, &ci.UOM, &ci.SourcePage, &ci.SourceClauseText); err != nil {
+			return nil, wrap("scan alias", err)
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
+// DeleteAlias removes an alias and returns the invoices that had a line matched through it, so the caller can
+// re-audit them (their lines fall back to UNCONTRACTED_ITEM with fresh suggestions).
+func (tx *Tx) DeleteAlias(ctx context.Context, id uuid.UUID) ([]uuid.UUID, error) {
+	var vendorID, itemID uuid.UUID
+	var key, uom string
+	err := tx.QueryRow(ctx, `DELETE FROM item_aliases WHERE tenant_id=$1 AND id=$2 RETURNING vendor_id, name_key, uom, contract_item_id`,
+		tx.tenantID, id).Scan(&vendorID, &key, &uom, &itemID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, wrap("delete alias", err)
+	}
+	// NameKey lives in Go, so narrow in SQL by item and uom, then compare keys here.
+	rows, err := tx.Query(ctx, `SELECT il.invoice_id, il.item_name FROM invoice_lines il
+		JOIN invoices i ON i.tenant_id=il.tenant_id AND i.id=il.invoice_id
+		WHERE il.tenant_id=$1 AND i.vendor_id=$2 AND il.matched_contract_item_id=$3 AND il.uom=$4`, tx.tenantID, vendorID, itemID, uom)
+	if err != nil {
+		return nil, wrap("alias invoices", err)
+	}
+	defer rows.Close()
+	seen := map[uuid.UUID]bool{}
+	var out []uuid.UUID
+	for rows.Next() {
+		var inv uuid.UUID
+		var name string
+		if err := rows.Scan(&inv, &name); err != nil {
+			return nil, wrap("scan alias invoice", err)
+		}
+		if domain.NameKey(name) == key && !seen[inv] {
+			seen[inv] = true
+			out = append(out, inv)
+		}
+	}
+	return out, rows.Err()
 }

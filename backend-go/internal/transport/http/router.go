@@ -39,6 +39,8 @@ func NewRouter(store *repository.Store, auditor *audit.Service, storageDir strin
 	api.HandleFunc("GET /api/v1/invoices/{id}", s.getInvoice)
 	api.HandleFunc("POST /api/v1/invoices/{id}/audit", s.auditInvoice)
 	api.HandleFunc("POST /api/v1/invoice-lines/{id}/match", s.postLineMatch)
+	api.HandleFunc("GET /api/v1/aliases", s.listAliases)
+	api.HandleFunc("DELETE /api/v1/aliases/{id}", s.deleteAlias)
 	api.HandleFunc("GET /api/v1/findings", s.listFindings)
 	api.HandleFunc("POST /api/v1/findings/decisions", s.postDecisions)
 	api.HandleFunc("PATCH /api/v1/findings/{id}", s.patchFinding)

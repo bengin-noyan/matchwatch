@@ -10,6 +10,7 @@ const nav = [
   { to: '/faturalar', label: 'Faturalar' },
   { to: '/bulgular', label: 'Bulgular' },
   { to: '/tedarikciler', label: 'Tedarikçiler' },
+  { to: '/eslesmeler', label: 'Kalem eşleşmeleri' },
   { to: '/yukle', label: 'Belge yükle' },
   { to: '/taslaklar', label: 'Sözleşme taslakları' },
 ]
