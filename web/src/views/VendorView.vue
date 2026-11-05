@@ -10,15 +10,17 @@ import PriceChart, { type PricePoint } from '../components/charts/PriceChart.vue
 const props = defineProps<{ id: string }>()
 const v = ref<VendorDetail | null>(null)
 const invoices = ref<InvoiceRow[]>([])
+const invoiceTotal = ref(0)
 const error = ref('')
 
 watch(
   () => props.id,
   async (vid) => {
     try {
-      const [d, inv] = await Promise.all([api.vendor(vid), api.invoices(vid)])
+      const [d, inv] = await Promise.all([api.vendor(vid), api.invoices({ vendor_id: vid, sort: 'issue_date', dir: 'desc', limit: 20 })])
       v.value = d
       invoices.value = inv.items
+      invoiceTotal.value = inv.total
       error.value = ''
     } catch (e) {
       error.value = e instanceof ApiError && e.status === 404 ? 'Bu tedarikçi bulunamadı.' : 'Tedarikçi yüklenemedi.'
@@ -106,7 +108,14 @@ const aboveCount = (pts: PricePoint[], contract: string) => pts.filter((p) => p.
     </p>
 
     <section>
-      <h2 class="mb-3 text-xl font-semibold">Faturalar</h2>
+      <div class="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+        <h2 class="text-xl font-semibold">{{ invoiceTotal > invoices.length ? 'Son faturalar' : 'Faturalar' }}</h2>
+        <RouterLink
+          v-if="invoiceTotal > invoices.length"
+          :to="{ path: '/faturalar', query: { vendor: props.id, sort: 'issue_date', dir: 'desc' } }"
+          class="text-ballpoint text-sm underline-offset-4 hover:underline"
+        >Bütün faturaları ({{ invoiceTotal.toLocaleString('tr-TR') }})</RouterLink>
+      </div>
       <div class="bg-sheet border-rule rounded-sheet overflow-x-auto border">
         <table class="w-full min-w-[36rem] border-collapse text-sm">
           <thead>

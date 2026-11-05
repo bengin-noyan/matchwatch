@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 
 	"github.com/google/uuid"
+
+	"github.com/bengin-noyan/matchwatch/backend-go/internal/repository"
 )
 
 type errorBody struct {
@@ -30,9 +32,10 @@ type invoiceResp struct {
 	AuditStatus string    `json:"audit_status"`
 }
 
-type listResp struct {
-	Items any `json:"items"`
-	Total int `json:"total"`
+type invoiceListResp struct {
+	Items  []repository.InvoiceRow  `json:"items"`
+	Total  int                      `json:"total"`
+	Counts repository.InvoiceCounts `json:"counts"` // per audit status, ignoring the status filter
 }
 
 type patchReq struct {

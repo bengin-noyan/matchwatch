@@ -95,6 +95,26 @@ export interface Dashboard {
   }[]
 }
 
+// GET /invoices parameters; the server searches, filters, sorts and pages.
+export interface InvoiceQuery {
+  q?: string
+  status?: AuditStatus
+  vendor_id?: string
+  from?: string // YYYY-MM-DD, inclusive
+  to?: string
+  open?: boolean // only invoices with findings waiting for a decision
+  sort?: 'issue_date' | 'invoice_no' | 'vendor' | 'payable' | 'status' | 'open_findings'
+  dir?: 'asc' | 'desc'
+  limit?: number
+  offset?: number
+}
+
+export interface InvoiceList {
+  items: InvoiceRow[]
+  total: number
+  counts: Partial<Record<AuditStatus, number>> // matches per status, ignoring the status filter
+}
+
 export interface VendorRow {
   id: string
   name: string
@@ -230,8 +250,11 @@ export const api = {
   logout: () => request<void>('POST', '/auth/logout'),
   me: () => request<Me>('GET', '/auth/me'),
 
-  invoices: (vendorId?: string) =>
-    request<{ items: InvoiceRow[]; total: number }>('GET', `/invoices?limit=200${vendorId ? `&vendor_id=${id(vendorId)}` : ''}`),
+  invoices: (p: InvoiceQuery = {}) => {
+    const qs = new URLSearchParams()
+    for (const [k, v] of Object.entries(p)) if (v !== undefined && v !== '' && v !== false) qs.set(k, String(v))
+    return request<InvoiceList>('GET', `/invoices?${qs}`)
+  },
   dashboard: (from?: string) => request<Dashboard>('GET', `/dashboard${from ? `?from=${from}` : ''}`),
   vendors: () => request<{ items: VendorRow[] }>('GET', '/vendors'),
   vendor: (vendorId: string) => request<VendorDetail>('GET', `/vendors/${id(vendorId)}`),
