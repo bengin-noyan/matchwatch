@@ -12,6 +12,7 @@ export const router = createRouter({
     { path: '/yukle', name: 'upload', component: () => import('./views/UploadView.vue') },
     { path: '/taslaklar', name: 'drafts', component: () => import('./views/DraftsView.vue') },
     { path: '/taslaklar/:id', name: 'draft', component: () => import('./views/DraftView.vue'), props: true },
+    { path: '/eslesmeler', name: 'aliases', component: () => import('./views/AliasesView.vue') },
     { path: '/tedarikciler', name: 'vendors', component: () => import('./views/VendorsView.vue') },
     { path: '/tedarikciler/:id', name: 'vendor', component: () => import('./views/VendorView.vue'), props: true },
     { path: '/ozet', redirect: '/' },
