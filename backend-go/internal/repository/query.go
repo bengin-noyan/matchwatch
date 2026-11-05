@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -16,9 +17,17 @@ import (
 type InvoiceFilter struct {
 	Status   string
 	VendorID *uuid.UUID
+	Query    string  // substring of invoice no, vendor name or ETTN; case-blind, Turkish i's folded
+	From, To *string // issue date range, YYYY-MM-DD, inclusive
+	OpenOnly bool    // only invoices with findings still waiting for a decision
+	Sort     string  // a key of invoiceSorts; "" = newest upload first
+	Desc     bool
 	Limit    int
 	Offset   int
 }
+
+// InvoiceCounts counts the matches per audit status, ignoring the status filter, so the status chips can show them.
+type InvoiceCounts map[string]int
 
 type InvoiceRow struct {
 	ID           uuid.UUID `json:"id"`
@@ -34,9 +43,29 @@ type InvoiceRow struct {
 	OpenFindings int       `json:"open_findings"` // OPEN findings still waiting for a human decision
 }
 
-const invoiceCols = `i.id, i.vendor_id, v.name, i.ettn, i.invoice_no, i.issue_date::text, i.due_date::text, i.currency,
-	i.payable_minor, i.audit_status, (SELECT count(*) FROM audit_findings f
+const openFindings = `(SELECT count(*) FROM audit_findings f
 		WHERE f.tenant_id=i.tenant_id AND f.invoice_id=i.id AND f.resolution_status='OPEN')`
+const invoiceCols = `i.id, i.vendor_id, v.name, i.ettn, i.invoice_no, i.issue_date::text, i.due_date::text, i.currency,
+	i.payable_minor, i.audit_status, ` + openFindings
+
+// invoiceSorts whitelists the ORDER BY expressions a client may pick.
+var invoiceSorts = map[string]string{
+	"issue_date":    "i.issue_date",
+	"invoice_no":    "i.invoice_no",
+	"vendor":        "v.name",
+	"payable":       "i.payable_minor",
+	"status":        "CASE i.audit_status WHEN 'RED' THEN 0 WHEN 'YELLOW' THEN 1 WHEN 'PENDING' THEN 2 ELSE 3 END",
+	"open_findings": openFindings,
+}
+
+// ValidInvoiceSort reports whether key may be passed as InvoiceFilter.Sort.
+func ValidInvoiceSort(key string) bool { _, ok := invoiceSorts[key]; return ok }
+
+// likeEscape makes s match literally inside a LIKE pattern (backslash is the default escape).
+func likeEscape(s string) string {
+	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(s)
+}
+
 const invoiceFrom = ` FROM invoices i JOIN vendors v ON v.tenant_id=i.tenant_id AND v.id=i.vendor_id`
 
 func scanInvoice(row pgx.Row, r *InvoiceRow) error {
@@ -44,33 +73,67 @@ func scanInvoice(row pgx.Row, r *InvoiceRow) error {
 		&r.PayableMinor, &r.AuditStatus, &r.OpenFindings)
 }
 
-// ListInvoices returns one page (newest first) and the total number of matches.
-func (tx *Tx) ListInvoices(ctx context.Context, f InvoiceFilter) ([]InvoiceRow, int, error) {
-	// NULL parameters disable a filter, so the SQL text is constant
-	var status *string
+// ListInvoices returns one page, the number of matches and the matches per status (ignoring f.Status).
+func (tx *Tx) ListInvoices(ctx context.Context, f InvoiceFilter) ([]InvoiceRow, int, InvoiceCounts, error) {
+	// NULL parameters disable a filter, so the SQL text only varies by the whitelisted sort
+	var query, status *string
+	if f.Query != "" {
+		q := likeEscape(f.Query)
+		query = &q
+	}
 	if f.Status != "" {
 		status = &f.Status
 	}
-	const where = ` WHERE i.tenant_id=$1 AND ($2::text IS NULL OR i.audit_status=$2) AND ($3::uuid IS NULL OR i.vendor_id=$3)`
-	var total int
-	if err := tx.QueryRow(ctx, `SELECT count(*)`+invoiceFrom+where, tx.tenantID, status, f.VendorID).Scan(&total); err != nil {
-		return nil, 0, wrap("count invoices", err)
-	}
-	rows, err := tx.Query(ctx, `SELECT `+invoiceCols+invoiceFrom+where+` ORDER BY i.created_at DESC, i.id LIMIT $4 OFFSET $5`,
-		tx.tenantID, status, f.VendorID, f.Limit, f.Offset)
+	// shortcut: the search scans the tenant's invoices; add a pg_trgm index once tenants hold ~100k invoices.
+	const where = ` WHERE i.tenant_id=$1 AND ($2::uuid IS NULL OR i.vendor_id=$2)
+		AND ($3::text IS NULL OR translate(lower(i.invoice_no||' '||v.name||' '||i.ettn::text), 'ı', 'i')
+			LIKE '%'||translate(lower($3), 'ı', 'i')||'%')
+		AND ($4::date IS NULL OR i.issue_date >= $4) AND ($5::date IS NULL OR i.issue_date <= $5)
+		AND (NOT $6 OR ` + openFindings + ` > 0)`
+	args := []any{tx.tenantID, f.VendorID, query, f.From, f.To, f.OpenOnly}
+
+	counts := InvoiceCounts{}
+	crows, err := tx.Query(ctx, `SELECT i.audit_status, count(*)`+invoiceFrom+where+` GROUP BY 1`, args...)
 	if err != nil {
-		return nil, 0, wrap("list invoices", err)
+		return nil, 0, nil, wrap("count invoices", err)
+	}
+	total := 0
+	for crows.Next() {
+		var st string
+		var n int
+		if err := crows.Scan(&st, &n); err != nil {
+			crows.Close()
+			return nil, 0, nil, wrap("scan count", err)
+		}
+		counts[st] = n
+		if status == nil || *status == st {
+			total += n
+		}
+	}
+	crows.Close()
+	if err := crows.Err(); err != nil {
+		return nil, 0, nil, wrap("count invoices", err)
+	}
+
+	order := "i.created_at DESC"
+	if e, ok := invoiceSorts[f.Sort]; ok {
+		order = e + map[bool]string{false: " ASC", true: " DESC"}[f.Desc]
+	}
+	rows, err := tx.Query(ctx, `SELECT `+invoiceCols+invoiceFrom+where+` AND ($7::text IS NULL OR i.audit_status=$7)
+		ORDER BY `+order+`, i.id LIMIT $8 OFFSET $9`, append(args, status, f.Limit, f.Offset)...)
+	if err != nil {
+		return nil, 0, nil, wrap("list invoices", err)
 	}
 	defer rows.Close()
 	items := []InvoiceRow{}
 	for rows.Next() {
 		var r InvoiceRow
 		if err := scanInvoice(rows, &r); err != nil {
-			return nil, 0, wrap("scan invoice", err)
+			return nil, 0, nil, wrap("scan invoice", err)
 		}
 		items = append(items, r)
 	}
-	return items, total, rows.Err()
+	return items, total, counts, rows.Err()
 }
 
 type ContractItemRow struct {

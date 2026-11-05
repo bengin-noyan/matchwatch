@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -348,17 +349,54 @@ func (s *server) listInvoices(w http.ResponseWriter, r *http.Request) {
 		}
 		f.Offset = n
 	}
+	if f.Query = strings.TrimSpace(q.Get("q")); len(f.Query) > 100 {
+		bad("q must be at most 100 characters")
+		return
+	}
+	for _, d := range []struct {
+		name string
+		dst  **string
+	}{{"from", &f.From}, {"to", &f.To}} {
+		if v := q.Get(d.name); v != "" {
+			if _, err := time.Parse(time.DateOnly, v); err != nil {
+				bad(d.name + " must be a date YYYY-MM-DD")
+				return
+			}
+			*d.dst = &v
+		}
+	}
+	switch q.Get("open") {
+	case "", "false":
+	case "true":
+		f.OpenOnly = true
+	default:
+		bad("open must be true or false")
+		return
+	}
+	if f.Sort = q.Get("sort"); f.Sort != "" && !repository.ValidInvoiceSort(f.Sort) {
+		bad("sort must be issue_date, invoice_no, vendor, payable, status or open_findings")
+		return
+	}
+	switch q.Get("dir") {
+	case "", "asc":
+	case "desc":
+		f.Desc = true
+	default:
+		bad("dir must be asc or desc")
+		return
+	}
 	var items []repository.InvoiceRow
 	var total int
+	var counts repository.InvoiceCounts
 	err := s.store.InTenant(r.Context(), auth.TenantID(r.Context()), func(tx *repository.Tx) (err error) {
-		items, total, err = tx.ListInvoices(r.Context(), f)
+		items, total, counts, err = tx.ListInvoices(r.Context(), f)
 		return
 	})
 	if err != nil {
 		fail(w, err)
 		return
 	}
-	writeJSON(w, 200, listResp{Items: items, Total: total})
+	writeJSON(w, 200, invoiceListResp{Items: items, Total: total, Counts: counts})
 }
 
 func (s *server) getInvoice(w http.ResponseWriter, r *http.Request) {
