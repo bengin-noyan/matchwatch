@@ -431,6 +431,27 @@ func (s *server) auditInvoice(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]string{"audit_status": string(st)})
 }
 
+// decisionErr validates a decision; "" means valid.
+func decisionErr(status, note string) string {
+	switch domain.Resolution(status) {
+	case domain.ResolutionOpen, domain.ResolutionDisputed, domain.ResolutionApprovedException:
+	default:
+		return "resolution_status must be OPEN, DISPUTED or APPROVED_EXCEPTION"
+	}
+	if len(note) > maxNoteLen {
+		return "note exceeds 2000 bytes"
+	}
+	return ""
+}
+
+// decider is the user behind the request: web logins carry the user id, dev tokens do not.
+func decider(r *http.Request) *uuid.UUID {
+	if u, err := uuid.Parse(auth.Subject(r.Context())); err == nil {
+		return &u
+	}
+	return nil
+}
+
 func (s *server) patchFinding(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathID(r)
 	if !ok {
@@ -442,26 +463,87 @@ func (s *server) patchFinding(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, "BAD_REQUEST", "body must be a JSON object")
 		return
 	}
-	switch st := domain.Resolution(req.ResolutionStatus); st {
-	case domain.ResolutionOpen, domain.ResolutionDisputed, domain.ResolutionApprovedException:
-	default:
-		writeErr(w, 422, "INVALID_RESOLUTION", "resolution_status must be OPEN, DISPUTED or APPROVED_EXCEPTION")
+	if msg := decisionErr(req.ResolutionStatus, req.Note); msg != "" {
+		writeErr(w, 422, "INVALID_RESOLUTION", msg)
 		return
 	}
-	if len(req.Note) > maxNoteLen {
-		writeErr(w, 422, "INVALID_RESOLUTION", "note exceeds 2000 bytes")
-		return
-	}
-	var by *uuid.UUID // web logins carry the user id; dev tokens do not
-	if u, err := uuid.Parse(auth.Subject(r.Context())); err == nil {
-		by = &u
-	}
-	_, err := s.auditor.Resolve(r.Context(), auth.TenantID(r.Context()), id, domain.Resolution(req.ResolutionStatus), req.Note, by)
+	_, err := s.auditor.Resolve(r.Context(), auth.TenantID(r.Context()), []uuid.UUID{id}, domain.Resolution(req.ResolutionStatus), req.Note, decider(r))
 	if err != nil {
 		fail(w, err)
 		return
 	}
 	writeJSON(w, 200, patchResp{ID: id, ResolutionStatus: req.ResolutionStatus})
+}
+
+// postDecisions applies one decision to up to maxLimit findings at once; any unknown id fails the whole batch.
+func (s *server) postDecisions(w http.ResponseWriter, r *http.Request) {
+	var req bulkDecisionReq
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&req); err != nil {
+		writeErr(w, 400, "BAD_REQUEST", "body must be a JSON object with finding_ids as UUIDs")
+		return
+	}
+	if len(req.FindingIDs) == 0 || len(req.FindingIDs) > maxLimit {
+		writeErr(w, 422, "INVALID_RESOLUTION", "finding_ids must hold 1..200 ids")
+		return
+	}
+	if msg := decisionErr(req.ResolutionStatus, req.Note); msg != "" {
+		writeErr(w, 422, "INVALID_RESOLUTION", msg)
+		return
+	}
+	n, err := s.auditor.Resolve(r.Context(), auth.TenantID(r.Context()), req.FindingIDs, domain.Resolution(req.ResolutionStatus), req.Note, decider(r))
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	writeJSON(w, 200, bulkDecisionResp{Updated: n})
+}
+
+func (s *server) listFindings(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	f := repository.FindingFilter{Resolution: q.Get("resolution"), RuleCode: q.Get("rule"), Limit: 50}
+	bad := func(msg string) { writeErr(w, 400, "BAD_REQUEST", msg) }
+	if f.Resolution != "" && decisionErr(f.Resolution, "") != "" {
+		bad("resolution must be OPEN, DISPUTED or APPROVED_EXCEPTION")
+		return
+	}
+	if len(f.RuleCode) > 40 {
+		bad("rule is too long")
+		return
+	}
+	if v := q.Get("vendor_id"); v != "" {
+		id, err := uuid.Parse(v)
+		if err != nil {
+			bad("vendor_id must be a UUID")
+			return
+		}
+		f.VendorID = &id
+	}
+	if v := q.Get("limit"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 || n > maxLimit {
+			bad("limit must be an integer 1..200")
+			return
+		}
+		f.Limit = n
+	}
+	if v := q.Get("offset"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 0 {
+			bad("offset must be an integer >= 0")
+			return
+		}
+		f.Offset = n
+	}
+	var resp findingListResp
+	err := s.store.InTenant(r.Context(), auth.TenantID(r.Context()), func(tx *repository.Tx) (err error) {
+		resp.Items, resp.Total, resp.Counts, err = tx.ListFindings(r.Context(), f)
+		return
+	})
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	writeJSON(w, 200, resp)
 }
 
 func (s *server) getSummary(w http.ResponseWriter, r *http.Request) {

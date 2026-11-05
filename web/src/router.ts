@@ -7,6 +7,7 @@ export const router = createRouter({
     { path: '/giris', name: 'login', component: () => import('./views/LoginView.vue'), meta: { public: true } },
     { path: '/', name: 'dashboard', component: () => import('./views/DashboardView.vue') },
     { path: '/faturalar', name: 'invoices', component: () => import('./views/InvoicesView.vue') },
+    { path: '/bulgular', name: 'findings', component: () => import('./views/FindingsView.vue') },
     { path: '/faturalar/:id', name: 'invoice', component: () => import('./views/InvoiceView.vue'), props: true },
     { path: '/yukle', name: 'upload', component: () => import('./views/UploadView.vue') },
     { path: '/taslaklar', name: 'drafts', component: () => import('./views/DraftsView.vue') },

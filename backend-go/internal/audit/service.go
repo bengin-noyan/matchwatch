@@ -2,8 +2,10 @@
 package audit
 
 import (
+	"bytes"
 	"context"
 	"log"
+	"slices"
 
 	"github.com/google/uuid"
 
@@ -117,27 +119,38 @@ func (s *Service) AuditInvoice(ctx context.Context, tenantID, invoiceID uuid.UUI
 	return status, err
 }
 
-// Resolve records a human resolution and refreshes the invoice's audit status in the same transaction.
+// Resolve records one human decision on every given finding, all or nothing, and refreshes the touched
+// invoices' audit status in the same transaction. Unknown ids (or another tenant's) fail the whole call with
+// repository.ErrNotFound. It returns how many distinct findings it decided on.
 // It does not re-audit: OPEN findings would be rebuilt with new ids.
-func (s *Service) Resolve(ctx context.Context, tenantID, findingID uuid.UUID, res domain.Resolution, note string, by *uuid.UUID) (domain.AuditStatus, error) {
-	var status domain.AuditStatus
-	err := s.store.InTenant(ctx, tenantID, func(tx *repository.Tx) error {
-		invoiceID, err := tx.UpdateFinding(ctx, findingID, res, note, by)
+func (s *Service) Resolve(ctx context.Context, tenantID uuid.UUID, findingIDs []uuid.UUID, res domain.Resolution, note string, by *uuid.UUID) (int, error) {
+	slices.SortFunc(findingIDs, func(a, b uuid.UUID) int { return bytes.Compare(a[:], b[:]) })
+	findingIDs = slices.Compact(findingIDs) // a repeated id would be recorded twice in the history
+	return len(findingIDs), s.store.InTenant(ctx, tenantID, func(tx *repository.Tx) error {
+		invoices, err := tx.LockFindingInvoices(ctx, findingIDs)
 		if err != nil {
 			return err
 		}
-		sevs, err := tx.CountedSeverities(ctx, invoiceID)
-		if err != nil {
-			return err
+		for _, id := range findingIDs {
+			if _, err := tx.UpdateFinding(ctx, id, res, note, by); err != nil {
+				return err
+			}
 		}
-		fs := make([]domain.Finding, len(sevs))
-		for i, sev := range sevs {
-			fs[i].Severity = sev
+		for _, inv := range invoices {
+			sevs, err := tx.CountedSeverities(ctx, inv)
+			if err != nil {
+				return err
+			}
+			fs := make([]domain.Finding, len(sevs))
+			for i, sev := range sevs {
+				fs[i].Severity = sev
+			}
+			if err := tx.SetAuditStatus(ctx, inv, anomaly.Status(fs)); err != nil {
+				return err
+			}
 		}
-		status = anomaly.Status(fs)
-		return tx.SetAuditStatus(ctx, invoiceID, status)
+		return nil
 	})
-	return status, err
 }
 
 func isKept(kept []repository.KeptFinding, f domain.Finding) bool {
