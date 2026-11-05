@@ -57,9 +57,9 @@ All routes under `/api/v1` need `Authorization: Bearer <tenant JWT>`.
 | POST | `/api/v1/receipts` | ingest a ReceiptAdvice (XML) |
 | POST | `/api/v1/invoices` | ingest an Invoice (XML) and audit it |
 | GET | `/api/v1/invoices` | list invoices: `q` (invoice no, vendor, ETTN), `status`, `vendor_id`, `from`/`to` (issue date), `open=true`, `sort` + `dir`, `limit`/`offset`; returns `counts` per status |
-| GET | `/api/v1/invoices/{id}` | invoice with lines and findings |
+| GET | `/api/v1/invoices/{id}` | invoice with lines and findings; each finding carries its `decisions` (who, when, note), oldest first |
 | POST | `/api/v1/invoices/{id}/audit` | re-run the audit (idempotent) |
-| PATCH | `/api/v1/findings/{id}` | set a finding's resolution |
+| PATCH | `/api/v1/findings/{id}` | set a finding's resolution; also appends it to the decision history |
 | GET | `/api/v1/summary` | caught/disputed totals per currency |
 
 ## Docs

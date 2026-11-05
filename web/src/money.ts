@@ -41,6 +41,14 @@ export function formatDate(iso: string | null | undefined): string {
   return m ? `${m[3]}.${m[2]}.${m[1]}` : iso
 }
 
+const dateTime = new Intl.DateTimeFormat('tr-TR', {
+  timeZone: 'Europe/Istanbul', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+})
+/** "2026-11-05T11:09:27Z" -> "05.11.2026 14:09", in Turkish time whatever the browser's zone. */
+export function formatDateTime(iso: string): string {
+  return dateTime.format(new Date(iso))
+}
+
 /** Human form of a finding's expected/actual text: "60 days", "1.300000 TRY", "1000 ADET", "1.25" or a code. */
 export function formatValue(s: string): string {
   const t = s.trim()

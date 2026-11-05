@@ -61,6 +61,14 @@ export interface Finding {
   evidence: Record<string, unknown> & { suggestions?: Suggestion[] }
   resolution_status: Resolution
   resolution_note: string | null
+  decisions: Decision[] // oldest first; survives re-audits
+}
+
+export interface Decision {
+  resolution_status: Resolution
+  note: string | null
+  decided_by_email: string | null // null for dev tokens
+  decided_at: string
 }
 
 export interface InvoiceDetail extends InvoiceRow {
