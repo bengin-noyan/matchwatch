@@ -27,6 +27,7 @@ func NewRouter(store *repository.Store, auditor *audit.Service, storageDir strin
 	api := http.NewServeMux()
 	api.HandleFunc("GET /api/v1/auth/me", s.me)
 	api.HandleFunc("POST /api/v1/contracts", s.postContract)
+	api.HandleFunc("GET /api/v1/contracts/pdf", s.getContractPDF)
 	api.HandleFunc("POST /api/v1/contract-drafts", s.postDraft)
 	api.HandleFunc("GET /api/v1/contract-drafts", s.listDrafts)
 	api.HandleFunc("GET /api/v1/contract-drafts/{id}", s.getDraft)

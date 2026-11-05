@@ -14,6 +14,7 @@ func TestWithWeb(t *testing.T) {
 	os.MkdirAll(filepath.Join(dir, "assets"), 0o755)
 	os.WriteFile(filepath.Join(dir, "index.html"), []byte("<html>app</html>"), 0o644)
 	os.WriteFile(filepath.Join(dir, "assets", "app-1a2b.js"), []byte("js"), 0o644)
+	os.WriteFile(filepath.Join(dir, "assets", "pdf.worker-1a2b.mjs"), []byte("worker"), 0o644)
 	os.WriteFile(filepath.Join(filepath.Dir(dir), "secret.txt"), []byte("secret"), 0o644)
 	api := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("api")) })
 	h := WithWeb(api, dir)
@@ -30,6 +31,9 @@ func TestWithWeb(t *testing.T) {
 	}
 	if rec := get("GET", "/assets/app-1a2b.js"); rec.Body.String() != "js" || !strings.Contains(rec.Header().Get("Cache-Control"), "immutable") {
 		t.Errorf("asset: %q %v", rec.Body, rec.Header())
+	}
+	if rec := get("GET", "/assets/pdf.worker-1a2b.mjs"); rec.Body.String() != "worker" || !strings.HasPrefix(rec.Header().Get("Content-Type"), "text/javascript") {
+		t.Errorf("module worker: %q %v", rec.Body, rec.Header())
 	}
 	if rec := get("GET", "/../secret.txt"); strings.Contains(rec.Body.String(), "secret") {
 		t.Errorf("path traversal served %q", rec.Body)

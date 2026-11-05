@@ -13,6 +13,7 @@
     "@fontsource-variable/atkinson-hyperlegible-next": "5.3.0",
     "@fontsource/caveat": "5.3.0",
     "@tanstack/vue-table": "9.3.1",
+    "pdfjs-dist": "6.4.299",
     "pinia": "4.1.0",
     "vue": "3.5.44",
     "vue-router": "5.4.0"

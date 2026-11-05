@@ -314,3 +314,17 @@ func (tx *Tx) Summary(ctx context.Context) (SummaryRow, error) {
 	}
 	return s, irows.Err()
 }
+
+// ContractFilePath returns where the approved PDF of contract no is stored; ErrNotFound when the contract is
+// unknown or was entered without a PDF.
+func (tx *Tx) ContractFilePath(ctx context.Context, no string) (string, error) {
+	var p *string
+	err := tx.QueryRow(ctx, `SELECT file_path FROM contracts WHERE tenant_id=$1 AND contract_no=$2`, tx.tenantID, no).Scan(&p)
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && (p == nil || *p == "")) {
+		return "", ErrNotFound
+	}
+	if err != nil {
+		return "", wrap("contract file path", err)
+	}
+	return *p, nil
+}

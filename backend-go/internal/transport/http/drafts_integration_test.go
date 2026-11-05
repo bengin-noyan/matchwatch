@@ -352,3 +352,43 @@ func TestDraftSurvivesClientDisconnect(t *testing.T) {
 		t.Fatalf("READY drafts %d, want 1 (extraction must survive the disconnect)", n)
 	}
 }
+
+func (e *env) getPDF(no string) *httptest.ResponseRecorder {
+	e.t.Helper()
+	req := httptest.NewRequest("GET", "/api/v1/contracts/pdf?contract_no="+no, nil)
+	req.Header.Set("Authorization", "Bearer "+e.token)
+	rec := httptest.NewRecorder()
+	e.srv.ServeHTTP(rec, req)
+	return rec
+}
+
+func TestContractPDF(t *testing.T) {
+	e := setup(t, "9876543210")
+	e.withAI(&fakeAI{}, 10*time.Second)
+	if rec := e.getPDF("S-2026-001"); rec.Code != 404 {
+		t.Fatalf("before approval: %d", rec.Code)
+	}
+	code, b := e.upload(fakePDF)
+	e.mustStatus(201, code, b)
+	code, c := e.req("POST", "/api/v1/contracts", contractWithDraft(t, str(b["id"])))
+	e.mustStatus(201, code, c)
+	rec := e.getPDF("S-2026-001")
+	if rec.Code != 200 || rec.Body.String() != fakePDF || rec.Header().Get("Content-Type") != "application/pdf" ||
+		!strings.HasPrefix(rec.Header().Get("Content-Disposition"), "attachment") {
+		t.Fatalf("pdf: %d %q %v", rec.Code, rec.Body, rec.Header())
+	}
+	if rec := e.getPDF(""); rec.Code != 400 {
+		t.Fatalf("no contract_no: %d", rec.Code)
+	}
+
+	// another tenant's contract with the same number is invisible, and a contract entered without a PDF has none
+	o := setup(t, "9876543210")
+	if rec := o.getPDF("S-2026-001"); rec.Code != 404 {
+		t.Fatalf("other tenant: %d %q", rec.Code, rec.Body)
+	}
+	code, m := o.req("POST", "/api/v1/contracts", fixture(t, "contract_basic.json"))
+	o.mustStatus(201, code, m)
+	if rec := o.getPDF("S-2026-001"); rec.Code != 404 {
+		t.Fatalf("manual contract: %d", rec.Code)
+	}
+}

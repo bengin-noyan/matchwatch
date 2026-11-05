@@ -197,7 +197,8 @@ export function setUnauthorizedHandler(fn: () => void) {
   onUnauthorized = fn
 }
 
-async function request<T>(method: string, path: string, body?: BodyInit, contentType?: string): Promise<T> {
+// send answers with the response when it is ok and throws an ApiError otherwise.
+async function send(method: string, path: string, body?: BodyInit, contentType?: string): Promise<Response> {
   const headers: Record<string, string> = { Accept: 'application/json' }
   if (contentType) headers['Content-Type'] = contentType
   let res: Response
@@ -206,13 +207,18 @@ async function request<T>(method: string, path: string, body?: BodyInit, content
   } catch {
     throw new ApiError(0, 'NETWORK', 'Sunucuya ulaşılamadı. Bağlantını kontrol edip tekrar dene.')
   }
-  if (res.status === 204) return undefined as T
-  const data = await res.json().catch(() => ({}))
   if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
     if (res.status === 401 && path !== '/auth/login') onUnauthorized()
     throw new ApiError(res.status, data.code ?? 'UNKNOWN', data.error ?? `HTTP ${res.status}`)
   }
-  return data as T
+  return res
+}
+
+async function request<T>(method: string, path: string, body?: BodyInit, contentType?: string): Promise<T> {
+  const res = await send(method, path, body, contentType)
+  if (res.status === 204) return undefined as T
+  return (await res.json().catch(() => ({}))) as T
 }
 
 const json = (v: unknown) => JSON.stringify(v)
@@ -245,6 +251,8 @@ export const api = {
     form.append('file', pdf)
     return request<Draft>('POST', '/contract-drafts', form)
   },
+  contractPDF: async (contractNo: string) =>
+    new Uint8Array(await (await send('GET', `/contracts/pdf?contract_no=${id(contractNo)}`)).arrayBuffer()),
   drafts: () => request<{ items: DraftSummary[] }>('GET', '/contract-drafts'),
   draft: (draftId: string) => request<Draft>('GET', `/contract-drafts/${id(draftId)}`),
   reextract: (draftId: string) => request<Draft>('POST', `/contract-drafts/${id(draftId)}/extract`),

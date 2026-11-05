@@ -7,6 +7,7 @@ import { api, ApiError, type DetailLine, type Finding, type Resolution } from '.
 import { currencyLabel, formatDate, formatDecimal, formatMinor, formatValue } from '../money'
 import { resolutionLabel, ruleLabel } from '../labels'
 import PencilCircle from './PencilCircle.vue'
+import ContractPage from './ContractPage.vue'
 
 const props = defineProps<{ finding: Finding; line?: DetailLine; invoiceCurrency: string; dueDate: string | null }>()
 const emit = defineEmits<{ changed: [] }>()
@@ -55,6 +56,8 @@ const fxNote = computed(() => {
   return ''
 })
 const suggestions = computed(() => ev.value.suggestions ?? [])
+
+const showPage = ref(false)
 
 const note = ref(props.finding.resolution_note ?? '')
 const busy = ref(false)
@@ -121,6 +124,13 @@ async function match(contractItemId: string) {
         <template v-else>
           <p class="text-ink-soft mb-2 text-sm">
             <template v-if="contractNo">Sözleşme {{ contractNo }}<template v-if="page">, sayfa {{ page }}</template></template>
+            <button
+              v-if="contractNo && page"
+              type="button"
+              class="text-ballpoint ml-2 font-semibold underline-offset-4 hover:underline"
+              :aria-expanded="showPage"
+              @click="showPage = !showPage"
+            >{{ showPage ? 'Sayfayı gizle' : 'Sözleşmede göster' }}</button>
             <template v-else-if="rule === 'QTY_EXCEEDS_DELIVERY'">
               İrsaliyeler<template v-if="str('tolerance_pct') && str('tolerance_pct') !== '0'">, sözleşmedeki %{{ formatDecimal(str('tolerance_pct')) }} tolerans hesaba katıldı</template>
             </template>
@@ -157,6 +167,8 @@ async function match(contractItemId: string) {
       <!-- margin note -->
       <p v-if="impact" class="hand text-pencil text-2xl md:pt-8" :aria-label="`Finansal etki ${impact}`">+{{ impact }}</p>
     </div>
+
+    <ContractPage v-if="showPage && contractNo && page" :contract-no="contractNo" :page="page" :clause="clause" />
 
     <form v-if="rule !== 'UNCONTRACTED_ITEM' || !suggestions.length" class="mt-4 flex flex-wrap items-center gap-2" @submit.prevent>
       <label class="min-w-[14rem] flex-1">

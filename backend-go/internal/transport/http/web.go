@@ -31,6 +31,9 @@ func WithWeb(api http.Handler, dir string) http.Handler {
 			if strings.HasPrefix(clean, "/assets/") { // Vite fingerprints these file names
 				h.Set("Cache-Control", "public, max-age=31536000, immutable")
 			}
+			if strings.HasSuffix(clean, ".mjs") { // the OS mime table (Windows registry, /etc/mime.types) may say text/plain
+				h.Set("Content-Type", "text/javascript; charset=utf-8")
+			}
 			files.ServeHTTP(w, r)
 			return
 		}
