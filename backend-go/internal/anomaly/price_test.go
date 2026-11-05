@@ -133,3 +133,37 @@ func TestAliasMatchMarksEvidence(t *testing.T) {
 		t.Fatalf("code match marked: %+v", fs[0].Evidence)
 	}
 }
+
+func usdLine() (Input, LineContext) {
+	lc := baseCtx("10", "200") // TRY net 20.00
+	lc.ContractItem.Currency, lc.ContractItem.UnitPrice = "USD", dec("0.390000")
+	in := baseInput(lc)
+	return in, lc
+}
+
+func TestPriceUsesTCMBFallback(t *testing.T) {
+	in, _ := usdLine()
+	in.FXFallback = map[string]domain.ExchangeRate{"USD": {Source: "TRY", Target: "USD", Rate: dec("0.02"), TCMBDate: date("2026-02-27")}}
+	fs := Run(in) // 20.00 TRY * 0.02 = 0.40 USD > 0.39
+	if len(fs) != 1 || fs[0].RuleCode != domain.RulePriceMismatch || fs[0].ImpactMinor != 10 || fs[0].ImpactCurrency != "USD" ||
+		fs[0].Evidence["fx_source"] != "TCMB" || fs[0].Evidence["fx_rate_date"] != "2026-02-27" || fs[0].Evidence["fx_rate"] != "0.02" {
+		t.Fatalf("%+v", fs)
+	}
+}
+
+func TestPriceInvoiceRateBeatsTCMB(t *testing.T) {
+	in, _ := usdLine()
+	in.Invoice.ExchangeRate = &domain.ExchangeRate{Source: "TRY", Target: "USD", Rate: dec("0.0195")}
+	in.FXFallback = map[string]domain.ExchangeRate{"USD": {Source: "TRY", Target: "USD", Rate: dec("0.02"), TCMBDate: date("2026-02-27")}}
+	if fs := Run(in); len(fs) != 0 { // 20 * 0.0195 = 0.39: no mismatch, TCMB ignored
+		t.Fatalf("%+v", fs)
+	}
+}
+
+func TestPriceNoRateStillUnverified(t *testing.T) {
+	in, _ := usdLine()
+	in.FXFallback = map[string]domain.ExchangeRate{"EUR": {Rate: dec("0.02")}}
+	if fs := Run(in); len(fs) != 1 || fs[0].RuleCode != domain.RuleFXUnverified {
+		t.Fatalf("%+v", fs)
+	}
+}

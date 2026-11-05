@@ -34,6 +34,7 @@ type Input struct {
 	Duplicates          []domain.DuplicateCandidate
 	WithholdingPercents map[string]decimal.Decimal
 	FinancingRateAnnual decimal.Decimal
+	FXFallback          map[string]domain.ExchangeRate // TCMB rates from the invoice currency, by target (D17)
 }
 
 // Run applies every rule in a fixed order: per line (in input order), then header rules.

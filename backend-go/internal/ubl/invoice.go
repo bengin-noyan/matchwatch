@@ -168,8 +168,17 @@ func (x *xmlInvoice) convert() (*Invoice, error) {
 		if err != nil {
 			return nil, err
 		}
+		if !rate.IsPositive() {
+			return nil, &ValidationError{"CalculationRate", "must be > 0"}
+		}
 		inv.ExchangeRate = &domain.ExchangeRate{
 			Source: strings.TrimSpace(x.FX.Source), Target: strings.TrimSpace(x.FX.Target), Rate: rate,
+		}
+		if err := checkCurrency("SourceCurrencyCode", inv.ExchangeRate.Source); err != nil {
+			return nil, err
+		}
+		if err := checkCurrency("TargetCurrencyCode", inv.ExchangeRate.Target); err != nil {
+			return nil, err
 		}
 	}
 	for _, d := range x.Despatch {

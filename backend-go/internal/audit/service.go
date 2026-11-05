@@ -16,15 +16,22 @@ import (
 type Service struct {
 	store *repository.Store
 	emb   Embedder // nil = no semantic suggestions (Faz 1 behaviour)
+	fx    FXSource // nil = no TCMB fallback (Faz 1 behaviour: FX_UNVERIFIED)
 }
 
-func New(store *repository.Store, emb Embedder) *Service { return &Service{store: store, emb: emb} }
+func New(store *repository.Store, emb Embedder, fx FXSource) *Service {
+	return &Service{store: store, emb: emb, fx: fx}
+}
 
 // AuditInvoice is idempotent: OPEN findings and allocations are rebuilt, DISPUTED/APPROVED_EXCEPTION ones are kept.
 func (s *Service) AuditInvoice(ctx context.Context, tenantID, invoiceID uuid.UUID) (domain.AuditStatus, error) {
 	suggestions, err := s.suggest(ctx, tenantID, invoiceID)
 	if err != nil {
 		log.Printf("audit %s: semantic suggestions skipped: %v", invoiceID, err) // the audit itself must not fail (D16)
+	}
+	fxFallback, err := s.fxFallback(ctx, tenantID, invoiceID)
+	if err != nil {
+		log.Printf("audit %s: TCMB rates skipped: %v", invoiceID, err) // D17: the price rule falls back to FX_UNVERIFIED
 	}
 	var status domain.AuditStatus
 	err = s.store.InTenant(ctx, tenantID, func(tx *repository.Tx) error {
@@ -50,7 +57,7 @@ func (s *Service) AuditInvoice(ctx context.Context, tenantID, invoiceID uuid.UUI
 				return err
 			}
 		}
-		in := anomaly.Input{Invoice: inv, Contract: contract}
+		in := anomaly.Input{Invoice: inv, Contract: contract, FXFallback: fxFallback}
 		var allocs []domain.Allocation
 		matched := map[uuid.UUID]uuid.UUID{}
 		for _, line := range inv.Lines {
