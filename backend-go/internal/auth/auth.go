@@ -18,6 +18,11 @@ type claims struct {
 
 type ctxKey struct{}
 
+type subKey struct{}
+
+// CookieName carries the session JWT for the web app (HttpOnly, SameSite=Strict); scripts keep using the header.
+const CookieName = "mw_session"
+
 // Sign returns an HS256 token for tenantID that expires after ttl.
 func Sign(secret []byte, tenantID uuid.UUID, sub string, ttl time.Duration) (string, error) {
 	now := time.Now()
@@ -35,13 +40,24 @@ func TenantID(ctx context.Context) uuid.UUID {
 	return id
 }
 
-// Middleware requires a valid Bearer token: HS256 only, exp required, tenant_id a UUID.
+// Subject returns the token's sub claim stored by Middleware (a user id for web logins, "devtoken" for dev tokens).
+func Subject(ctx context.Context) string {
+	s, _ := ctx.Value(subKey{}).(string)
+	return s
+}
+
+// Middleware requires a valid token, from the Bearer header or else the session cookie:
+// HS256 only, exp required, tenant_id a UUID.
 func Middleware(secret []byte) func(http.Handler) http.Handler {
 	parser := jwt.NewParser(jwt.WithValidMethods([]string{"HS256"}), jwt.WithExpirationRequired())
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			h := r.Header.Get("Authorization")
-			raw, ok := strings.CutPrefix(h, "Bearer ")
+			raw, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+			if !ok {
+				if c, err := r.Cookie(CookieName); err == nil {
+					raw, ok = c.Value, true
+				}
+			}
 			if !ok || raw == "" {
 				unauthorized(w)
 				return
@@ -56,7 +72,8 @@ func Middleware(secret []byte) func(http.Handler) http.Handler {
 				unauthorized(w)
 				return
 			}
-			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxKey{}, tid)))
+			ctx := context.WithValue(context.WithValue(r.Context(), ctxKey{}, tid), subKey{}, c.Subject)
+			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }

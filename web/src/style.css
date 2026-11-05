@@ -1,0 +1,112 @@
+@import "tailwindcss";
+
+/* Faz 3 design tokens (docs/superpowers/specs/2026-11-05-faz3-web-design.md):
+   red pencil = what the system found, blue ballpoint = what a person decided. */
+@theme {
+  --color-paper: #EFF3EC;
+  --color-sheet: #FFFFFF;
+  --color-ink: #1D2A23;
+  --color-ink-soft: #4A5A50;
+  --color-rule: #C7D3C4;
+  --color-pencil: #BE1E2D;
+  --color-pencil-wash: #F7E3E4;
+  --color-ballpoint: #2445A0;
+  --color-ballpoint-wash: #E3E8F6;
+  --color-amber: #8A5C0A;
+  --color-amber-wash: #F5ECD8;
+
+  --font-sans: "Atkinson Hyperlegible Next Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-hand: "Caveat", "Segoe Print", cursive;
+
+  /* Bringhurst's classic scale */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.3125rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 2.25rem;
+
+  --radius-sheet: 10px;
+  --radius-field: 6px;
+}
+
+@layer base {
+  html {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    line-height: 1.5;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-ballpoint);
+    outline-offset: 2px;
+  }
+  .num {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Ballpoint blue is the colour of a person's decision, so primary actions (which record one) wear it. */
+@layer components {
+  .field {
+    width: 100%;
+    border: 1px solid var(--color-rule);
+    border-radius: var(--radius-field);
+    background: var(--color-sheet);
+    padding: 0.5rem 0.75rem;
+    color: var(--color-ink);
+  }
+  .field:focus-visible {
+    border-color: var(--color-ballpoint);
+    outline-offset: 0;
+  }
+  .btn-primary,
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: var(--radius-field);
+    padding: 0.5rem 1rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .btn-primary {
+    background: var(--color-ballpoint);
+    color: #fff;
+  }
+  .btn-primary:hover {
+    background: #1c3784;
+  }
+  .btn-secondary {
+    border: 1px solid var(--color-rule);
+    background: var(--color-sheet);
+    color: var(--color-ink);
+  }
+  .btn-secondary:hover {
+    border-color: var(--color-ink-soft);
+  }
+  .btn-primary:disabled,
+  .btn-secondary:disabled {
+    opacity: 0.55;
+    cursor: progress;
+  }
+  .hand {
+    font-family: var(--font-hand);
+    font-weight: 500;
+    line-height: 1.1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

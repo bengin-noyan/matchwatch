@@ -153,6 +153,19 @@ func (s *server) postDraft(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 201, toDraftResp(d))
 }
 
+func (s *server) listDrafts(w http.ResponseWriter, r *http.Request) {
+	var out []repository.DraftSummary
+	err := s.store.InTenant(r.Context(), auth.TenantID(r.Context()), func(tx *repository.Tx) (err error) {
+		out, err = tx.ListDrafts(r.Context())
+		return
+	})
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"items": out})
+}
+
 func (s *server) getDraft(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathID(r)
 	if !ok {
@@ -209,4 +222,38 @@ func (s *server) reextractDraft(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, toDraftResp(d))
+}
+
+// getContractPDF serves the PDF an approved contract was read from, so a finding can show its source page.
+func (s *server) getContractPDF(w http.ResponseWriter, r *http.Request) {
+	no := r.URL.Query().Get("contract_no")
+	if no == "" {
+		writeErr(w, 400, "BAD_REQUEST", "contract_no is required")
+		return
+	}
+	var path string
+	err := s.store.InTenant(r.Context(), auth.TenantID(r.Context()), func(tx *repository.Tx) (err error) {
+		path, err = tx.ContractFilePath(r.Context(), no)
+		return
+	})
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	defer f.Close()
+	st, err := f.Stat()
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	h := w.Header()
+	h.Set("Content-Type", "application/pdf")
+	h.Set("Content-Disposition", `attachment; filename="sozlesme.pdf"`) // fetched by the viewer, never rendered on our origin
+	h.Set("Cache-Control", "private, no-cache")
+	http.ServeContent(w, r, "", st.ModTime(), f)
 }

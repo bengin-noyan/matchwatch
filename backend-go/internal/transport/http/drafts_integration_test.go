@@ -83,7 +83,7 @@ func multipartPDF(t *testing.T, content string) ([]byte, string) {
 
 // withAI swaps the env's router for one wired to ai.
 func (e *env) withAI(ai Extractor, timeout time.Duration) {
-	e.srv = NewRouter(e.store, audit.New(e.store, nil, nil), e.storage, secret, ai, timeout)
+	e.srv = NewRouter(e.store, audit.New(e.store, nil, nil), e.storage, secret, ai, timeout, false)
 }
 
 func (e *env) upload(content string) (int, resp) {
@@ -137,6 +137,12 @@ func TestDraftHappyPath(t *testing.T) {
 	e.mustStatus(200, code, g)
 	if str(g["status"]) != "APPROVED" || str(g["contract_id"]) != str(c["id"]) {
 		t.Fatalf("approved resp %v", g)
+	}
+	code, l := e.req("GET", "/api/v1/contract-drafts", nil)
+	e.mustStatus(200, code, l)
+	if items := list(l["items"]); len(items) != 1 || str(obj(items[0])["id"]) != id || str(obj(items[0])["status"]) != "APPROVED" ||
+		str(obj(items[0])["contract_no"]) != "S-2026-001" || str(obj(items[0])["contract_id"]) != str(c["id"]) {
+		t.Fatalf("draft list %v", l)
 	}
 	pdfPath := filepath.Join(e.storage, e.tid.String(), "contract", id+".pdf")
 	if got, err := os.ReadFile(pdfPath); err != nil || string(got) != fakePDF {
@@ -344,5 +350,45 @@ func TestDraftSurvivesClientDisconnect(t *testing.T) {
 	<-done
 	if n := e.count(`SELECT count(*) FROM contract_drafts WHERE status='READY'`); n != 1 {
 		t.Fatalf("READY drafts %d, want 1 (extraction must survive the disconnect)", n)
+	}
+}
+
+func (e *env) getPDF(no string) *httptest.ResponseRecorder {
+	e.t.Helper()
+	req := httptest.NewRequest("GET", "/api/v1/contracts/pdf?contract_no="+no, nil)
+	req.Header.Set("Authorization", "Bearer "+e.token)
+	rec := httptest.NewRecorder()
+	e.srv.ServeHTTP(rec, req)
+	return rec
+}
+
+func TestContractPDF(t *testing.T) {
+	e := setup(t, "9876543210")
+	e.withAI(&fakeAI{}, 10*time.Second)
+	if rec := e.getPDF("S-2026-001"); rec.Code != 404 {
+		t.Fatalf("before approval: %d", rec.Code)
+	}
+	code, b := e.upload(fakePDF)
+	e.mustStatus(201, code, b)
+	code, c := e.req("POST", "/api/v1/contracts", contractWithDraft(t, str(b["id"])))
+	e.mustStatus(201, code, c)
+	rec := e.getPDF("S-2026-001")
+	if rec.Code != 200 || rec.Body.String() != fakePDF || rec.Header().Get("Content-Type") != "application/pdf" ||
+		!strings.HasPrefix(rec.Header().Get("Content-Disposition"), "attachment") {
+		t.Fatalf("pdf: %d %q %v", rec.Code, rec.Body, rec.Header())
+	}
+	if rec := e.getPDF(""); rec.Code != 400 {
+		t.Fatalf("no contract_no: %d", rec.Code)
+	}
+
+	// another tenant's contract with the same number is invisible, and a contract entered without a PDF has none
+	o := setup(t, "9876543210")
+	if rec := o.getPDF("S-2026-001"); rec.Code != 404 {
+		t.Fatalf("other tenant: %d %q", rec.Code, rec.Body)
+	}
+	code, m := o.req("POST", "/api/v1/contracts", fixture(t, "contract_basic.json"))
+	o.mustStatus(201, code, m)
+	if rec := o.getPDF("S-2026-001"); rec.Code != 404 {
+		t.Fatalf("manual contract: %d", rec.Code)
 	}
 }

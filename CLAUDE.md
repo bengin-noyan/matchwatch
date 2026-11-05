@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 matchwatch is an internal-audit engine for Turkish companies. It cross-checks purchase contracts, e-İrsaliye (`DespatchAdvice`) and e-Fatura (`Invoice`) documents in GİB UBL-TR 1.2 format, a "3-way match", and stores anomaly findings together with their evidence.
 
 - **Spec:** `docs/spec.md` is the authority. Its §4 "Kararlar" (D1–D15) deliberately deviate from the original "LeakZero" spec, and the D-decisions win where they conflict.
-- **Phases:** Faz 1 is the Go core and is done (merged to `main`). Faz 2a (PDF contract extraction via `ai-service/`) is merged to `main` (PR #2). Faz 2b (semantic item suggestions + human-confirmed aliases, D16) is in PR #3 (branch `faz2b-semantic-matching`). Faz 2c (TCMB rates, D17) is implemented on branch `faz2c-tcmb-rates`, stacked on 2b. Faz 3 (the Vue 3 web app) is not started.
+- **Phases:** Faz 1 is the Go core and is done (merged to `main`). Faz 2a (PDF contract extraction via `ai-service/`) is merged to `main` (PR #2). Faz 2b (semantic item suggestions + human-confirmed aliases, D16) is merged (PR #3). Faz 2c (TCMB rates, D17) is in PR #4. Faz 3 (login, the Vue 3 web app in `web/`, dashboard and vendor pages) is in PR #5 (branch `faz3-web`, stacked on 2c).
 - **Faz 1 plan:** `docs/superpowers/plans/2026-11-02-faz1-go-core.md` lists tasks, interfaces and the exact expected test values.
 
 ## Commands
@@ -22,6 +22,12 @@ docker compose down -v            # reset DB (init script only runs on an empty 
 docker compose --profile ai up -d  # + Ollama and the Python ai-service on 127.0.0.1:8090 (needs AI_SERVICE_TOKEN)
 bash scripts/smoke-ai.sh          # AI end-to-end: PDF -> draft -> contract, then suggestion -> alias -> PRICE_MISMATCH (pulls ~6 GB of models)
 cd ai-service && python -m venv .venv && .venv/Scripts/python -m pip install -r requirements-dev.txt && .venv/Scripts/python -m pytest -q
+
+cd web && npm install && npm run dev  # SPA on :5173, proxies /api to the Go API on :8080
+cd web && npm test && npm run build   # Vitest, then vue-tsc + vite build into web/dist
+# one API serving the built SPA on one origin: WEB_DIR=../web/dist COOKIE_SECURE=false go run ./cmd/api
+printf 'a-long-password\n' | MIGRATE_DATABASE_URL=... go run ./cmd/onboard -name "Firma" -vkn 9876543210 -rate 0.45 -email user@firma.com.tr
+python -X utf8 -I scripts/seed-demo.py http://127.0.0.1:8080 user@firma.com.tr a-long-password  # dev: months of demo documents
 
 cd backend-go
 go test ./...                     # unit tests; integration tests t.Skip without env
@@ -53,7 +59,9 @@ The data flow is: parse XML → persist → load audit input → match → run r
 - `internal/aiclient`: HTTP client for the ai-service. Draft flow: `POST /contract-drafts` stores the PDF and extracts into a `contract_drafts` row, a human reviews the draft, then `POST /contracts` with `draft_id` approves it (draft becomes `APPROVED`, frozen). Re-extract via `POST /contract-drafts/{id}/extract`.
 - Semantic matching (D16, Faz 2b): matching order is code → barcode → `item_aliases` (vendor, `domain.NameKey`, uom). Before the audit transaction, `audit.Service.suggest` embeds the still-unmatched lines (and any contract items lacking a vector for that model) and ranks same-uom items with pgvector; up to 3 suggestions ≥ 0.50 go into the `UNCONTRACTED_ITEM` evidence. Embeddings **never** auto-match: `POST /invoice-lines/{id}/match` records the human's choice as an alias and re-audits. AI errors only drop suggestions. Go carries vectors as raw JSON (`$n::text::vector`), never floats.
 - TCMB rates (D17, Faz 2c): `internal/tcmb` fetches `kurlar/YYYYMM/DDMMYYYY.xml` (404 = no bulletin). `audit.Service.fxFallback` runs before the audit transaction: when the invoice's own `PricingExchangeRate` does not reach a contract item currency, it walks back from the day before the issue date (≤ 10 days) through the global `fx_days`/`fx_rates` cache, fetching missing days, and hands TRY-crossed forex-buying rates to `priceRules` (`anomaly.Input.FXFallback`). The invoice's rate still wins; no rate → `FX_UNVERIFIED`. `TCMB_BASE_URL` set but empty disables it. Only a date leaves our infrastructure.
-- `cmd/api`, `cmd/devtoken`, `cmd/migrate`. `scripts/smoke.sh` is the end-to-end check (expects `"caught_minor":21412`).
+- Login (Faz 3a): `users` has **no RLS and no app-role privileges**; the API reads it only through the `SECURITY DEFINER` functions `auth_lookup(email)` and `auth_user(id, tenant)`, and only `cmd/onboard` (owner role) creates users. `POST /auth/login` sets the JWT in an `HttpOnly; SameSite=Strict; Path=/api` cookie (`COOKIE_SECURE=false` for local http); the middleware also still accepts `Authorization: Bearer`. Failed logins lock an e-mail for 15 min after 10 tries (in-process).
+- `web/` (Faz 3b): Vue 3 + TS + Vite + Tailwind 4 + Pinia + TanStack Table v9 SPA. Design rules in `docs/superpowers/specs/2026-11-05-faz3-web-design.md`: red pencil = what the system found, blue ballpoint = what a person decided; fonts self-hosted via `@fontsource` (no Google CDN, KVKK). Money is never computed in the browser (`src/money.ts` only re-formats digits). `WEB_DIR` makes the Go API serve `web/dist` on the same origin (CSP, SPA fallback). Screens: Masa (dashboard, `GET /dashboard`), Faturalar, Tedarikçiler (`GET /vendors`, `/vendors/{id}` with per-item price history), uploads, drafts. "Sözleşmede göster" on a finding opens its source page (`GET /contracts/pdf?contract_no=`, served from `contracts.file_path`; 404 for contracts entered without a PDF) rendered by lazily loaded pdf.js, with the clause boxed in red pencil (`src/pdf/clause.ts` matches like the ai-service grounding: case- and whitespace-blind, Turkish i's folded). The Go web server forces `.mjs` to `text/javascript`, because the OS mime table can say `text/plain` and the pdf.js worker then fails. Charts are hand-built SVG following the `dataviz` skill (single red-pencil series, one axis, hover + table view; status-bar colours validated with its palette checker).
+- `cmd/api`, `cmd/devtoken`, `cmd/migrate`, `cmd/onboard`. `scripts/smoke.sh` is the end-to-end check (expects `"caught_minor":21412`).
 
 ### Multi-tenancy (easy to break)
 
@@ -83,14 +91,29 @@ The data flow is: parse XML → persist → load audit input → match → run r
 - An LLM never computes amounts or makes approve/reject decisions.
 - `withholding_codes` is seeded from GİB "UBL-TR Kod Listeleri" V1.31 (2023). Code 619 is 70% (7/10, KDVGUT; V1.28–V1.31 printed "75/10" as a typo, fixed by V1.43). Verified unchanged against V1.43 (2026-11-04).
 
-## Current status (2026-11-04)
+## Current status (2026-11-05)
 
-Faz 1 is merged to `main` (PR #1, merge commit `0ceeca3`). It covers all 12 tasks, the final whole-branch review and its fix wave. Faz 2a (PDF extraction, human-approved drafts) is merged to `main` (PR #2, merge commit `aebc5d1`). Faz 2b (D16) is in PR #3, pending merge; its smoke also found and fixed a Faz 1 bug (invoices without despatch refs failed to audit). Faz 2c (D17) is complete on branch `faz2c-tcmb-rates` (stacked on 2b; open its PR after #3 merges). Faz 3 is not started.
-
+- **Merged to `main`:**
+  - Faz 1: PR #1, merge commit `0ceeca3`.
+  - Faz 2a, PDF extraction: PR #2, merge commit `aebc5d1`.
+  - Faz 2b, D16: PR #3, merge commit `94e56e8`. Its smoke also fixed a Faz 1 bug: invoices without despatch refs failed to audit.
+- **Open:** PR #4, Faz 2c (TCMB rates, D17), branch `faz2c-tcmb-rates`.
+- **Open:** PR #5, Faz 3, branch `faz3-web`, based on `faz2c-tcmb-rates` (GitHub retargets it to `main` once #4 merges and its branch is deleted).
+  - 3a: login and `cmd/onboard`.
+  - 3b: Vue SPA.
+  - 3c: Masa dashboard, Tedarikçiler with price history, `scripts/seed-demo.py`.
+  - 3d: contract PDF viewer beside each finding.
 - **Next steps, in order:**
-  1. Faz 3, the Vue 3 web app. KVKK applies throughout (see the rulings below), and an LLM never computes amounts.
+  1. The user merges #4, then #5 (merging is the user's call; the auto-mode classifier blocks Claude from merging).
+  2. Finish the web app. The user found the first UI too simple and chose richer visuals together with more function. Done: the contract PDF viewer beside each finding. Remaining, in this order:
+     - invoice search, filters and paging;
+     - decision history (who decided what, when, with which note);
+     - bulk decisions;
+     - an alias management screen.
+  3. Then: production deployment (TR cloud, TLS, backups), user invites and password reset, the `FX_RATE_DEVIATION` rule. KVKK applies throughout (see the rulings below), and an LLM never computes amounts.
+- **Local demo:** run `cmd/onboard` once, then `scripts/seed-demo.py`, and serve with `WEB_DIR=../web/dist COOKIE_SECURE=false go run ./cmd/api`.
 - **Working mode:** Claude acts as Staff Architect / Principal Engineer. It decides technical and domain questions itself, records them as rulings and reports in Turkish. It does not hand these questions back to the user.
-- **Housekeeping:** the remote branch `faz1-go-core` is merged and can be deleted from the GitHub PR page.
+- **Housekeeping:** the remote branches `faz1-go-core`, `faz2a-pdf-extraction` and `faz2b-semantic-matching` are merged and can be deleted.
 
 - **Rulings that deviate from the plan text:**
   - The RLS policy wraps the setting in `NULLIF(...)`.
