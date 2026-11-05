@@ -52,10 +52,11 @@ All routes under `/api/v1` need `Authorization: Bearer <tenant JWT>`.
 |---|---|---|
 | GET | `/healthz` | liveness (no auth) |
 | POST | `/api/v1/contracts` | load a contract (JSON) |
+| GET | `/api/v1/contracts/pdf?contract_no=` | the PDF an approved contract was read from |
 | POST | `/api/v1/despatches` | ingest a DespatchAdvice (XML) |
 | POST | `/api/v1/receipts` | ingest a ReceiptAdvice (XML) |
 | POST | `/api/v1/invoices` | ingest an Invoice (XML) and audit it |
-| GET | `/api/v1/invoices` | list invoices (`status`, `limit` filters) |
+| GET | `/api/v1/invoices` | list invoices: `q` (invoice no, vendor, ETTN), `status`, `vendor_id`, `from`/`to` (issue date), `open=true`, `sort` + `dir`, `limit`/`offset`; returns `counts` per status |
 | GET | `/api/v1/invoices/{id}` | invoice with lines and findings |
 | POST | `/api/v1/invoices/{id}/audit` | re-run the audit (idempotent) |
 | PATCH | `/api/v1/findings/{id}` | set a finding's resolution |
