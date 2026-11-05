@@ -8,8 +8,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// postInvoiceAs posts invoice_basic.xml as invoice no, issued on date, optionally by another vendor.
-func (e *env) postInvoiceAs(no, date string, otherVendor bool) {
+// postInvoiceAs posts invoice_basic.xml as invoice no, issued on date, optionally by another vendor, and returns its id.
+func (e *env) postInvoiceAs(no, date string, otherVendor bool) string {
 	e.t.Helper()
 	repl := []string{invETTN, uuid.NewString(), "ABC2026000000001", no, "<cbc:IssueDate>2026-03-01</cbc:IssueDate>", "<cbc:IssueDate>" + date + "</cbc:IssueDate>"}
 	if otherVendor {
@@ -18,6 +18,7 @@ func (e *env) postInvoiceAs(no, date string, otherVendor bool) {
 	}
 	code, b := e.req("POST", "/api/v1/invoices", fixture(e.t, "invoice_basic.xml", repl...))
 	e.mustStatus(201, code, b)
+	return str(b["id"])
 }
 
 func (e *env) invoiceNos(query string) ([]string, resp) {

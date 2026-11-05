@@ -59,7 +59,9 @@ All routes under `/api/v1` need `Authorization: Bearer <tenant JWT>`.
 | GET | `/api/v1/invoices` | list invoices: `q` (invoice no, vendor, ETTN), `status`, `vendor_id`, `from`/`to` (issue date), `open=true`, `sort` + `dir`, `limit`/`offset`; returns `counts` per status |
 | GET | `/api/v1/invoices/{id}` | invoice with lines and findings; each finding carries its `decisions` (who, when, note), oldest first |
 | POST | `/api/v1/invoices/{id}/audit` | re-run the audit (idempotent) |
+| GET | `/api/v1/findings` | findings across invoices, largest impact first; `resolution`, `rule`, `vendor_id`, `limit` (≤ 200), `offset`; `counts` per rule |
 | PATCH | `/api/v1/findings/{id}` | set a finding's resolution; also appends it to the decision history |
+| POST | `/api/v1/findings/decisions` | one decision for 1–200 findings, `{finding_ids, resolution_status, note}`; all or nothing |
 | GET | `/api/v1/summary` | caught/disputed totals per currency |
 
 ## Docs

@@ -43,6 +43,22 @@ type patchReq struct {
 	Note             string `json:"note"`
 }
 
+type bulkDecisionReq struct {
+	FindingIDs       []uuid.UUID `json:"finding_ids"`
+	ResolutionStatus string      `json:"resolution_status"`
+	Note             string      `json:"note"`
+}
+
+type bulkDecisionResp struct {
+	Updated int `json:"updated"` // distinct findings
+}
+
+type findingListResp struct {
+	Items  []repository.FindingListRow `json:"items"`
+	Total  int                         `json:"total"`
+	Counts repository.FindingCounts    `json:"counts"` // per rule code, ignoring the rule filter
+}
+
 type patchResp struct {
 	ID               uuid.UUID `json:"id"`
 	ResolutionStatus string    `json:"resolution_status"`

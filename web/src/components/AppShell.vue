@@ -8,6 +8,7 @@ const router = useRouter()
 const nav = [
   { to: '/', label: 'Masa', exact: true },
   { to: '/faturalar', label: 'Faturalar' },
+  { to: '/bulgular', label: 'Bulgular' },
   { to: '/tedarikciler', label: 'Tedarikçiler' },
   { to: '/yukle', label: 'Belge yükle' },
   { to: '/taslaklar', label: 'Sözleşme taslakları' },

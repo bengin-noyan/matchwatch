@@ -123,6 +123,39 @@ export interface InvoiceList {
   counts: Partial<Record<AuditStatus, number>> // matches per status, ignoring the status filter
 }
 
+export interface FindingListRow {
+  id: string
+  invoice_id: string
+  invoice_no: string
+  vendor_name: string
+  issue_date: string
+  currency: string // the invoice's
+  line_id: string | null
+  item_name: string | null
+  severity: Finding['severity']
+  rule_code: string
+  expected: string
+  actual: string
+  financial_impact_minor: number
+  impact_currency: string | null
+  resolution_status: Resolution
+  resolution_note: string | null
+}
+
+export interface FindingQuery {
+  resolution?: Resolution
+  rule?: string
+  vendor_id?: string
+  limit?: number
+  offset?: number
+}
+
+export interface FindingList {
+  items: FindingListRow[] // largest impact first
+  total: number
+  counts: Record<string, number> // matches per rule code, ignoring the rule filter
+}
+
 export interface VendorRow {
   id: string
   name: string
@@ -263,6 +296,11 @@ export const api = {
     for (const [k, v] of Object.entries(p)) if (v !== undefined && v !== '' && v !== false) qs.set(k, String(v))
     return request<InvoiceList>('GET', `/invoices?${qs}`)
   },
+  findings: (p: FindingQuery = {}) => {
+    const qs = new URLSearchParams()
+    for (const [k, v] of Object.entries(p)) if (v !== undefined && v !== '') qs.set(k, String(v))
+    return request<FindingList>('GET', `/findings?${qs}`)
+  },
   dashboard: (from?: string) => request<Dashboard>('GET', `/dashboard${from ? `?from=${from}` : ''}`),
   vendors: () => request<{ items: VendorRow[] }>('GET', '/vendors'),
   vendor: (vendorId: string) => request<VendorDetail>('GET', `/vendors/${id(vendorId)}`),
@@ -271,6 +309,9 @@ export const api = {
   resolve: (findingId: string, resolution_status: Resolution, note: string) =>
     request<{ id: string; resolution_status: Resolution }>('PATCH', `/findings/${id(findingId)}`,
       json({ resolution_status, note }), 'application/json'),
+  decideMany: (findingIds: string[], resolution_status: Resolution, note: string) =>
+    request<{ updated: number }>('POST', '/findings/decisions',
+      json({ finding_ids: findingIds, resolution_status, note }), 'application/json'),
   matchLine: (lineId: string, contractItemId: string) =>
     request<{ invoice_id: string; audit_status: AuditStatus }>('POST', `/invoice-lines/${id(lineId)}/match`,
       json({ contract_item_id: contractItemId }), 'application/json'),
