@@ -4,7 +4,7 @@
 // The decision row below writes in ballpoint blue.
 import { computed, ref } from 'vue'
 import { api, ApiError, type DetailLine, type Finding, type Resolution } from '../api'
-import { currencyLabel, formatDate, formatDecimal, formatMinor, formatValue } from '../money'
+import { currencyLabel, formatDate, formatDateTime, formatDecimal, formatMinor, formatValue } from '../money'
 import { resolutionLabel, ruleLabel } from '../labels'
 import PencilCircle from './PencilCircle.vue'
 import ContractPage from './ContractPage.vue'
@@ -58,6 +58,13 @@ const fxNote = computed(() => {
 const suggestions = computed(() => ev.value.suggestions ?? [])
 
 const showPage = ref(false)
+
+// What the person did, for the trail (resolutionLabel names the state instead).
+const decisionVerb: Record<Resolution, string> = {
+  OPEN: 'kararı geri aldı',
+  DISPUTED: 'itiraz etti',
+  APPROVED_EXCEPTION: 'istisna olarak onayladı',
+}
 
 const note = ref(props.finding.resolution_note ?? '')
 const busy = ref(false)
@@ -180,5 +187,14 @@ async function match(contractItemId: string) {
       <button v-if="decided" type="button" class="btn-secondary" :disabled="busy" @click="decide('OPEN')">Kararı geri al</button>
     </form>
     <p v-if="error" role="alert" class="text-pencil mt-2 text-sm">{{ error }}</p>
+
+    <section v-if="finding.decisions.length" class="mt-4" aria-label="Karar geçmişi">
+      <h4 class="text-ink-soft mb-1 text-sm font-semibold">Karar geçmişi</h4>
+      <ol class="border-rule space-y-1 border-l-2 pl-3 text-sm">
+        <li v-for="(d, i) in finding.decisions" :key="i">
+          <time :datetime="d.decided_at" class="text-ink-soft num">{{ formatDateTime(d.decided_at) }}</time> · <span class="text-ballpoint">{{ d.decided_by_email ?? 'Geliştirici anahtarı' }} {{ decisionVerb[d.resolution_status] }}<template v-if="d.note">: <q class="italic">{{ d.note }}</q></template></span>
+        </li>
+      </ol>
+    </section>
   </article>
 </template>

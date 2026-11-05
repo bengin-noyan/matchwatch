@@ -18,8 +18,8 @@ import (
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/repository"
 )
 
-// addUser creates a login for e's tenant with the owner role, as cmd/onboard does.
-func (e *env) addUser(email, password string) {
+// addUser creates a login for e's tenant with the owner role, as cmd/onboard does, and returns its id.
+func (e *env) addUser(email, password string) uuid.UUID {
 	e.t.Helper()
 	ctx := context.Background()
 	owner, err := pgxpool.New(ctx, os.Getenv("MATCHWATCH_TEST_MIGRATE_URL"))
@@ -31,12 +31,14 @@ func (e *env) addUser(email, password string) {
 	if err != nil {
 		e.t.Fatal(err)
 	}
-	if err := repository.NewStore(owner).InTenant(ctx, e.tid, func(tx *repository.Tx) error {
-		_, err := tx.CreateUser(ctx, email, string(hash))
+	var id uuid.UUID
+	if err := repository.NewStore(owner).InTenant(ctx, e.tid, func(tx *repository.Tx) (err error) {
+		id, err = tx.CreateUser(ctx, email, string(hash))
 		return err
 	}); err != nil {
 		e.t.Fatal(err)
 	}
+	return id
 }
 
 func (e *env) raw(method, path string, body string, cookie *http.Cookie) *httptest.ResponseRecorder {

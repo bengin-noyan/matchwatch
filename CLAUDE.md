@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 matchwatch is an internal-audit engine for Turkish companies. It cross-checks purchase contracts, e-İrsaliye (`DespatchAdvice`) and e-Fatura (`Invoice`) documents in GİB UBL-TR 1.2 format, a "3-way match", and stores anomaly findings together with their evidence.
 
 - **Spec:** `docs/spec.md` is the authority. Its §4 "Kararlar" (D1–D15) deliberately deviate from the original "LeakZero" spec, and the D-decisions win where they conflict.
-- **Phases:** Faz 1 is the Go core and is done (merged to `main`). Faz 2a (PDF contract extraction via `ai-service/`) is merged to `main` (PR #2). Faz 2b (semantic item suggestions + human-confirmed aliases, D16) is merged (PR #3). Faz 2c (TCMB rates, D17) is merged (PR #4). Faz 3 (login, the Vue 3 web app in `web/`, dashboard, vendor pages, contract PDF viewer) is merged (PR #5). Faz 3e (invoice search, filters, paging) is on branch `faz3e-invoice-search`.
+- **Phases:** Faz 1 is the Go core and is done (merged to `main`). Faz 2a (PDF contract extraction via `ai-service/`) is merged to `main` (PR #2). Faz 2b (semantic item suggestions + human-confirmed aliases, D16) is merged (PR #3). Faz 2c (TCMB rates, D17) is merged (PR #4). Faz 3 (login, the Vue 3 web app in `web/`, dashboard, vendor pages, contract PDF viewer) is merged (PR #5). Faz 3e (invoice search, filters, paging) is merged (PR #6). Faz 3f (decision history) is on branch `faz3f-decision-history`.
 - **Faz 1 plan:** `docs/superpowers/plans/2026-11-02-faz1-go-core.md` lists tasks, interfaces and the exact expected test values.
 
 ## Commands
@@ -61,6 +61,7 @@ The data flow is: parse XML → persist → load audit input → match → run r
 - TCMB rates (D17, Faz 2c): `internal/tcmb` fetches `kurlar/YYYYMM/DDMMYYYY.xml` (404 = no bulletin). `audit.Service.fxFallback` runs before the audit transaction: when the invoice's own `PricingExchangeRate` does not reach a contract item currency, it walks back from the day before the issue date (≤ 10 days) through the global `fx_days`/`fx_rates` cache, fetching missing days, and hands TRY-crossed forex-buying rates to `priceRules` (`anomaly.Input.FXFallback`). The invoice's rate still wins; no rate → `FX_UNVERIFIED`. `TCMB_BASE_URL` set but empty disables it. Only a date leaves our infrastructure.
 - Login (Faz 3a): `users` has **no RLS and no app-role privileges**; the API reads it only through the `SECURITY DEFINER` functions `auth_lookup(email)` and `auth_user(id, tenant)`, and only `cmd/onboard` (owner role) creates users. `POST /auth/login` sets the JWT in an `HttpOnly; SameSite=Strict; Path=/api` cookie (`COOKIE_SECURE=false` for local http); the middleware also still accepts `Authorization: Bearer`. Failed logins lock an e-mail for 15 min after 10 tries (in-process).
 - `web/` (Faz 3b): Vue 3 + TS + Vite + Tailwind 4 + Pinia + TanStack Table v9 SPA. Design rules in `docs/superpowers/specs/2026-11-05-faz3-web-design.md`: red pencil = what the system found, blue ballpoint = what a person decided; fonts self-hosted via `@fontsource` (no Google CDN, KVKK). Money is never computed in the browser (`src/money.ts` only re-formats digits). `WEB_DIR` makes the Go API serve `web/dist` on the same origin (CSP, SPA fallback). Screens: Masa (dashboard, `GET /dashboard`), Faturalar (server-side search over invoice no, vendor and ETTN with Turkish i's folded in SQL, status/vendor/date/open-only filters, sorting and 50-row pages; all of it lives in the URL query), Tedarikçiler (`GET /vendors`, `/vendors/{id}` with per-item price history), uploads, drafts. "Sözleşmede göster" on a finding opens its source page (`GET /contracts/pdf?contract_no=`, served from `contracts.file_path`; 404 for contracts entered without a PDF) rendered by lazily loaded pdf.js, with the clause boxed in red pencil (`src/pdf/clause.ts` matches like the ai-service grounding: case- and whitespace-blind, Turkish i's folded). The Go web server forces `.mjs` to `text/javascript`, because the OS mime table can say `text/plain` and the pdf.js worker then fails. Charts are hand-built SVG following the `dataviz` skill (single red-pencil series, one axis, hover + table view; status-bar colours validated with its palette checker).
+- Decision history (Faz 3f): every `PATCH /findings/{id}` also appends to `finding_decisions` in the same statement (status, note, user id, an e-mail snapshot via `auth_user`; both NULL for dev tokens). The app role has only SELECT/INSERT on it (append-only). Rows are keyed by the finding's identity (invoice, line, rule), not its id, because a re-audit deletes and recreates OPEN findings; `GET /invoices/{id}` attaches them to each finding as `decisions`, oldest first. Decisions made before migration `009` have no trail.
 - `cmd/api`, `cmd/devtoken`, `cmd/migrate`, `cmd/onboard`. `scripts/smoke.sh` is the end-to-end check (expects `"caught_minor":21412`).
 
 ### Multi-tenancy (easy to break)
@@ -99,17 +100,17 @@ The data flow is: parse XML → persist → load audit input → match → run r
   - Faz 2b, D16: PR #3, merge commit `94e56e8`. Its smoke also fixed a Faz 1 bug: invoices without despatch refs failed to audit.
   - Faz 2c, D17: PR #4, merge commit `797b4bb`.
   - Faz 3 (3a login, 3b SPA, 3c dashboard/vendors/seed, 3d contract PDF viewer): PR #5, merge commit `82aa524`.
-- **In progress:** branch `faz3e-invoice-search` (invoice search, filters, paging).
+  - Faz 3e, invoice search/filters/paging: PR #6, merge commit `06bee0d`.
+- **In progress:** branch `faz3f-decision-history` (decision history).
 - **Next steps, in order:**
-  1. Open the PR for `faz3e-invoice-search`; the user merges it (merging is the user's call; the auto-mode classifier blocks Claude from merging).
-  2. Finish the web app. The user found the first UI too simple and chose richer visuals together with more function. Done: contract PDF viewer, invoice search/filters/paging. Remaining, in this order:
-     - decision history (who decided what, when, with which note);
+  1. Open the PR for `faz3f-decision-history`; the user merges it (merging is the user's call; the auto-mode classifier blocks Claude from merging).
+  2. Finish the web app. The user found the first UI too simple and chose richer visuals together with more function. Done: contract PDF viewer, invoice search/filters/paging, decision history. Remaining, in this order:
      - bulk decisions;
      - an alias management screen.
   3. Then: production deployment (TR cloud, TLS, backups), user invites and password reset, the `FX_RATE_DEVIATION` rule. KVKK applies throughout (see the rulings below), and an LLM never computes amounts.
 - **Local demo:** run `cmd/onboard` once, then `scripts/seed-demo.py`, and serve with `WEB_DIR=../web/dist COOKIE_SECURE=false go run ./cmd/api`.
 - **Working mode:** Claude acts as Staff Architect / Principal Engineer. It decides technical and domain questions itself, records them as rulings and reports in Turkish. It does not hand these questions back to the user.
-- **Housekeeping:** the remote branches `faz1-go-core`, `faz2a-pdf-extraction`, `faz2b-semantic-matching` and `faz3-web` are merged and can be deleted.
+- **Housekeeping:** delete each feature branch, locally and on GitHub, after its PR merges (all earlier ones are gone as of 2026-11-05).
 
 - **Rulings that deviate from the plan text:**
   - The RLS policy wraps the setting in `NULLIF(...)`.

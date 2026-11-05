@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -184,6 +185,17 @@ type FindingRow struct {
 	Evidence             json.RawMessage `json:"evidence"`
 	ResolutionStatus     string          `json:"resolution_status"`
 	ResolutionNote       *string         `json:"resolution_note"`
+	Decisions            []DecisionRow   `json:"decisions"` // oldest first
+
+	lineUUID *uuid.UUID // identity for matching decisions
+}
+
+// DecisionRow is one human decision on a finding.
+type DecisionRow struct {
+	ResolutionStatus string    `json:"resolution_status"`
+	Note             *string   `json:"note"`
+	DecidedByEmail   *string   `json:"decided_by_email"` // null for dev tokens
+	DecidedAt        time.Time `json:"decided_at"`
 }
 
 type InvoiceDetailRow struct {
@@ -264,7 +276,7 @@ func (tx *Tx) InvoiceDetail(ctx context.Context, id uuid.UUID) (InvoiceDetailRow
 	}
 	arows.Close()
 
-	frows, err := tx.Query(ctx, `SELECT f.id, l.line_id, f.severity, f.rule_code, f.expected_value, f.actual_value,
+	frows, err := tx.Query(ctx, `SELECT f.id, f.invoice_line_id, l.line_id, f.severity, f.rule_code, f.expected_value, f.actual_value,
 		f.financial_impact_minor, f.impact_currency, f.evidence_json, f.resolution_status, f.resolution_note
 		FROM audit_findings f LEFT JOIN invoice_lines l ON l.tenant_id=f.tenant_id AND l.id=f.invoice_line_id
 		WHERE f.tenant_id=$1 AND f.invoice_id=$2 ORDER BY f.rule_code, length(l.line_id), l.line_id, f.id`, tx.tenantID, id)
@@ -274,25 +286,60 @@ func (tx *Tx) InvoiceDetail(ctx context.Context, id uuid.UUID) (InvoiceDetailRow
 	defer frows.Close()
 	d.Findings = []FindingRow{}
 	for frows.Next() {
-		var f FindingRow
-		if err := frows.Scan(&f.ID, &f.LineID, &f.Severity, &f.RuleCode, &f.Expected, &f.Actual, &f.FinancialImpactMinor,
+		f := FindingRow{Decisions: []DecisionRow{}}
+		if err := frows.Scan(&f.ID, &f.lineUUID, &f.LineID, &f.Severity, &f.RuleCode, &f.Expected, &f.Actual, &f.FinancialImpactMinor,
 			&f.ImpactCurrency, &f.Evidence, &f.ResolutionStatus, &f.ResolutionNote); err != nil {
 			return d, wrap("scan finding", err)
 		}
 		d.Findings = append(d.Findings, f)
 	}
-	return d, frows.Err()
+	if err := frows.Err(); err != nil {
+		return d, err
+	}
+	frows.Close()
+	return d, tx.attachDecisions(ctx, id, d.Findings)
 }
 
-// UpdateFinding records a human resolution and returns the finding's invoice; status must already be validated by the caller.
-func (tx *Tx) UpdateFinding(ctx context.Context, id uuid.UUID, status domain.Resolution, note string) (uuid.UUID, error) {
+// attachDecisions adds each finding's trail, matched by (line, rule) like ResetAudit's kept findings.
+func (tx *Tx) attachDecisions(ctx context.Context, invoiceID uuid.UUID, fs []FindingRow) error {
+	rows, err := tx.Query(ctx, `SELECT invoice_line_id, rule_code, resolution_status, note, decided_by_email, decided_at
+		FROM finding_decisions WHERE tenant_id=$1 AND invoice_id=$2 ORDER BY decided_at, id`, tx.tenantID, invoiceID)
+	if err != nil {
+		return wrap("finding decisions", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var line *uuid.UUID
+		var rule string
+		var dr DecisionRow
+		if err := rows.Scan(&line, &rule, &dr.ResolutionStatus, &dr.Note, &dr.DecidedByEmail, &dr.DecidedAt); err != nil {
+			return wrap("scan decision", err)
+		}
+		for i := range fs {
+			f := &fs[i]
+			if f.RuleCode == rule && (f.lineUUID == nil && line == nil || f.lineUUID != nil && line != nil && *f.lineUUID == *line) {
+				f.Decisions = append(f.Decisions, dr)
+			}
+		}
+	}
+	return rows.Err()
+}
+
+// UpdateFinding records a human resolution, appends it to finding_decisions and returns the finding's invoice;
+// status must already be validated by the caller. by is the deciding user (nil for dev tokens).
+func (tx *Tx) UpdateFinding(ctx context.Context, id uuid.UUID, status domain.Resolution, note string, by *uuid.UUID) (uuid.UUID, error) {
 	var n *string
 	if note != "" {
 		n = &note
 	}
 	var invoiceID uuid.UUID
-	err := tx.QueryRow(ctx, `UPDATE audit_findings SET resolution_status=$1, resolution_note=$2, updated_at=now()
-		WHERE tenant_id=$3 AND id=$4 RETURNING invoice_id`, string(status), n, tx.tenantID, id).Scan(&invoiceID)
+	err := tx.QueryRow(ctx, `WITH f AS (
+			UPDATE audit_findings SET resolution_status=$1, resolution_note=$2, updated_at=now()
+			WHERE tenant_id=$3 AND id=$4 RETURNING invoice_id, invoice_line_id, rule_code)
+		INSERT INTO finding_decisions(tenant_id, invoice_id, invoice_line_id, rule_code, resolution_status, note,
+			decided_by, decided_by_email)
+		SELECT $3, f.invoice_id, f.invoice_line_id, f.rule_code, $1, $2, $5::uuid, (SELECT email FROM auth_user($5::uuid, $3))
+		FROM f RETURNING invoice_id`, string(status), n, tx.tenantID, id, by).Scan(&invoiceID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return invoiceID, ErrNotFound
 	}
