@@ -4,6 +4,7 @@ import { useSession } from './session'
 export const router = createRouter({
   history: createWebHistory(),
   routes: [
+    { path: '/tanitim', name: 'landing', component: () => import('./views/LandingView.vue'), meta: { public: true } },
     { path: '/giris', name: 'login', component: () => import('./views/LoginView.vue'), meta: { public: true } },
     { path: '/', name: 'dashboard', component: () => import('./views/DashboardView.vue') },
     { path: '/faturalar', name: 'invoices', component: () => import('./views/InvoicesView.vue') },
@@ -24,6 +25,7 @@ export const router = createRouter({
 router.beforeEach(async (to) => {
   const session = useSession()
   if (!session.checked) await session.load()
-  if (!to.meta.public && !session.me) return { name: 'login', query: to.fullPath === '/' ? {} : { next: to.fullPath } }
+  // a first visit to the front door shows the product; a deep link goes straight to the login form
+  if (!to.meta.public && !session.me) return to.fullPath === '/' ? { name: 'landing' } : { name: 'login', query: { next: to.fullPath } }
   if (to.name === 'login' && session.me) return { name: 'dashboard' }
 })
