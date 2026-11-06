@@ -280,7 +280,8 @@ async function send(method: string, path: string, body?: BodyInit, contentType?:
   }
   if (!res.ok) {
     const data = await res.json().catch(() => ({}))
-    if (res.status === 401 && path !== '/auth/login') onUnauthorized()
+    // /auth/me answers 401 for every guest: the router guard decides where they go, not the expiry handler
+    if (res.status === 401 && path !== '/auth/login' && path !== '/auth/me') onUnauthorized()
     throw new ApiError(res.status, data.code ?? 'UNKNOWN', data.error ?? `HTTP ${res.status}`)
   }
   return res
@@ -298,6 +299,8 @@ const id = encodeURIComponent
 export const api = {
   login: (email: string, password: string) =>
     request<Me>('POST', '/auth/login', json({ email, password }), 'application/json'),
+  signup: (b: { company: string; vkn: string; email: string; password: string }) =>
+    request<Me>('POST', '/auth/signup', json(b), 'application/json'),
   logout: () => request<void>('POST', '/auth/logout'),
   me: () => request<Me>('GET', '/auth/me'),
 

@@ -24,5 +24,8 @@ describe('LandingView', () => {
     expect(w.find('svg[role=img] title').text()).toContain('470,00 TL')
     expect(w.find('form').exists()).toBe(false)
     expect(w.findAll('a[href="/giris"]').length).toBeGreaterThan(0)
+    expect(w.findAll('a[href="/kayit"]').length).toBeGreaterThan(0)
+    expect(w.findAll('[role=tab]')).toHaveLength(3)
+    expect(w.findAll('#sss details').length).toBeGreaterThan(3)
   })
 })

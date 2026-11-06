@@ -2,14 +2,18 @@ package transporthttp
 
 import (
 	"encoding/json"
+	"errors"
+	"net"
 	"net/http"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/auth"
+	"github.com/bengin-noyan/matchwatch/backend-go/internal/domain"
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/repository"
 )
 
@@ -56,6 +60,70 @@ func (s *server) login(w http.ResponseWriter, r *http.Request) {
 	}
 	http.SetCookie(w, s.sessionCookie(tok, int(sessionTTL.Seconds())))
 	s.writeMe(w, r, cred.TenantID, cred.UserID.String())
+}
+
+// signup opens a new company account with its first user and logs that user in. Each sign-up is its own tenant:
+// VKNs are not unique, so nobody can claim another company's VKN and lock it out.
+func (s *server) signup(w http.ResponseWriter, r *http.Request) {
+	var req struct{ Company, VKN, Email, Password string }
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&req); err != nil {
+		writeErr(w, 400, "BAD_REQUEST", "body must be a JSON object with company, vkn, email and password")
+		return
+	}
+	company, vkn, email := strings.TrimSpace(req.Company), strings.TrimSpace(req.VKN), strings.ToLower(strings.TrimSpace(req.Email))
+	switch {
+	case utf8.RuneCountInString(company) < 2 || utf8.RuneCountInString(company) > 200:
+		writeErr(w, 422, "INVALID_COMPANY", "company name must be 2 to 200 characters")
+		return
+	case !domain.ValidTaxID(vkn):
+		writeErr(w, 422, "INVALID_VKN", "vkn must be a valid 10-digit VKN or 11-digit TCKN")
+		return
+	case len(email) > 254 || strings.Count(email, "@") != 1 || strings.HasPrefix(email, "@") || strings.HasSuffix(email, "@"):
+		writeErr(w, 422, "INVALID_EMAIL", "email is not a valid address")
+		return
+	case utf8.RuneCountInString(req.Password) < 12 || len(req.Password) > 72: // bcrypt reads at most 72 bytes
+		writeErr(w, 422, "WEAK_PASSWORD", "password must be 12 characters to 72 bytes")
+		return
+	}
+	// shortcut: keyed on the TCP peer; behind a reverse proxy (Faz 4) read the proxy's client-IP header instead.
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		ip = r.RemoteAddr
+	}
+	if s.signups.Blocked(ip) {
+		writeErr(w, 429, "TOO_MANY_SIGNUPS", "too many sign-ups from this address; try again later")
+		return
+	}
+	s.signups.Fail(ip) // every attempt counts, successful or not
+	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), auth.PasswordCost)
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	tid := uuid.New()
+	var uid uuid.UUID
+	err = s.store.InTenant(r.Context(), tid, func(tx *repository.Tx) (err error) {
+		uid, err = tx.SignUp(r.Context(), company, vkn, email, string(hash))
+		return err
+	})
+	if errors.Is(err, repository.ErrDuplicateEmail) {
+		writeErr(w, 409, "EMAIL_TAKEN", "an account with this e-mail already exists")
+		return
+	}
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	tok, err := auth.Sign(s.secret, tid, uid.String(), sessionTTL)
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	http.SetCookie(w, s.sessionCookie(tok, int(sessionTTL.Seconds())))
+	writeJSON(w, 201, struct {
+		Email      string `json:"email"`
+		TenantName string `json:"tenant_name"`
+	}{email, company})
 }
 
 func (s *server) logout(w http.ResponseWriter, r *http.Request) {

@@ -129,3 +129,75 @@ func TestAppRoleCannotReadUsers(t *testing.T) {
 		t.Fatalf("app role read users: %v", err)
 	}
 }
+
+func TestSignup(t *testing.T) {
+	e := setup(t, "9876543210")
+	email := "Kayit-" + uuid.NewString()[:8] + "@Yeni.com.tr"
+	body := func(vkn, mail, pw string) string {
+		return `{"company":"Yeni Firma A.Ş.","vkn":"` + vkn + `","email":"` + mail + `","password":"` + pw + `"}`
+	}
+	for name, c := range map[string]struct {
+		body, code string
+	}{
+		"bad vkn":        {body("9876543210", email, "uzun-bir-sifre-1"), "INVALID_VKN"},
+		"short password": {body("1234567890", email, "kisa"), "WEAK_PASSWORD"},
+		"bad email":      {body("1234567890", "yok-at-isareti", "uzun-bir-sifre-1"), "INVALID_EMAIL"},
+		"no company":     {`{"company":" ","vkn":"1234567890","email":"a@b.c","password":"uzun-bir-sifre-1"}`, "INVALID_COMPANY"},
+	} {
+		if rec := e.raw("POST", "/api/v1/auth/signup", c.body, nil); rec.Code != 422 || !strings.Contains(rec.Body.String(), c.code) {
+			t.Errorf("%s: %d %s", name, rec.Code, rec.Body)
+		}
+	}
+
+	rec := e.raw("POST", "/api/v1/auth/signup", body("1234567890", email, "uzun-bir-sifre-1"), nil)
+	if rec.Code != 201 {
+		t.Fatalf("signup: %d %s", rec.Code, rec.Body)
+	}
+	var session *http.Cookie
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == auth.CookieName {
+			session = c
+		}
+	}
+	if session == nil {
+		t.Fatal("signup set no session cookie")
+	}
+	lower := strings.ToLower(email)
+	if rec := e.raw("GET", "/api/v1/auth/me", "", session); rec.Code != 200 || !strings.Contains(rec.Body.String(), lower) || !strings.Contains(rec.Body.String(), "Yeni Firma A.Ş.") {
+		t.Fatalf("me after signup: %d %s", rec.Code, rec.Body)
+	}
+	// a new, empty company: none of the setup tenant's data
+	if rec := e.raw("GET", "/api/v1/invoices", "", session); rec.Code != 200 || !strings.Contains(rec.Body.String(), `"total":0`) {
+		t.Fatalf("new tenant invoices: %d %s", rec.Code, rec.Body)
+	}
+	if rec := e.raw("POST", "/api/v1/auth/login", `{"email":"`+lower+`","password":"uzun-bir-sifre-1"}`, nil); rec.Code != 200 {
+		t.Fatalf("login after signup: %d", rec.Code)
+	}
+
+	if rec := e.raw("POST", "/api/v1/auth/signup", body("1234567808", " "+lower+" ", "baska-bir-sifre-2"), nil); rec.Code != 409 || !strings.Contains(rec.Body.String(), "EMAIL_TAKEN") {
+		t.Fatalf("duplicate e-mail: %d %s", rec.Code, rec.Body)
+	}
+	// two attempts so far from this address; the limit is five an hour
+	for i := 0; i < 3; i++ {
+		e.raw("POST", "/api/v1/auth/signup", body("1234567808", lower, "baska-bir-sifre-2"), nil)
+	}
+	if rec := e.raw("POST", "/api/v1/auth/signup", body("1234567808", "yeni-"+lower, "baska-bir-sifre-2"), nil); rec.Code != 429 {
+		t.Fatalf("want 429 after five sign-ups, got %d", rec.Code)
+	}
+}
+
+func TestSignupFunctionOnlyAddsAFirstUser(t *testing.T) {
+	e := setup(t, "9876543210")
+	e.addUser("ilk-"+uuid.NewString()[:8]+"@firma.com.tr", "dogru-sifre-123")
+	second := "ikinci-" + uuid.NewString()[:8] + "@firma.com.tr"
+	var n int
+	err := e.store.InTenant(context.Background(), e.tid, func(tx *repository.Tx) error {
+		return tx.QueryRow(context.Background(), `SELECT count(*) FROM auth_signup($1, $2, 'x')`, e.tid, second).Scan(&n)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, _ := e.store.LookupLogin(context.Background(), second); n != 0 || ok {
+		t.Fatalf("auth_signup added a second user to an existing company (rows %d)", n)
+	}
+}

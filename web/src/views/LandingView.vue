@@ -3,6 +3,7 @@
 import { onMounted, onUnmounted, ref, type Directive } from 'vue'
 import { ruleLabel } from '../labels'
 import AuditScene from '../components/landing/AuditScene.vue'
+import ProductTour from '../components/landing/ProductTour.vue'
 
 // In-page links scroll instead of changing the URL hash (the router would scroll to the top).
 const reduced = () => !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -80,6 +81,31 @@ const rules: { code: string; text: string }[] = [
   { code: 'FX_UNVERIFIED', text: 'Döviz kuru doğrulanamadı; faturada yoksa TCMB kuruna bakılır.' },
 ]
 
+const trust = ['Kurulum yok, tarayıcıda çalışır', 'Veriler Türkiye’de (KVKK)', 'GİB UBL-TR 1.2']
+
+const faqs = [
+  {
+    q: 'Hangi belgelerle çalışır?',
+    a: "GİB UBL-TR 1.2 biçimindeki e-Fatura ve e-İrsaliye XML'leriyle, bir de satın alma sözleşmesinin PDF'iyle.",
+  },
+  {
+    q: 'Kurulum gerekiyor mu?',
+    a: 'Hayır. matchwatch tarayıcıda çalışır. Hesabını aç, belgelerini yükle; eşleştirme ve denetim yüklediğin anda yapılır.',
+  },
+  {
+    q: 'Verilerim nerede tutuluyor?',
+    a: "Belgeler ve kayıtlar Türkiye'deki altyapıda tutulur ve yurt dışına aktarılmaz (KVKK). Her firmanın verisi veritabanı düzeyinde birbirinden ayrıdır.",
+  },
+  {
+    q: 'Yapay zekâ ne yapıyor, ne yapmıyor?',
+    a: 'Kendi sunucularımızda çalışan yerel bir model sözleşme maddelerini taslağa çıkarır ve sözleşmede bulunamayan kalemler için benzerlerini önerir. Tutar hesaplamaz, onay ya da itiraz kararı vermez; bunları kurallar ve sen yaparsın.',
+  },
+  {
+    q: 'Döviz cinsinden sözleşmeler ne olacak?',
+    a: 'Faturada kur varsa o kullanılır; yoksa fatura tarihinden önceki TCMB döviz alış kuruna bakılır. Kur bulunamazsa bulgu “kur doğrulanamadı” diye işaretlenir.',
+  },
+]
+
 const scrolled = ref(false)
 const onScroll = () => (scrolled.value = window.scrollY > 8)
 onMounted(() => window.addEventListener('scroll', onScroll, { passive: true }))
@@ -106,12 +132,17 @@ onUnmounted(() => {
           </svg>
           matchwatch
         </p>
-        <nav aria-label="Sayfa içi" class="hidden items-center gap-6 text-sm md:flex">
-          <button type="button" class="text-ink-soft hover:text-ink" @click="go('nasil')">Nasıl çalışır</button>
-          <button type="button" class="text-ink-soft hover:text-ink" @click="go('kurallar')">Neleri yakalar</button>
-          <button type="button" class="text-ink-soft hover:text-ink" @click="go('guven')">Veri güvenliği</button>
+        <nav aria-label="Sayfa içi" class="hidden items-center gap-6 text-sm lg:flex">
+          <button type="button" class="nav-a text-ink-soft hover:text-ink" @click="go('nasil')">Nasıl çalışır</button>
+          <button type="button" class="nav-a text-ink-soft hover:text-ink" @click="go('ekranlar')">Ekranlar</button>
+          <button type="button" class="nav-a text-ink-soft hover:text-ink" @click="go('kurallar')">Neleri yakalar</button>
+          <button type="button" class="nav-a text-ink-soft hover:text-ink" @click="go('guven')">Veri güvenliği</button>
+          <button type="button" class="nav-a text-ink-soft hover:text-ink" @click="go('sss')">SSS</button>
         </nav>
-        <RouterLink to="/giris" class="btn-primary">Giriş yap</RouterLink>
+        <div class="flex items-center gap-2 sm:gap-3">
+          <RouterLink to="/giris" class="text-ink hover:text-ballpoint px-2 py-2 text-sm font-semibold sm:px-3">Giriş yap</RouterLink>
+          <RouterLink to="/kayit" class="btn-primary">Kaydol</RouterLink>
+        </div>
       </div>
     </header>
 
@@ -127,10 +158,16 @@ onUnmounted(() => {
             matchwatch her e-Faturayı sözleşmesiyle ve e-İrsaliyesiyle karşılaştırır. Fazla fiyatı, teslim alınmamış
             miktarı, kısa vadeyi ve hatalı tevkifatı ödeme yapılmadan önce, kanıtıyla birlikte önüne koyar.
           </p>
-          <div class="hero-in hero-d3 mt-8 flex flex-wrap items-center gap-4">
-            <RouterLink to="/giris" class="btn-primary">Giriş yap</RouterLink>
-            <button type="button" class="text-ballpoint font-semibold hover:underline" @click="go('nasil')">Nasıl çalışır →</button>
+          <div class="hero-in hero-d3 mt-8 flex flex-wrap items-center gap-3">
+            <RouterLink to="/kayit" class="btn-primary cta px-6 py-3 text-base">Firman için hesap oluştur</RouterLink>
+            <RouterLink to="/giris" class="btn-secondary px-6 py-3 text-base">Giriş yap</RouterLink>
           </div>
+          <ul class="hero-in hero-d3 text-ink-soft mt-6 flex flex-wrap gap-x-5 gap-y-2 text-sm">
+            <li v-for="t in trust" :key="t" class="flex items-center gap-1.5">
+              <svg viewBox="0 0 16 16" class="text-ballpoint size-4" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
+              {{ t }}
+            </li>
+          </ul>
         </div>
         <div class="hero-in hero-d3 min-w-0">
           <AuditScene />
@@ -161,6 +198,15 @@ onUnmounted(() => {
               <p class="text-ink-soft mt-2">{{ s.text }}</p>
             </li>
           </ol>
+        </div>
+      </section>
+
+      <!-- the screens -->
+      <section id="ekranlar" class="scroll-mt-20 py-16">
+        <div class="mx-auto max-w-6xl px-4 sm:px-6">
+          <h2 v-reveal class="text-3xl font-semibold tracking-tight">Ekranlar</h2>
+          <p v-reveal class="text-ink-soft mt-2 mb-8 max-w-2xl">Bulgudan karara üç ekran. Kendi kendine değişir; üzerine gelince durur.</p>
+          <ProductTour v-reveal />
         </div>
       </section>
 
@@ -221,14 +267,72 @@ onUnmounted(() => {
         </div>
       </section>
 
-      <section v-reveal class="mx-auto max-w-6xl px-4 pt-4 pb-20 text-center sm:px-6">
-        <p class="hand text-pencil text-3xl">Ödemeden önce bir bak.</p>
-        <RouterLink to="/giris" class="btn-primary mt-5">Giriş yap</RouterLink>
+      <!-- questions -->
+      <section id="sss" class="scroll-mt-20 py-16">
+        <div class="mx-auto grid max-w-6xl gap-8 px-4 sm:px-6 lg:grid-cols-[1fr_2fr]">
+          <div v-reveal>
+            <h2 class="text-3xl font-semibold tracking-tight">Sık sorulanlar</h2>
+            <p class="text-ink-soft mt-2">Başka bir sorun varsa en iyisi hesabını açıp kendi belgelerinle denemek.</p>
+          </div>
+          <div v-reveal class="divide-rule border-rule bg-sheet rounded-sheet divide-y border">
+            <details v-for="f in faqs" :key="f.q" class="faq px-5">
+              <summary class="flex cursor-pointer list-none items-center justify-between gap-4 py-4 font-semibold">
+                {{ f.q }}
+                <span class="plus text-ballpoint text-xl leading-none" aria-hidden="true">+</span>
+              </summary>
+              <p class="text-ink-soft pb-5">{{ f.a }}</p>
+            </details>
+          </div>
+        </div>
+      </section>
+
+      <!-- last call -->
+      <section v-reveal class="mx-auto max-w-6xl px-4 pt-4 pb-20 sm:px-6">
+        <div class="cta-band rounded-sheet bg-ballpoint text-paper relative overflow-hidden px-6 py-12 text-center sm:px-12">
+          <p class="hand relative text-4xl">Ödemeden önce bir bak.</p>
+          <p class="relative mx-auto mt-3 max-w-xl opacity-85">Hesabını aç, ilk sözleşmeni ve faturanı yükle; farkları kuruşuna kadar gör.</p>
+          <div class="relative mt-7 flex flex-wrap justify-center gap-3">
+            <RouterLink to="/kayit" class="bg-paper text-ballpoint rounded-field px-6 py-3 font-semibold hover:bg-white">Hesap oluştur</RouterLink>
+            <RouterLink to="/giris" class="rounded-field border border-white/40 px-6 py-3 font-semibold hover:bg-white/10">Giriş yap</RouterLink>
+          </div>
+        </div>
       </section>
     </main>
 
-    <footer class="border-rule text-ink-soft relative z-10 border-t py-6 text-center text-sm">
-      matchwatch · GİB UBL-TR 1.2 e-Fatura ve e-İrsaliye için üçlü eşleştirme
+    <footer class="border-rule text-ink-soft relative z-10 border-t text-sm">
+      <div class="mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:grid-cols-2 sm:px-6 lg:grid-cols-4">
+        <div>
+          <p class="text-ink flex items-center gap-2 text-lg font-semibold">
+            <svg viewBox="0 0 32 32" class="size-6" aria-hidden="true">
+              <path d="M7 17c2-6 15-9 18-3 2 5-6 10-12 9-5-1-8-3-6-6" fill="none" stroke="var(--color-pencil)" stroke-width="2.6" stroke-linecap="round" />
+            </svg>
+            matchwatch
+          </p>
+          <p class="mt-2">GİB UBL-TR 1.2 e-Fatura ve e-İrsaliye için üçlü eşleştirme.</p>
+        </div>
+        <nav aria-label="Ürün">
+          <p class="text-ink mb-2 font-semibold">Ürün</p>
+          <ul class="space-y-1.5">
+            <li><button type="button" class="hover:text-ink" @click="go('nasil')">Nasıl çalışır</button></li>
+            <li><button type="button" class="hover:text-ink" @click="go('ekranlar')">Ekranlar</button></li>
+            <li><button type="button" class="hover:text-ink" @click="go('kurallar')">Denetim kuralları</button></li>
+          </ul>
+        </nav>
+        <nav aria-label="Güven">
+          <p class="text-ink mb-2 font-semibold">Güven</p>
+          <ul class="space-y-1.5">
+            <li><button type="button" class="hover:text-ink" @click="go('guven')">Veri güvenliği ve KVKK</button></li>
+            <li><button type="button" class="hover:text-ink" @click="go('sss')">Sık sorulanlar</button></li>
+          </ul>
+        </nav>
+        <nav aria-label="Hesap">
+          <p class="text-ink mb-2 font-semibold">Hesap</p>
+          <ul class="space-y-1.5">
+            <li><RouterLink to="/giris" class="hover:text-ink">Giriş yap</RouterLink></li>
+            <li><RouterLink to="/kayit" class="hover:text-ink">Hesap oluştur</RouterLink></li>
+          </ul>
+        </nav>
+      </div>
     </footer>
   </div>
 </template>
@@ -310,8 +414,37 @@ onUnmounted(() => {
   from { stroke-dashoffset: 1; }
 }
 
+/* header links underline from the left */
+.nav-a { background: linear-gradient(currentColor, currentColor) 0 100% / 0 1px no-repeat; transition: background-size 0.25s, color 0.2s; }
+.nav-a:hover { background-size: 100% 1px; }
+
+/* the main call to action lifts a little */
+.cta { box-shadow: 0 10px 30px -12px rgb(36 69 160 / 0.6); transition: transform 0.2s, box-shadow 0.2s; }
+.cta:hover { transform: translateY(-2px); box-shadow: 0 16px 36px -12px rgb(36 69 160 / 0.7); }
+
+.faq .plus { transition: transform 0.2s; }
+.faq[open] .plus { transform: rotate(45deg); }
+.faq summary::-webkit-details-marker { display: none; }
+
+/* ruled lines and a red-pencil glow drifting across the closing band */
+.cta-band {
+  background-image: repeating-linear-gradient(to bottom, transparent 0 31px, rgb(255 255 255 / 0.07) 31px 32px);
+}
+.cta-band::after {
+  content: '';
+  position: absolute;
+  width: 18rem;
+  height: 18rem;
+  right: -5rem;
+  top: -6rem;
+  border-radius: 9999px;
+  background: rgb(190 30 45 / 0.35);
+  filter: blur(70px);
+  animation: drift 20s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .drift, .hero-in, .underline-pencil { animation: none; }
+  .drift, .hero-in, .underline-pencil, .cta-band::after { animation: none; }
   .underline-pencil { background-size: 100% 3px; }
   .reveal { opacity: 1; transform: none; }
 }

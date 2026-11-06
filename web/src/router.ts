@@ -6,6 +6,7 @@ export const router = createRouter({
   routes: [
     { path: '/tanitim', name: 'landing', component: () => import('./views/LandingView.vue'), meta: { public: true } },
     { path: '/giris', name: 'login', component: () => import('./views/LoginView.vue'), meta: { public: true } },
+    { path: '/kayit', name: 'signup', component: () => import('./views/SignupView.vue'), meta: { public: true } },
     { path: '/', name: 'dashboard', component: () => import('./views/DashboardView.vue') },
     { path: '/faturalar', name: 'invoices', component: () => import('./views/InvoicesView.vue') },
     { path: '/bulgular', name: 'findings', component: () => import('./views/FindingsView.vue') },
@@ -27,5 +28,5 @@ router.beforeEach(async (to) => {
   if (!session.checked) await session.load()
   // a first visit to the front door shows the product; a deep link goes straight to the login form
   if (!to.meta.public && !session.me) return to.fullPath === '/' ? { name: 'landing' } : { name: 'login', query: { next: to.fullPath } }
-  if (to.name === 'login' && session.me) return { name: 'dashboard' }
+  if ((to.name === 'login' || to.name === 'signup') && session.me) return { name: 'dashboard' }
 })
