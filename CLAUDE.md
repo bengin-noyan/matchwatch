@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 matchwatch is an internal-audit engine for Turkish companies. It cross-checks purchase contracts, e-İrsaliye (`DespatchAdvice`) and e-Fatura (`Invoice`) documents in GİB UBL-TR 1.2 format, a "3-way match", and stores anomaly findings together with their evidence.
 
 - **Spec:** `docs/spec.md` is the authority. Its §4 "Kararlar" (D1–D15) deliberately deviate from the original "LeakZero" spec, and the D-decisions win where they conflict.
-- **Phases:** Faz 1 is the Go core and is done (merged to `main`). Faz 2a (PDF contract extraction via `ai-service/`) is merged to `main` (PR #2). Faz 2b (semantic item suggestions + human-confirmed aliases, D16) is merged (PR #3). Faz 2c (TCMB rates, D17) is merged (PR #4). Faz 3 (login, the Vue 3 web app in `web/`, dashboard, vendor pages, contract PDF viewer) is merged (PR #5). Faz 3e (invoice search, filters, paging) is merged (PR #6). Faz 3f (decision history) is merged (PR #7). Faz 3g (bulk decisions) is merged (PR #8). Faz 3h (alias management) is merged (PR #9). Faz 3i (public landing page on the login screen) is on branch `faz3i-landing`.
+- **Phases:** Faz 1 is the Go core and is done (merged to `main`). Faz 2a (PDF contract extraction via `ai-service/`) is merged to `main` (PR #2). Faz 2b (semantic item suggestions + human-confirmed aliases, D16) is merged (PR #3). Faz 2c (TCMB rates, D17) is merged (PR #4). Faz 3 (login, the Vue 3 web app in `web/`, dashboard, vendor pages, contract PDF viewer) is merged (PR #5). Faz 3e (invoice search, filters, paging) is merged (PR #6). Faz 3f (decision history) is merged (PR #7). Faz 3g (bulk decisions) is merged (PR #8). Faz 3h (alias management) is merged (PR #9). Faz 3i (public landing page on the login screen) is merged (PR #10). The planned web work is complete.
 - **Faz 1 plan:** `docs/superpowers/plans/2026-11-02-faz1-go-core.md` lists tasks, interfaces and the exact expected test values.
 
 ## Commands
@@ -95,7 +95,7 @@ The data flow is: parse XML → persist → load audit input → match → run r
 - An LLM never computes amounts or makes approve/reject decisions.
 - `withholding_codes` is seeded from GİB "UBL-TR Kod Listeleri" V1.31 (2023). Code 619 is 70% (7/10, KDVGUT; V1.28–V1.31 printed "75/10" as a typo, fixed by V1.43). Verified unchanged against V1.43 (2026-11-04).
 
-## Current status (2026-11-05)
+## Current status (2026-11-06)
 
 - **Merged to `main`:**
   - Faz 1: PR #1, merge commit `0ceeca3`.
@@ -107,14 +107,18 @@ The data flow is: parse XML → persist → load audit input → match → run r
   - Faz 3f, decision history: PR #7, merge commit `7a0d469`.
   - Faz 3g, bulk decisions: PR #8, merge commit `2f2892e`.
   - Faz 3h, alias management: PR #9, merge commit `6138aa0`.
-- **In progress:** branch `faz3i-landing` (the login screen as a landing page that explains the product).
+  - Faz 3i, landing page on `/giris`: PR #10, merge commit `40739bc`.
+- **In progress:** nothing. `main` is clean and only `main` exists, locally and on GitHub.
 - **Next steps, in order:**
-  1. Open the PR for `faz3i-landing`; the user merges it (merging is the user's call; the auto-mode classifier blocks Claude from merging).
-  2. Finish the web app. The user found the first UI too simple and chose richer visuals together with more function. Done: contract PDF viewer, invoice search/filters/paging, decision history, bulk decisions, alias management. With 3h merged the planned web work is complete.
-  3. Then: production deployment (TR cloud, TLS, backups), user invites and password reset, the `FX_RATE_DEVIATION` rule. KVKK applies throughout (see the rulings below), and an LLM never computes amounts.
+  1. Production deployment (Faz 4): TR-region cloud, TLS, backups. Three decisions are waiting on the user: which TR cloud provider, which domain, where backups go. Until then, provider-agnostic prep can go ahead: a production compose file (API + Postgres + ai-service), Caddy for automatic TLS, a `pg_dump` + storage backup script with a restore check, and a runbook.
+  2. User invites and password reset (today only `cmd/onboard` creates users).
+  3. The `FX_RATE_DEVIATION` rule.
+  - Optional, not requested yet: a compact mobile nav (7 menu items overflow on phones), a log of who removed an alias, a contact/pricing section on the landing page.
+  - KVKK applies throughout (see the rulings below), and an LLM never computes amounts.
+- **Merging** is the user's call (`gh pr merge N --merge --delete-branch`); the auto-mode classifier blocks Claude from merging.
 - **Local demo:** run `cmd/onboard` once, then `scripts/seed-demo.py`, and serve with `WEB_DIR=../web/dist COOKIE_SECURE=false go run ./cmd/api`.
 - **Working mode:** Claude acts as Staff Architect / Principal Engineer. It decides technical and domain questions itself, records them as rulings and reports in Turkish. It does not hand these questions back to the user.
-- **Housekeeping:** delete each feature branch, locally and on GitHub, after its PR merges (all earlier ones are gone as of 2026-11-05).
+- **Housekeeping:** delete each feature branch, locally and on GitHub, after its PR merges (all earlier ones are gone as of 2026-11-06).
 
 - **Rulings that deviate from the plan text:**
   - The RLS policy wraps the setting in `NULLIF(...)`.
