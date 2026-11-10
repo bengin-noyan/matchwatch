@@ -1,0 +1,6 @@
+# Automatic TLS (Let's Encrypt) for $DOMAIN; port 80 only redirects to HTTPS.
+{$DOMAIN} {
+	encode zstd gzip
+	header Strict-Transport-Security "max-age=31536000"
+	reverse_proxy api:8080
+}

@@ -50,6 +50,9 @@ func main() {
 	if cfg.WebDir != "" {
 		handler = transporthttp.WithWeb(handler, cfg.WebDir)
 	}
+	if cfg.TrustProxy {
+		handler = transporthttp.BehindProxy(handler)
+	}
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,
 		Handler:           handler,
