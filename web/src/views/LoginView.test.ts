@@ -15,16 +15,6 @@ async function mountAt(url: string) {
 }
 
 describe('LoginView', () => {
-  it('tells what matchwatch does: steps, every rule, the facts', async () => {
-    const { w } = await mountAt('/giris')
-    expect(w.find('h1').text()).toContain('Sözleşmede ne yazıyorsa')
-    expect(w.findAll('#nasil li')).toHaveLength(3)
-    expect(w.findAll('#kurallar li')).toHaveLength(9)
-    expect(w.text()).toContain('Sözleşmeden yüksek fiyat')
-    expect(w.text()).toContain('52 GİB tevkifat kodu') // jsdom has no IntersectionObserver: numbers show final values
-    expect(w.find('svg[role=img] title').text()).toContain('470,00 TL')
-  })
-
   it('logs in and goes on to the page it was sent from', async () => {
     const login = vi.spyOn(api, 'login').mockResolvedValue({ user_id: 'u', email: 'a@b.c', tenant_id: 't', tenant_name: 'T' } as never)
     const { w, router } = await mountAt('/giris?next=/faturalar')

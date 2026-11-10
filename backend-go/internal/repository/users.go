@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/shopspring/decimal"
 )
 
 var ErrDuplicateEmail = errors.New("a user with this e-mail already exists")
@@ -56,4 +57,18 @@ func (tx *Tx) CreateUser(ctx context.Context, email, passwordHash string) (uuid.
 		return uuid.Nil, ErrDuplicateEmail
 	}
 	return id, wrap("create user", err)
+}
+
+// SignUp opens the transaction's tenant and its first user (auth_signup is SECURITY DEFINER). A taken e-mail is
+// ErrDuplicateEmail; the transaction rolls back, so no empty tenant is left behind.
+func (tx *Tx) SignUp(ctx context.Context, company, vkn, email, passwordHash string) (uuid.UUID, error) {
+	if err := tx.InsertTenant(ctx, company, vkn, decimal.Zero); err != nil {
+		return uuid.Nil, err
+	}
+	var id uuid.UUID
+	err := tx.QueryRow(ctx, `SELECT user_id FROM auth_signup($1, $2, $3)`, tx.tenantID, email, passwordHash).Scan(&id)
+	if isUniqueOn(err, "email") {
+		return uuid.Nil, ErrDuplicateEmail
+	}
+	return id, wrap("sign up", err)
 }

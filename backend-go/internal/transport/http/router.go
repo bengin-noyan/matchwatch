@@ -19,11 +19,13 @@ type server struct {
 	secret         []byte
 	cookieSecure   bool
 	limiter        *auth.Limiter
+	signups        *auth.Limiter
 }
 
 func NewRouter(store *repository.Store, auditor *audit.Service, storageDir string, secret []byte, ai Extractor, extractTimeout time.Duration, cookieSecure bool) http.Handler {
 	s := &server{store: store, auditor: auditor, storageDir: storageDir, ai: ai, extractTimeout: extractTimeout,
-		secret: secret, cookieSecure: cookieSecure, limiter: auth.NewLimiter(10, 15*time.Minute)}
+		secret: secret, cookieSecure: cookieSecure, limiter: auth.NewLimiter(10, 15*time.Minute),
+		signups: auth.NewLimiter(5, time.Hour)}
 	api := http.NewServeMux()
 	api.HandleFunc("GET /api/v1/auth/me", s.me)
 	api.HandleFunc("POST /api/v1/contracts", s.postContract)
@@ -52,6 +54,7 @@ func NewRouter(store *repository.Store, auditor *audit.Service, storageDir strin
 	root := http.NewServeMux()
 	root.HandleFunc("GET /healthz", s.healthz)
 	root.HandleFunc("POST /api/v1/auth/login", s.login) // the only API routes without a session
+	root.HandleFunc("POST /api/v1/auth/signup", s.signup)
 	root.HandleFunc("POST /api/v1/auth/logout", s.logout)
 	root.Handle("/api/", auth.Middleware(secret)(api))
 	return root
