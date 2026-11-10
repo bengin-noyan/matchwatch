@@ -19,6 +19,7 @@ type Config struct {
 	TCMBBaseURL        string // set but empty = TCMB rates disabled (D17)
 	CookieSecure       bool   // session cookie only over HTTPS; COOKIE_SECURE=false for local http
 	WebDir             string // built SPA (web/dist) served on the same origin; empty = API only
+	TrustProxy         bool   // TRUST_PROXY=true: client IP from X-Forwarded-For (only when reachable solely via Caddy)
 }
 
 func Load() (Config, error) {
@@ -47,6 +48,7 @@ func Load() (Config, error) {
 	c.AIExtractTimeout = d
 	c.CookieSecure = os.Getenv("COOKIE_SECURE") != "false"
 	c.WebDir = os.Getenv("WEB_DIR")
+	c.TrustProxy = os.Getenv("TRUST_PROXY") == "true"
 	c.TCMBBaseURL = "https://www.tcmb.gov.tr/kurlar"
 	if v, ok := os.LookupEnv("TCMB_BASE_URL"); ok {
 		c.TCMBBaseURL = v

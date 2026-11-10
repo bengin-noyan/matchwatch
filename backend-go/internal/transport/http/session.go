@@ -85,7 +85,7 @@ func (s *server) signup(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 422, "WEAK_PASSWORD", "password must be 12 characters to 72 bytes")
 		return
 	}
-	// shortcut: keyed on the TCP peer; behind a reverse proxy (Faz 4) read the proxy's client-IP header instead.
+	// The TCP peer; behind Caddy, BehindProxy (TRUST_PROXY=true) has already put the client address here.
 	ip, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		ip = r.RemoteAddr

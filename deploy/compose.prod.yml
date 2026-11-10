@@ -1,0 +1,91 @@
+# Production stack. Run from the repo root:
+#   docker compose -f deploy/compose.prod.yml --env-file deploy/.env up -d --build
+# Only Caddy publishes ports; the API trusts X-Forwarded-For because nothing else can reach it.
+x-logging: &logging
+  logging:
+    driver: json-file
+    options: { max-size: "20m", max-file: "5" }
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      MATCHWATCH_OWNER_PASSWORD: ${MATCHWATCH_OWNER_PASSWORD:?}
+      MATCHWATCH_APP_PASSWORD: ${MATCHWATCH_APP_PASSWORD:?}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    <<: *logging
+
+  migrate:
+    build: ..
+    image: matchwatch:latest
+    entrypoint: ["/app/migrate"]
+    environment:
+      MIGRATE_DATABASE_URL: postgres://matchwatch_owner:${MATCHWATCH_OWNER_PASSWORD}@postgres:5432/matchwatch?sslmode=disable
+    depends_on:
+      postgres: { condition: service_healthy }
+    <<: *logging
+
+  api:
+    image: matchwatch:latest
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://matchwatch_app:${MATCHWATCH_APP_PASSWORD}@postgres:5432/matchwatch?sslmode=disable
+      # cmd/onboard reads this: docker compose ... run --rm -T --entrypoint /app/onboard api -name ...
+      MIGRATE_DATABASE_URL: postgres://matchwatch_owner:${MATCHWATCH_OWNER_PASSWORD}@postgres:5432/matchwatch?sslmode=disable
+      JWT_SECRET: ${JWT_SECRET:?}
+      AI_SERVICE_URL: ${AI_SERVICE_URL:-}
+      AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:-}
+    volumes:
+      - ${STORAGE_PATH:?}:/data
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    <<: *logging
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443", "443:443/udp"]
+    environment:
+      DOMAIN: ${DOMAIN:?}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [api]
+    <<: *logging
+
+  # --profile ai: contract extraction and item suggestions, on this host (KVKK: no foreign LLM).
+  ollama:
+    profiles: ["ai"]
+    image: ollama/ollama:0.40.14
+    restart: unless-stopped
+    volumes:
+      - ollama:/root/.ollama
+    <<: *logging
+
+  ai:
+    profiles: ["ai"]
+    build: ../ai-service
+    restart: unless-stopped
+    environment:
+      AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:-}
+      LLM_BASE_URL: http://ollama:11434
+      LLM_MODEL: ${LLM_MODEL:-qwen2.5:7b-instruct}
+      EMBED_MODEL: ${EMBED_MODEL:-bge-m3}
+    depends_on: [ollama]
+    <<: *logging
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:
+  ollama:

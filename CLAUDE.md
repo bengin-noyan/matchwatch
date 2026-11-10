@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 matchwatch is an internal-audit engine for Turkish companies. It cross-checks purchase contracts, e-İrsaliye (`DespatchAdvice`) and e-Fatura (`Invoice`) documents in GİB UBL-TR 1.2 format, a "3-way match", and stores anomaly findings together with their evidence.
 
 - **Spec:** `docs/spec.md` is the authority. Its §4 "Kararlar" (D1–D15) deliberately deviate from the original "LeakZero" spec, and the D-decisions win where they conflict.
-- **Phases:** Faz 1 is the Go core and is done (merged to `main`). Faz 2a (PDF contract extraction via `ai-service/`) is merged to `main` (PR #2). Faz 2b (semantic item suggestions + human-confirmed aliases, D16) is merged (PR #3). Faz 2c (TCMB rates, D17) is merged (PR #4). Faz 3 (login, the Vue 3 web app in `web/`, dashboard, vendor pages, contract PDF viewer) is merged (PR #5). Faz 3e (invoice search, filters, paging) is merged (PR #6). Faz 3f (decision history) is merged (PR #7). Faz 3g (bulk decisions) is merged (PR #8). Faz 3h (alias management) is merged (PR #9). Faz 3i (public landing page on the login screen) is merged (PR #10). The planned web work is complete.
+- **Phases:** Faz 1 is the Go core and is done (merged to `main`). Faz 2a (PDF contract extraction via `ai-service/`) is merged to `main` (PR #2). Faz 2b (semantic item suggestions + human-confirmed aliases, D16) is merged (PR #3). Faz 2c (TCMB rates, D17) is merged (PR #4). Faz 3 (login, the Vue 3 web app in `web/`, dashboard, vendor pages, contract PDF viewer) is merged (PR #5). Faz 3e (invoice search, filters, paging) is merged (PR #6). Faz 3f (decision history) is merged (PR #7). Faz 3g (bulk decisions) is merged (PR #8). Faz 3h (alias management) is merged (PR #9). Faz 3i (public landing page on the login screen) is merged (PR #10). Faz 3j/3k (landing split from login, self sign-up) are merged (PR #12). The planned web work is complete. Faz 4 (production deployment) prep, the provider-agnostic part, is on branch `faz4-deploy-prep`.
 - **Faz 1 plan:** `docs/superpowers/plans/2026-11-02-faz1-go-core.md` lists tasks, interfaces and the exact expected test values.
 
 ## Commands
@@ -28,6 +28,10 @@ cd web && npm test && npm run build   # Vitest, then vue-tsc + vite build into w
 # one API serving the built SPA on one origin: WEB_DIR=../web/dist COOKIE_SECURE=false go run ./cmd/api
 printf 'a-long-password\n' | MIGRATE_DATABASE_URL=... go run ./cmd/onboard -name "Firma" -vkn 9876543210 -rate 0.45 -email user@firma.com.tr
 python -X utf8 -I scripts/seed-demo.py http://127.0.0.1:8080 user@firma.com.tr a-long-password  # dev: months of demo documents
+
+# production (docs/runbook.md): one image (Dockerfile) + Postgres + Caddy TLS; secrets in deploy/.env
+docker compose -f deploy/compose.prod.yml --env-file deploy/.env up -d --build
+bash scripts/backup.sh && bash scripts/restore-check.sh <backup folder>   # locally: COMPOSE="docker compose" STORAGE_PATH=backend-go/data
 
 cd backend-go
 go test ./...                     # unit tests; integration tests t.Skip without env
@@ -65,7 +69,7 @@ The data flow is: parse XML → persist → load audit input → match → run r
 - Bulk decisions (Faz 3g): `audit.Service.Resolve` takes a list of finding ids (PATCH passes one). It is all or nothing: an unknown id or another tenant's id fails the whole batch with 404. It first locks the findings' invoices in id order (`LockFindingInvoices`), the same lock `ResetAudit` takes first, so decisions cannot deadlock with a re-audit or with each other, and a decision can no longer leave the status stale behind a racing re-audit. Then it decides on each finding (each gets its own history row) and recomputes every touched invoice's status. `POST /findings/decisions` takes 1..200 ids. `GET /findings` lists findings across invoices (resolution/rule/vendor filters, largest impact first, counts per rule); the web screen Bulgular (`/bulgular`) ticks rows on a page and decides them with one note.
 - Alias management (Faz 3h): `GET /aliases` lists the confirmed item aliases with their contract item; `DELETE /aliases/{id}` (migration `010` grants DELETE) removes one and re-audits, after the delete commits, every invoice of that vendor with a line matched to that item, uom and name key, so the line falls back to `UNCONTRACTED_ITEM` with fresh suggestions. Findings a person already decided stay (normal re-audit rule). Web screen: Kalem eşleşmeleri (`/eslesmeler`), removal asks for a second click.
 - Landing (Faz 3i, split in 3j): guests opening `/` land on `/tanitim` (`LandingView.vue`), a deep link goes to `/giris?next=`. `/giris` (`LoginView.vue`) is only the login: a dark showcase panel (hidden on phones) beside the form. The landing has the hero, an animated SVG desk scene (`components/landing/AuditScene.vue`: contract and e-İrsaliye checked against an e-Fatura, red-pencil loop on the price, blue-ballpoint decision), facts, how it works, all nine rules, KVKK/trust. No external images or fonts (CSP and KVKK): everything is inline SVG and CSS. Motion stops under `prefers-reduced-motion`; in-page links scroll with `scrollIntoView` because the router's `scrollBehavior` would jump to the top on a hash change. Every number on the page is a product fact, not a marketing claim. 3k added the auto-rotating screen tour (`components/landing/ProductTour.vue`, sample data labelled as such), FAQ, closing call to action and footer.
-- Sign-up (Faz 3k): `/kayit` (`SignupView.vue`; it and `/giris` share `components/AuthLayout.vue` with a Giriş yap | Kaydol switch). `POST /auth/signup` {company, vkn, email, password} opens a **new, empty tenant** (financing rate 0) and its first user, then sets the session cookie (201). VKN/TCKN check digits are verified (`domain.ValidTaxID`); VKNs stay non-unique, so nobody can claim another company's VKN and lock it out. The user row goes in through `auth_signup(tenant, email, hash)` (migration `011`, `SECURITY DEFINER`), which only adds a user to a tenant that has none. Taken e-mail = 409 `EMAIL_TAKEN`; 5 attempts per client IP per hour (in-process, TCP peer: read the proxy header once Caddy is in front). `/auth/me`'s 401 does not trigger the expiry redirect (the router guard handles guests).
+- Sign-up (Faz 3k): `/kayit` (`SignupView.vue`; it and `/giris` share `components/AuthLayout.vue` with a Giriş yap | Kaydol switch). `POST /auth/signup` {company, vkn, email, password} opens a **new, empty tenant** (financing rate 0) and its first user, then sets the session cookie (201). VKN/TCKN check digits are verified (`domain.ValidTaxID`); VKNs stay non-unique, so nobody can claim another company's VKN and lock it out. The user row goes in through `auth_signup(tenant, email, hash)` (migration `011`, `SECURITY DEFINER`), which only adds a user to a tenant that has none. Taken e-mail = 409 `EMAIL_TAKEN`; 5 attempts per client IP per hour (in-process). The IP is the TCP peer; with `TRUST_PROXY=true` (set in the image) `BehindProxy` takes it from the right-most `X-Forwarded-For` entry, the one Caddy writes, so the API must be reachable only through Caddy. `/auth/me`'s 401 does not trigger the expiry redirect (the router guard handles guests).
 - `cmd/api`, `cmd/devtoken`, `cmd/migrate`, `cmd/onboard`. `scripts/smoke.sh` is the end-to-end check (expects `"caught_minor":21412`).
 
 ### Multi-tenancy (easy to break)
@@ -96,7 +100,7 @@ The data flow is: parse XML → persist → load audit input → match → run r
 - An LLM never computes amounts or makes approve/reject decisions.
 - `withholding_codes` is seeded from GİB "UBL-TR Kod Listeleri" V1.31 (2023). Code 619 is 70% (7/10, KDVGUT; V1.28–V1.31 printed "75/10" as a typo, fixed by V1.43). Verified unchanged against V1.43 (2026-11-04).
 
-## Current status (2026-11-06)
+## Current status (2026-11-10)
 
 - **Merged to `main`:**
   - Faz 1: PR #1, merge commit `0ceeca3`.
@@ -109,17 +113,26 @@ The data flow is: parse XML → persist → load audit input → match → run r
   - Faz 3g, bulk decisions: PR #8, merge commit `2f2892e`.
   - Faz 3h, alias management: PR #9, merge commit `6138aa0`.
   - Faz 3i, landing page on `/giris`: PR #10, merge commit `40739bc`.
-- **In progress:** nothing. `main` is clean and only `main` exists, locally and on GitHub.
+  - Docs status: PR #11, merge commit `1d45df2`.
+  - Faz 3j/3k, landing split from login and self sign-up: PR #12, merge commit `c3b068c`.
+- **In progress:** branch `faz4-deploy-prep`, the provider-agnostic production prep:
+  - `Dockerfile`: a single distroless image with api, migrate, onboard and the built SPA.
+  - `deploy/compose.prod.yml`: Postgres, a one-shot migrate, the API, Caddy for TLS, and AI behind `--profile ai`.
+  - `scripts/backup.sh` and `scripts/restore-check.sh`.
+  - `docs/runbook.md`.
+  - `TRUST_PROXY`.
+
+  The whole stack was verified locally with `DOMAIN=localhost`: TLS redirect, HSTS, onboard, login, an upload written to storage, the sign-up limit holding against forged `X-Forwarded-For`, and backup → restore-check.
 - **Next steps, in order:**
-  1. Production deployment (Faz 4): TR-region cloud, TLS, backups. Three decisions are waiting on the user: which TR cloud provider, which domain, where backups go. Until then, provider-agnostic prep can go ahead: a production compose file (API + Postgres + ai-service), Caddy for automatic TLS, a `pg_dump` + storage backup script with a restore check, and a runbook.
-  2. User invites and password reset (today only `cmd/onboard` creates users).
+  1. Finish Faz 4 once the user picks the provider, the domain and the off-host backup target (TR region, encrypted at rest): provision the host, DNS, the first deploy following the runbook, the backup cron and the off-host sync.
+  2. User invites and password reset (today users come only from `cmd/onboard` or sign-up).
   3. The `FX_RATE_DEVIATION` rule.
   - Optional, not requested yet: a compact mobile nav (7 menu items overflow on phones), a log of who removed an alias, a contact/pricing section on the landing page.
   - KVKK applies throughout (see the rulings below), and an LLM never computes amounts.
-- **Merging** is the user's call (`gh pr merge N --merge --delete-branch`); the auto-mode classifier blocks Claude from merging.
+- **Merging** is the user's call (`gh pr merge N --merge --delete-branch`). Claude merges only when the user explicitly asks (as with #11/#12 on 2026-11-10).
 - **Local demo:** run `cmd/onboard` once, then `scripts/seed-demo.py`, and serve with `WEB_DIR=../web/dist COOKIE_SECURE=false go run ./cmd/api`.
 - **Working mode:** Claude acts as Staff Architect / Principal Engineer. It decides technical and domain questions itself, records them as rulings and reports in Turkish. It does not hand these questions back to the user.
-- **Housekeeping:** delete each feature branch, locally and on GitHub, after its PR merges (all earlier ones are gone as of 2026-11-06).
+- **Housekeeping:** delete each feature branch, locally and on GitHub, after its PR merges (all earlier ones are gone as of 2026-11-10).
 
 - **Rulings that deviate from the plan text:**
   - The RLS policy wraps the setting in `NULLIF(...)`.
