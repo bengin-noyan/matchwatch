@@ -1,4 +1,4 @@
-# One image: the Go API serving the built SPA, plus the migrate and onboard commands.
+# One image: the Go API serving the built SPA, plus the migrate, onboard and resetlink commands.
 FROM node:24-alpine AS web
 WORKDIR /web
 COPY web/package.json web/package-lock.json ./
@@ -11,7 +11,7 @@ WORKDIR /src
 COPY backend-go/go.mod backend-go/go.sum ./
 RUN go mod download
 COPY backend-go/ ./
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/ ./cmd/api ./cmd/migrate ./cmd/onboard
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/ ./cmd/api ./cmd/migrate ./cmd/onboard ./cmd/resetlink
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=go /out/ /app/

@@ -13,6 +13,7 @@ const nav = [
   { to: '/eslesmeler', label: 'Kalem eşleşmeleri' },
   { to: '/yukle', label: 'Belge yükle' },
   { to: '/taslaklar', label: 'Sözleşme taslakları' },
+  { to: '/kullanicilar', label: 'Kullanıcılar' },
 ]
 
 async function logout() {

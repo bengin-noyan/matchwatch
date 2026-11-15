@@ -50,12 +50,18 @@ func NewRouter(store *repository.Store, auditor *audit.Service, storageDir strin
 	api.HandleFunc("GET /api/v1/dashboard", s.getDashboard)
 	api.HandleFunc("GET /api/v1/vendors", s.listVendors)
 	api.HandleFunc("GET /api/v1/vendors/{id}", s.getVendor)
+	api.HandleFunc("GET /api/v1/users", s.listUsers)
+	api.HandleFunc("POST /api/v1/users/{id}/reset-link", s.postResetLink)
+	api.HandleFunc("POST /api/v1/invites", s.postInvite)
+	api.HandleFunc("DELETE /api/v1/invites/{id}", s.deleteInvite)
 
 	root := http.NewServeMux()
 	root.HandleFunc("GET /healthz", s.healthz)
 	root.HandleFunc("POST /api/v1/auth/login", s.login) // the only API routes without a session
 	root.HandleFunc("POST /api/v1/auth/signup", s.signup)
 	root.HandleFunc("POST /api/v1/auth/logout", s.logout)
+	root.HandleFunc("POST /api/v1/auth/link", s.linkInfo)
+	root.HandleFunc("POST /api/v1/auth/redeem", s.redeemLink)
 	root.Handle("/api/", auth.Middleware(secret)(api))
 	return root
 }

@@ -46,6 +46,13 @@ async function submit() {
       </label>
       <p v-if="error" role="alert" class="text-pencil mb-4 text-sm">{{ error }}</p>
       <button type="submit" :disabled="busy" class="btn-primary w-full">{{ busy ? 'Giriş yapılıyor…' : 'Giriş yap' }}</button>
+      <details class="text-ink-soft mt-4 text-sm">
+        <summary class="text-ballpoint cursor-pointer font-semibold">Şifremi unuttum</summary>
+        <p class="mt-2">
+          Firmandan bir ekip arkadaşın, Kullanıcılar sayfasından sana tek kullanımlık bir şifre sıfırlama bağlantısı
+          oluşturabilir. Firmanda tek kullanıcıysan destekten bağlantı iste.
+        </p>
+      </details>
       <p class="text-ink-soft border-rule mt-6 border-t pt-4 text-sm">
         Hesabın yok mu? <RouterLink to="/kayit" class="text-ballpoint font-semibold hover:underline">Firman için hesap oluştur</RouterLink>
       </p>

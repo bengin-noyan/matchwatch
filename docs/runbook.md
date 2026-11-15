@@ -29,6 +29,12 @@ Still open, chosen by the owner: the cloud provider, the domain, and the off-hos
    printf '%s\n' "$PASSWORD" | dc run --rm -T --entrypoint /app/onboard api \
      -name "Firma A.Ş." -vkn 1234567890 -rate 0.45 -email kisi@firma.com.tr
    ```
+   Further users come from invites (Kullanıcılar page). A forgotten password: a colleague issues a reset link on
+   the same page; if the user is the company's only one, issue it yourself and hand it over only once you know
+   it is them (valid for one hour):
+   ```bash
+   dc run --rm --entrypoint /app/resetlink api -email kisi@firma.com.tr -base https://<domain>
+   ```
 
 ### With AI (contract extraction, item suggestions)
 

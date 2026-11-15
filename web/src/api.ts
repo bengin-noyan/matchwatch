@@ -198,6 +198,30 @@ export interface Me {
   tenant_name: string
 }
 
+export interface UserRow {
+  id: string
+  email: string
+  created_at: string
+}
+
+export interface InviteRow extends UserRow {
+  expires_at: string
+}
+
+// An invite or reset link's token, shown once; the server keeps only its hash.
+export interface LinkToken {
+  id?: string
+  email: string
+  token: string
+  expires_at: string
+}
+
+export interface LinkInfo {
+  kind: 'INVITE' | 'RESET'
+  email: string
+  tenant_name: string
+}
+
 export type DraftStatus = 'EXTRACTING' | 'READY' | 'FAILED' | 'APPROVED'
 
 export interface DraftSummary {
@@ -303,6 +327,13 @@ export const api = {
     request<Me>('POST', '/auth/signup', json(b), 'application/json'),
   logout: () => request<void>('POST', '/auth/logout'),
   me: () => request<Me>('GET', '/auth/me'),
+  linkInfo: (token: string) => request<LinkInfo>('POST', '/auth/link', json({ token }), 'application/json'),
+  redeem: (token: string, password: string) =>
+    request<Me>('POST', '/auth/redeem', json({ token, password }), 'application/json'),
+  users: () => request<{ users: UserRow[]; invites: InviteRow[] }>('GET', '/users'),
+  invite: (email: string) => request<LinkToken>('POST', '/invites', json({ email }), 'application/json'),
+  revokeInvite: (inviteId: string) => request<void>('DELETE', `/invites/${id(inviteId)}`),
+  resetLink: (userId: string) => request<LinkToken>('POST', `/users/${id(userId)}/reset-link`),
 
   invoices: (p: InvoiceQuery = {}) => {
     const qs = new URLSearchParams()
