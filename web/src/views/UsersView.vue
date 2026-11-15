@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// The company's logins and open invites. There is no mail delivery yet: an invite or reset makes a one-time link
-// that the person here copies and hands over themselves.
+// The company's logins and open invites. An invite link goes only to the invited address by e-mail, never to this
+// screen, so nobody can open an account in someone else's name. A forgotten password is reset from the login page.
 import { onMounted, ref } from 'vue'
 import { api, ApiError, type InviteRow, type UserRow } from '../api'
 import { formatDateTime } from '../money'
@@ -12,13 +12,13 @@ const invites = ref<InviteRow[]>([])
 const email = ref('')
 const error = ref('')
 const busy = ref(false)
-// the last link made: shown once, the server keeps only its hash
-const link = ref<{ url: string; text: string } | null>(null)
-const copied = ref(false)
+const done = ref('')
 
 const messages: Record<string, string> = {
   INVALID_EMAIL: 'E-posta adresi geçerli değil.',
   EMAIL_TAKEN: 'Bu e-postayla zaten bir hesap var.',
+  MAIL_DISABLED: 'Bu sunucuda e-posta gönderimi kapalı; davet gönderilemiyor.',
+  MAIL_FAILED: 'Davet e-postası gönderilemedi. Biraz sonra tekrar dene.',
 }
 const fail = (e: unknown, fallback: string) => {
   error.value = e instanceof ApiError ? (messages[e.code] ?? e.message) : fallback
@@ -35,34 +35,17 @@ async function load() {
 }
 onMounted(load)
 
-function show(path: string, token: string, text: string) {
-  link.value = { url: `${location.origin}${path}#${token}`, text }
-  copied.value = false
-}
-
 async function invite() {
   busy.value = true
   error.value = ''
+  done.value = ''
   try {
     const r = await api.invite(email.value)
-    show('/davet', r.token, `${r.email} için davet bağlantısı, ${formatDateTime(r.expires_at)} tarihine kadar bir kez kullanılabilir.`)
+    done.value = `Davet ${r.email} adresine gönderildi; ${formatDateTime(r.expires_at)} tarihine kadar geçerli.`
     email.value = ''
     await load()
   } catch (e) {
     fail(e, 'Davet oluşturulamadı.')
-  } finally {
-    busy.value = false
-  }
-}
-
-async function reset(u: UserRow) {
-  busy.value = true
-  error.value = ''
-  try {
-    const r = await api.resetLink(u.id)
-    show('/sifre', r.token, `${r.email} için şifre sıfırlama bağlantısı, ${formatDateTime(r.expires_at)} tarihine kadar bir kez kullanılabilir.`)
-  } catch (e) {
-    fail(e, 'Sıfırlama bağlantısı oluşturulamadı.')
   } finally {
     busy.value = false
   }
@@ -73,21 +56,12 @@ async function revoke(i: InviteRow) {
   error.value = ''
   try {
     await api.revokeInvite(i.id)
-    link.value = null
+    done.value = `${i.email} davetini iptal ettin.`
     await load()
   } catch (e) {
     fail(e, 'Davet iptal edilemedi.')
   } finally {
     busy.value = false
-  }
-}
-
-async function copy() {
-  try {
-    await navigator.clipboard.writeText(link.value!.url)
-    copied.value = true
-  } catch {
-    /* no clipboard access (http, old browser): the field is selectable */
   }
 }
 </script>
@@ -96,28 +70,21 @@ async function copy() {
   <header class="mb-6">
     <h1 class="text-3xl font-semibold tracking-tight">Kullanıcılar</h1>
     <p class="text-ink-soft mt-1 max-w-prose">
-      Firmanın hesabına giriş yapabilen kişiler. Yeni birini davet ettiğinde ya da birinin şifresini sıfırladığında
-      tek kullanımlık bir bağlantı oluşur; bağlantıyı kopyalayıp kişiye sen iletirsin.
+      Firmanın hesabına giriş yapabilen kişiler. Davet ettiğin kişiye tek kullanımlık bir bağlantı e-postayla gider;
+      şifresini o belirler. Şifresini unutan, giriş sayfasındaki “Şifremi unuttum” ile kendine yeni bağlantı ister.
     </p>
   </header>
 
   <p v-if="error" role="alert" class="text-pencil mb-4">{{ error }}</p>
 
-  <section v-if="link" class="bg-sheet border-ballpoint rounded-sheet mb-6 border-2 p-5" aria-labelledby="link-title">
-    <h2 id="link-title" class="text-ballpoint font-semibold">Bağlantı hazır</h2>
-    <p class="text-ink-soft mt-1 text-sm">{{ link.text }} Bu bağlantı yalnızca şimdi gösterilir.</p>
-    <div class="mt-3 flex flex-wrap gap-2">
-      <input :value="link.url" readonly aria-label="Bağlantı" class="field num min-w-0 flex-1 text-sm" @focus="($event.target as HTMLInputElement).select()" />
-      <button type="button" class="btn-primary" @click="copy">{{ copied ? 'Kopyalandı' : 'Kopyala' }}</button>
-    </div>
-  </section>
+  <p v-if="done" role="status" class="text-ballpoint mb-4 font-semibold">{{ done }}</p>
 
   <form class="bg-sheet border-rule rounded-sheet mb-6 flex flex-wrap items-end gap-3 border p-5" @submit.prevent="invite">
     <label class="min-w-0 flex-1">
       <span class="mb-1 block text-sm font-semibold">Davet edilecek kişinin e-postası</span>
       <input v-model="email" type="email" required maxlength="254" autocomplete="off" class="field" />
     </label>
-    <button type="submit" class="btn-primary" :disabled="busy">Davet bağlantısı oluştur</button>
+    <button type="submit" class="btn-primary" :disabled="busy">Davet gönder</button>
   </form>
 
   <template v-if="users">
@@ -136,9 +103,7 @@ async function copy() {
               {{ u.email }} <span v-if="u.email === session.me?.email" class="text-ink-soft font-normal">(sen)</span>
             </td>
             <td class="text-ink-soft num px-4 py-3">{{ formatDateTime(u.created_at) }} tarihinden beri</td>
-            <td class="px-4 py-3 text-right">
-              <button type="button" class="btn-secondary px-3 py-1 text-sm" :disabled="busy" @click="reset(u)">Şifre sıfırlama bağlantısı</button>
-            </td>
+            <td class="px-4 py-3" />
           </tr>
           <tr v-for="i in invites" :key="i.id" class="border-rule border-b last:border-b-0">
             <td class="px-4 py-3">{{ i.email }}</td>

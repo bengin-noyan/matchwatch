@@ -29,9 +29,11 @@ Still open, chosen by the owner: the cloud provider, the domain, and the off-hos
    printf '%s\n' "$PASSWORD" | dc run --rm -T --entrypoint /app/onboard api \
      -name "Firma A.Ş." -vkn 1234567890 -rate 0.45 -email kisi@firma.com.tr
    ```
-   Further users come from invites (Kullanıcılar page). A forgotten password: a colleague issues a reset link on
-   the same page; if the user is the company's only one, issue it yourself and hand it over only once you know
-   it is them (valid for one hour):
+   Further users come from invites (Kullanıcılar page), and a forgotten password is reset with "Şifremi unuttum"
+   on the login page. Both mail a one-time link, so set `MAIL_URL` and `MAIL_FROM` in `deploy/.env` (SMTP with
+   STARTTLS, a provider in Türkiye for KVKK; empty disables both). Test it once by inviting yourself.
+   If mail is down, you can issue a reset link yourself. Hand it over only once you know it is them (it is valid
+   for one hour):
    ```bash
    dc run --rm --entrypoint /app/resetlink api -email kisi@firma.com.tr -base https://<domain>
    ```

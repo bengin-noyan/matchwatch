@@ -1,13 +1,17 @@
--- Faz 5a: invites and password resets by one-time link. Like users, auth_tokens has no RLS (a link is redeemed
--- before any tenant is known); matchwatch_app gets no privileges on either table and reaches them only through the
--- functions below. Only the SHA-256 of a token is stored: the token itself is shown once, to the person who made it.
+-- Faz 5a: invites and password resets by one-time link, mailed to the address they are for (never shown to whoever
+-- asked for them, so nobody can take over a colleague's account). Like users, auth_tokens has no RLS (a link is
+-- redeemed before any tenant is known); matchwatch_app gets no privileges on either table and reaches them only
+-- through the functions below. Only the SHA-256 of a token is stored.
+
+-- A password reset ends every session issued before it (the middleware asks auth_session_ok on each request).
+ALTER TABLE users ADD COLUMN sessions_valid_after TIMESTAMPTZ NOT NULL DEFAULT '-infinity';
 CREATE TABLE auth_tokens (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   token_hash BYTEA NOT NULL UNIQUE CHECK (length(token_hash) = 32),
   kind       TEXT NOT NULL CHECK (kind IN ('INVITE', 'RESET')),
   tenant_id  UUID NOT NULL REFERENCES tenants(id),
   email      TEXT NOT NULL CHECK (email = lower(btrim(email)) AND email LIKE '%_@_%'),
-  created_by UUID, -- users.id without an FK, like finding_decisions; NULL = operator (cmd/resetlink) or a dev token
+  created_by UUID, -- the inviting users.id without an FK, like finding_decisions; NULL for resets and dev tokens
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   expires_at TIMESTAMPTZ NOT NULL,
   used_at    TIMESTAMPTZ
@@ -43,13 +47,14 @@ $$ WITH d AS (DELETE FROM public.auth_tokens t
               WHERE t.id = p_id AND t.tenant_id = p_tenant AND t.kind = 'INVITE' AND t.used_at IS NULL RETURNING 1)
    SELECT count(*) FROM d $$;
 
--- A reset link for a user of the tenant; it replaces that user's earlier unused ones. No row for another tenant's user.
-CREATE FUNCTION auth_reset_issue(p_tenant UUID, p_user UUID, p_by UUID, p_hash BYTEA) RETURNS TABLE (email TEXT, expires_at TIMESTAMPTZ)
+-- A reset link for a user of the tenant ("Şifremi unuttum" or cmd/resetlink); it replaces that user's earlier unused
+-- ones. No row for another tenant's user.
+CREATE FUNCTION auth_reset_issue(p_tenant UUID, p_user UUID, p_hash BYTEA) RETURNS TABLE (email TEXT, expires_at TIMESTAMPTZ)
   LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, public AS
 $$ WITH u AS (SELECT u.email FROM public.users u WHERE u.id = p_user AND u.tenant_id = p_tenant),
    gone AS (DELETE FROM public.auth_tokens t USING u WHERE t.kind = 'RESET' AND t.email = u.email AND t.used_at IS NULL)
    INSERT INTO public.auth_tokens(token_hash, kind, tenant_id, email, created_by, expires_at)
-   SELECT p_hash, 'RESET', p_tenant, u.email, p_by, now() + interval '1 hour' FROM u
+   SELECT p_hash, 'RESET', p_tenant, u.email, NULL, now() + interval '1 hour' FROM u
    RETURNING auth_tokens.email, auth_tokens.expires_at $$;
 
 -- What a still-valid link is for; no row for an unknown, used or expired one.
@@ -58,7 +63,14 @@ CREATE FUNCTION auth_token_info(p_hash BYTEA) RETURNS TABLE (kind TEXT, email TE
 $$ SELECT t.kind, t.email, t.tenant_id FROM public.auth_tokens t
    WHERE t.token_hash = p_hash AND t.used_at IS NULL AND t.expires_at > now() $$;
 
--- Uses a link once: an invite creates the login, a reset sets the new password. The UPDATE takes the row lock, so of
+-- Is a session token (sub = user, issued at p_iat) still good? No once the user is gone or reset the password after
+-- it was issued. JWT iat has whole seconds, so sessions_valid_after is truncated to the second as well: the session
+-- the reset itself opens stays valid (and so would one opened in that same second, before it).
+CREATE FUNCTION auth_session_ok(p_user UUID, p_tenant UUID, p_iat TIMESTAMPTZ) RETURNS BOOLEAN
+  LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, public AS
+$$ SELECT EXISTS (SELECT 1 FROM public.users u WHERE u.id = p_user AND u.tenant_id = p_tenant AND u.sessions_valid_after <= p_iat) $$;
+
+-- Uses a link once: an invite creates the login, a reset sets the new password and ends the older sessions. The UPDATE takes the row lock, so of
 -- two racing redeems only one gets a row. An invite whose e-mail got a login meanwhile raises a unique violation and
 -- the whole call, including used_at, rolls back.
 CREATE FUNCTION auth_redeem(p_hash BYTEA, p_password_hash TEXT) RETURNS TABLE (user_id UUID, tenant_id UUID)
@@ -77,15 +89,15 @@ BEGIN
     RETURN QUERY INSERT INTO public.users AS u (tenant_id, email, password_hash)
       VALUES (t.tenant_id, t.email, p_password_hash) RETURNING u.id, u.tenant_id;
   ELSE
-    RETURN QUERY UPDATE public.users u SET password_hash = p_password_hash
+    RETURN QUERY UPDATE public.users u SET password_hash = p_password_hash, sessions_valid_after = date_trunc('second', now())
       WHERE u.email = t.email AND u.tenant_id = t.tenant_id RETURNING u.id, u.tenant_id;
   END IF;
 END
 $$;
 
 REVOKE ALL ON FUNCTION auth_users(UUID), auth_invites(UUID), auth_invite(UUID, UUID, TEXT, BYTEA),
-  auth_invite_revoke(UUID, UUID), auth_reset_issue(UUID, UUID, UUID, BYTEA), auth_token_info(BYTEA),
-  auth_redeem(BYTEA, TEXT) FROM PUBLIC;
+  auth_invite_revoke(UUID, UUID), auth_reset_issue(UUID, UUID, BYTEA), auth_token_info(BYTEA),
+  auth_session_ok(UUID, UUID, TIMESTAMPTZ), auth_redeem(BYTEA, TEXT) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION auth_users(UUID), auth_invites(UUID), auth_invite(UUID, UUID, TEXT, BYTEA),
-  auth_invite_revoke(UUID, UUID), auth_reset_issue(UUID, UUID, UUID, BYTEA), auth_token_info(BYTEA),
-  auth_redeem(BYTEA, TEXT) TO matchwatch_app;
+  auth_invite_revoke(UUID, UUID), auth_reset_issue(UUID, UUID, BYTEA), auth_token_info(BYTEA),
+  auth_session_ok(UUID, UUID, TIMESTAMPTZ), auth_redeem(BYTEA, TEXT) TO matchwatch_app;

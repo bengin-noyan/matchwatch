@@ -65,10 +65,11 @@ const lead = computed(() => {
   <AuthLayout :title="title" :lead="lead">
     <div v-if="invalid">
       <p class="text-ink-soft text-sm">
-        Bağlantıyı sana ileten kişiden yeni bir bağlantı iste. Davetler 7 gün, şifre sıfırlama bağlantıları 1 saat
-        geçerlidir ve her biri bir kez kullanılabilir.
+        Davetler 7 gün, şifre sıfırlama bağlantıları 1 saat geçerlidir ve her biri bir kez kullanılabilir. Yeni bir davet
+        için seni davet eden kişiye yaz; şifren içinse yeni bir sıfırlama bağlantısı iste.
       </p>
-      <RouterLink to="/giris" class="btn-secondary mt-5 w-full">Giriş sayfasına git</RouterLink>
+      <RouterLink to="/sifremi-unuttum" class="btn-primary mt-5 w-full">Yeni sıfırlama bağlantısı iste</RouterLink>
+      <RouterLink to="/giris" class="btn-secondary mt-3 w-full">Giriş sayfasına git</RouterLink>
     </div>
     <form v-else-if="info" @submit.prevent="submit">
       <label class="mb-4 block">

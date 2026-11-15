@@ -9,6 +9,7 @@ export const router = createRouter({
     { path: '/kayit', name: 'signup', component: () => import('./views/SignupView.vue'), meta: { public: true } },
     // invite and reset links carry their token in the fragment, which never reaches a server log
     { path: '/davet', name: 'invite', component: () => import('./views/PasswordLinkView.vue'), meta: { public: true } },
+    { path: '/sifremi-unuttum', name: 'forgot', component: () => import('./views/ForgotView.vue'), meta: { public: true } },
     { path: '/sifre', name: 'reset', component: () => import('./views/PasswordLinkView.vue'), meta: { public: true } },
     { path: '/', name: 'dashboard', component: () => import('./views/DashboardView.vue') },
     { path: '/faturalar', name: 'invoices', component: () => import('./views/InvoicesView.vue') },

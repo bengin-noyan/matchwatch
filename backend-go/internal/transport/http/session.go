@@ -126,8 +126,9 @@ func (s *server) signup(w http.ResponseWriter, r *http.Request) {
 	}{email, company})
 }
 
+// validEmail is a shape check; it also keeps the address safe for a mail header (no spaces, controls or brackets).
 func validEmail(email string) bool {
-	return len(email) <= 254 && strings.Count(email, "@") == 1 && !strings.HasPrefix(email, "@") && !strings.HasSuffix(email, "@")
+	return len(email) <= 254 && !strings.ContainsFunc(email, func(r rune) bool { return r <= ' ' || strings.ContainsRune("<>,;\"()[]\\", r) }) && strings.Count(email, "@") == 1 && !strings.HasPrefix(email, "@") && !strings.HasSuffix(email, "@")
 }
 
 func validPassword(pw string) bool {

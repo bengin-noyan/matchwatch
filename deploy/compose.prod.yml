@@ -44,6 +44,9 @@ services:
       JWT_SECRET: ${JWT_SECRET:?}
       AI_SERVICE_URL: ${AI_SERVICE_URL:-}
       AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:-}
+      MAIL_URL: ${MAIL_URL:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      APP_BASE_URL: https://${DOMAIN:?}
     volumes:
       - ${STORAGE_PATH:?}:/data
     depends_on:

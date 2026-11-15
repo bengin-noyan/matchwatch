@@ -83,7 +83,7 @@ func multipartPDF(t *testing.T, content string) ([]byte, string) {
 
 // withAI swaps the env's router for one wired to ai.
 func (e *env) withAI(ai Extractor, timeout time.Duration) {
-	e.srv = NewRouter(e.store, audit.New(e.store, nil, nil), e.storage, secret, ai, timeout, false)
+	e.srv = NewRouter(e.store, audit.New(e.store, nil, nil), e.storage, secret, ai, timeout, false, e.mails, "https://mw.test")
 }
 
 func (e *env) upload(content string) (int, resp) {

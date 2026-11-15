@@ -7,6 +7,7 @@ import (
 
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/audit"
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/auth"
+	"github.com/bengin-noyan/matchwatch/backend-go/internal/mail"
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/repository"
 )
 
@@ -20,12 +21,15 @@ type server struct {
 	cookieSecure   bool
 	limiter        *auth.Limiter
 	signups        *auth.Limiter
+	forgots        *auth.Limiter
+	mailer         mail.Mailer // nil = invites and "Şifremi unuttum" disabled
+	baseURL        string      // the links in mails
 }
 
-func NewRouter(store *repository.Store, auditor *audit.Service, storageDir string, secret []byte, ai Extractor, extractTimeout time.Duration, cookieSecure bool) http.Handler {
+func NewRouter(store *repository.Store, auditor *audit.Service, storageDir string, secret []byte, ai Extractor, extractTimeout time.Duration, cookieSecure bool, mailer mail.Mailer, baseURL string) http.Handler {
 	s := &server{store: store, auditor: auditor, storageDir: storageDir, ai: ai, extractTimeout: extractTimeout,
 		secret: secret, cookieSecure: cookieSecure, limiter: auth.NewLimiter(10, 15*time.Minute),
-		signups: auth.NewLimiter(5, time.Hour)}
+		signups: auth.NewLimiter(5, time.Hour), forgots: auth.NewLimiter(5, time.Hour), mailer: mailer, baseURL: baseURL}
 	api := http.NewServeMux()
 	api.HandleFunc("GET /api/v1/auth/me", s.me)
 	api.HandleFunc("POST /api/v1/contracts", s.postContract)
@@ -51,7 +55,6 @@ func NewRouter(store *repository.Store, auditor *audit.Service, storageDir strin
 	api.HandleFunc("GET /api/v1/vendors", s.listVendors)
 	api.HandleFunc("GET /api/v1/vendors/{id}", s.getVendor)
 	api.HandleFunc("GET /api/v1/users", s.listUsers)
-	api.HandleFunc("POST /api/v1/users/{id}/reset-link", s.postResetLink)
 	api.HandleFunc("POST /api/v1/invites", s.postInvite)
 	api.HandleFunc("DELETE /api/v1/invites/{id}", s.deleteInvite)
 
@@ -60,8 +63,9 @@ func NewRouter(store *repository.Store, auditor *audit.Service, storageDir strin
 	root.HandleFunc("POST /api/v1/auth/login", s.login) // the only API routes without a session
 	root.HandleFunc("POST /api/v1/auth/signup", s.signup)
 	root.HandleFunc("POST /api/v1/auth/logout", s.logout)
+	root.HandleFunc("POST /api/v1/auth/forgot", s.forgot)
 	root.HandleFunc("POST /api/v1/auth/link", s.linkInfo)
 	root.HandleFunc("POST /api/v1/auth/redeem", s.redeemLink)
-	root.Handle("/api/", auth.Middleware(secret)(api))
+	root.Handle("/api/", auth.Middleware(secret, store.SessionOK)(api))
 	return root
 }

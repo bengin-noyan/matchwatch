@@ -7,14 +7,71 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/bengin-noyan/matchwatch/backend-go/internal/audit"
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/auth"
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/repository"
 )
+
+// mailbox records the mails the API sends instead of delivering them.
+type mailbox struct {
+	mu   sync.Mutex
+	sent []struct{ to, subject, body string }
+}
+
+func (m *mailbox) Send(_ context.Context, to, subject, body string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.sent = append(m.sent, struct{ to, subject, body string }{to, subject, body})
+	return nil
+}
+
+// count is how many mails went to address.
+func (m *mailbox) count(to string) int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	n := 0
+	for _, s := range m.sent {
+		if s.to == to {
+			n++
+		}
+	}
+	return n
+}
+
+// mailedToken waits (reset mails go out after the response) for the n-th mail (1-based) to address and returns the
+// token of the link in it, checking the link's page.
+func (e *env) mailedToken(to, page string, n int) string {
+	e.t.Helper()
+	for i := 0; i < 100; i++ {
+		e.mails.mu.Lock()
+		var seen int
+		for _, s := range e.mails.sent {
+			if s.to != to {
+				continue
+			}
+			if seen++; seen == n {
+				e.mails.mu.Unlock()
+				_, after, ok := strings.Cut(s.body, "https://mw.test"+page+"#")
+				tok, _, _ := strings.Cut(after, "\n")
+				if !ok || len(tok) != 43 {
+					e.t.Fatalf("mail to %s has no %s link:\n%s", to, page, s.body)
+				}
+				return tok
+			}
+		}
+		e.mails.mu.Unlock()
+		time.Sleep(20 * time.Millisecond)
+	}
+	e.t.Fatalf("no mail #%d to %s", n, to)
+	return ""
+}
 
 func sessionOf(rec interface{ Result() *http.Response }) *http.Cookie {
 	for _, c := range rec.Result().Cookies() {
@@ -48,8 +105,10 @@ func TestInviteFlow(t *testing.T) {
 		t.Fatal("login")
 	}
 
-	if rec := e.raw("POST", "/api/v1/invites", `{"email":"yok-at"}`, s); rec.Code != 422 {
-		t.Fatalf("bad e-mail: %d", rec.Code)
+	for _, bad := range []string{"yok-at", `a@b.c\r\nBcc: x@evil.com`, "a b@c.d"} {
+		if rec := e.raw("POST", "/api/v1/invites", `{"email":"`+bad+`"}`, s); rec.Code != 422 {
+			t.Errorf("bad e-mail %q: %d", bad, rec.Code)
+		}
 	}
 	if rec := e.raw("POST", "/api/v1/invites", `{"email":"`+admin+`"}`, s); rec.Code != 409 || !strings.Contains(rec.Body.String(), "EMAIL_TAKEN") {
 		t.Fatalf("invite an existing login: %d %s", rec.Code, rec.Body)
@@ -57,17 +116,21 @@ func TestInviteFlow(t *testing.T) {
 
 	newbie := "Yeni-" + uuid.NewString()[:8] + "@Firma.com.tr"
 	lower := strings.ToLower(newbie)
-	invite := func() (id, token string) {
+	invite := func() string {
 		rec := e.raw("POST", "/api/v1/invites", `{"email":" `+newbie+` "}`, s)
 		var out struct{ ID, Email, Token string }
 		json.Unmarshal(rec.Body.Bytes(), &out)
-		if rec.Code != 201 || out.Email != lower || len(out.Token) != 43 {
-			t.Fatalf("invite: %d %s", rec.Code, rec.Body)
+		if rec.Code != 201 || out.Email != lower || out.ID == "" || out.Token != "" || strings.Contains(rec.Body.String(), "token") {
+			t.Fatalf("invite (the token must only go by mail): %d %s", rec.Code, rec.Body)
 		}
-		return out.ID, out.Token
+		return out.ID
 	}
-	_, first := invite()
-	id, token := invite() // replaces the first
+	invite()
+	id := invite() // replaces the first
+	first, token := e.mailedToken(lower, "/davet", 1), e.mailedToken(lower, "/davet", 2)
+	if e.mails.sent[len(e.mails.sent)-1].body == "" || !strings.Contains(e.mails.sent[len(e.mails.sent)-1].body, admin) {
+		t.Fatalf("invite mail does not say who invited: %s", e.mails.sent[len(e.mails.sent)-1].body)
+	}
 	if rec := e.raw("POST", "/api/v1/auth/link", `{"token":"`+first+`"}`, nil); rec.Code != 404 {
 		t.Fatalf("replaced invite still valid: %d", rec.Code)
 	}
@@ -106,23 +169,21 @@ func TestInviteFlow(t *testing.T) {
 func TestInviteRevokeAndTenantIsolation(t *testing.T) {
 	a := setup(t, "9876543210")
 	b := setup(t, "9876543210")
-	invite := func(e *env) (id, token string) {
-		var out struct{ ID, Token string }
-		rec := e.api("POST", "/api/v1/invites", `{"email":"iptal-`+uuid.NewString()[:8]+`@firma.com.tr"}`)
-		json.Unmarshal(rec.Body.Bytes(), &out)
-		if rec.Code != 201 {
-			t.Fatalf("invite: %d %s", rec.Code, rec.Body)
-		}
-		return out.ID, out.Token
+	email := "iptal-" + uuid.NewString()[:8] + "@firma.com.tr"
+	var out struct{ ID string }
+	rec := a.api("POST", "/api/v1/invites", `{"email":"`+email+`"}`)
+	json.Unmarshal(rec.Body.Bytes(), &out)
+	if rec.Code != 201 {
+		t.Fatalf("invite: %d %s", rec.Code, rec.Body)
 	}
-	id, token := invite(a)
-	if rec := b.api("DELETE", "/api/v1/invites/"+id, ""); rec.Code != 404 {
+	token := a.mailedToken(email, "/davet", 1)
+	if rec := b.api("DELETE", "/api/v1/invites/"+out.ID, ""); rec.Code != 404 {
 		t.Fatalf("other tenant revoked an invite: %d", rec.Code)
 	}
-	if rec := b.api("GET", "/api/v1/users", ""); strings.Contains(rec.Body.String(), id) {
+	if rec := b.api("GET", "/api/v1/users", ""); strings.Contains(rec.Body.String(), out.ID) {
 		t.Fatalf("other tenant sees the invite: %s", rec.Body)
 	}
-	if rec := a.api("DELETE", "/api/v1/invites/"+id, ""); rec.Code != 204 {
+	if rec := a.api("DELETE", "/api/v1/invites/"+out.ID, ""); rec.Code != 204 {
 		t.Fatalf("revoke: %d", rec.Code)
 	}
 	if rec := a.raw("POST", "/api/v1/auth/redeem", `{"token":"`+token+`","password":"yeni-uye-sifresi"}`, nil); rec.Code != 404 {
@@ -130,46 +191,78 @@ func TestInviteRevokeAndTenantIsolation(t *testing.T) {
 	}
 }
 
-func TestResetLink(t *testing.T) {
+func TestForgotPasswordEndsOldSessions(t *testing.T) {
 	e := setup(t, "9876543210")
-	other := setup(t, "9876543210")
 	user := "unutkan-" + uuid.NewString()[:8] + "@firma.com.tr"
-	uid := e.addUser(user, "eski-sifre-123")
+	e.addUser(user, "eski-sifre-123")
+	old := e.loginAs(user, "eski-sifre-123")
+	if old == nil {
+		t.Fatal("login")
+	}
 
-	if rec := other.api("POST", "/api/v1/users/"+uid.String()+"/reset-link", ""); rec.Code != 404 {
-		t.Fatalf("other tenant issued a reset link: %d", rec.Code)
-	}
-	issue := func() string {
-		var out struct{ Email, Token string }
-		rec := e.api("POST", "/api/v1/users/"+uid.String()+"/reset-link", "")
-		json.Unmarshal(rec.Body.Bytes(), &out)
-		if rec.Code != 201 || out.Email != user {
-			t.Fatalf("reset link: %d %s", rec.Code, rec.Body)
+	unknown := "yok-" + uuid.NewString()[:8] + "@firma.com.tr"
+	for _, mail := range []string{unknown, " " + strings.ToUpper(user) + " "} {
+		if rec := e.raw("POST", "/api/v1/auth/forgot", `{"email":"`+mail+`"}`, nil); rec.Code != 202 || rec.Body.Len() != 0 {
+			t.Fatalf("forgot %s: %d %s", mail, rec.Code, rec.Body)
 		}
-		return out.Token
 	}
-	first := issue()
-	token := issue()
-	if rec := e.raw("POST", "/api/v1/auth/redeem", `{"token":"`+first+`","password":"yeni-sifre-4567"}`, nil); rec.Code != 404 {
-		t.Fatalf("replaced reset link still works: %d", rec.Code)
+	token := e.mailedToken(user, "/sifre", 1)
+	if e.mails.count(unknown) != 0 {
+		t.Fatal("mailed an address without an account")
 	}
 	if rec := e.raw("POST", "/api/v1/auth/link", `{"token":"`+token+`"}`, nil); !strings.Contains(rec.Body.String(), `"kind":"RESET"`) {
 		t.Fatalf("link info: %s", rec.Body)
 	}
+
+	time.Sleep(1100 * time.Millisecond) // JWT iat has whole seconds; the old session must be from an earlier one
 	rec := e.raw("POST", "/api/v1/auth/redeem", `{"token":"`+token+`","password":"yeni-sifre-4567"}`, nil)
-	if rec.Code != 200 || sessionOf(rec) == nil {
+	fresh := sessionOf(rec)
+	if rec.Code != 200 || fresh == nil {
 		t.Fatalf("redeem: %d %s", rec.Code, rec.Body)
+	}
+	if rec := e.raw("GET", "/api/v1/auth/me", "", old); rec.Code != 401 {
+		t.Fatalf("session from before the reset still works: %d", rec.Code)
+	}
+	if rec := e.raw("GET", "/api/v1/auth/me", "", fresh); rec.Code != 200 {
+		t.Fatalf("session the reset opened: %d", rec.Code)
 	}
 	if e.loginAs(user, "eski-sifre-123") != nil || e.loginAs(user, "yeni-sifre-4567") == nil {
 		t.Fatal("password not replaced")
+	}
+	// the dev token has no user behind it and is not affected
+	if rec := e.api("GET", "/api/v1/users", ""); rec.Code != 200 {
+		t.Fatalf("dev token: %d", rec.Code)
+	}
+}
+
+func TestForgotPasswordLimit(t *testing.T) {
+	e := setup(t, "9876543210")
+	mail := "sel-" + uuid.NewString()[:8] + "@firma.com.tr"
+	for i := 0; i < 5; i++ {
+		e.raw("POST", "/api/v1/auth/forgot", `{"email":"`+mail+`"}`, nil)
+	}
+	if rec := e.raw("POST", "/api/v1/auth/forgot", `{"email":"`+mail+`"}`, nil); rec.Code != 429 {
+		t.Fatalf("want 429 after five requests, got %d", rec.Code)
+	}
+}
+
+func TestMailDisabled(t *testing.T) {
+	e := setup(t, "9876543210")
+	e.srv = NewRouter(e.store, audit.New(e.store, nil, nil), e.storage, secret, nil, 0, false, nil, "")
+	if rec := e.api("POST", "/api/v1/invites", `{"email":"a@b.c"}`); rec.Code != 503 || !strings.Contains(rec.Body.String(), "MAIL_DISABLED") {
+		t.Fatalf("invite without mail: %d %s", rec.Code, rec.Body)
+	}
+	if rec := e.raw("POST", "/api/v1/auth/forgot", `{"email":"a@b.c"}`, nil); rec.Code != 503 {
+		t.Fatalf("forgot without mail: %d", rec.Code)
 	}
 }
 
 func TestExpiredLink(t *testing.T) {
 	e := setup(t, "9876543210")
-	var out struct{ ID, Token string }
-	rec := e.api("POST", "/api/v1/invites", `{"email":"gec-`+uuid.NewString()[:8]+`@firma.com.tr"}`)
-	json.Unmarshal(rec.Body.Bytes(), &out)
+	email := "gec-" + uuid.NewString()[:8] + "@firma.com.tr"
+	var out struct{ ID string }
+	json.Unmarshal(e.api("POST", "/api/v1/invites", `{"email":"`+email+`"}`).Body.Bytes(), &out)
+	token := e.mailedToken(email, "/davet", 1)
 	ctx := context.Background()
 	owner, err := pgx.Connect(ctx, os.Getenv("MATCHWATCH_TEST_MIGRATE_URL"))
 	if err != nil {
@@ -179,10 +272,10 @@ func TestExpiredLink(t *testing.T) {
 	if _, err := owner.Exec(ctx, `UPDATE auth_tokens SET expires_at = now() - interval '1 second' WHERE id = $1`, out.ID); err != nil {
 		t.Fatal(err)
 	}
-	if rec := e.raw("POST", "/api/v1/auth/link", `{"token":"`+out.Token+`"}`, nil); rec.Code != 404 {
+	if rec := e.raw("POST", "/api/v1/auth/link", `{"token":"`+token+`"}`, nil); rec.Code != 404 {
 		t.Fatalf("expired link info: %d", rec.Code)
 	}
-	if rec := e.raw("POST", "/api/v1/auth/redeem", `{"token":"`+out.Token+`","password":"yeni-uye-sifresi"}`, nil); rec.Code != 404 {
+	if rec := e.raw("POST", "/api/v1/auth/redeem", `{"token":"`+token+`","password":"yeni-uye-sifresi"}`, nil); rec.Code != 404 {
 		t.Fatalf("expired link redeemed: %d", rec.Code)
 	}
 }

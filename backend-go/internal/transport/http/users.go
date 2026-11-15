@@ -1,8 +1,11 @@
 package transporthttp
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"log"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -14,11 +17,9 @@ import (
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/repository"
 )
 
-// Invites and password resets travel as one-time links that a person hands over: there is no mail delivery yet
-// (its provider is a Faz 4 decision, KVKK). Every user of a company may invite and issue reset links; there are no
-// roles yet.
-// shortcut: a reset does not end sessions already open (JWTs are stateless, 8 h); revoke them when roles or a
-// session table arrive.
+// Invites and password resets are one-time links mailed to the address they are for. Nobody else ever sees the
+// token, so no colleague (and no inviter) can use a link meant for someone else. Every user of a company may invite;
+// there are no roles yet.
 
 // actor is the signed-in user, nil for a dev token (sub is not a user id).
 func actor(r *http.Request) *uuid.UUID {
@@ -47,14 +48,20 @@ func (s *server) listUsers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, out)
 }
 
-type linkOut struct {
-	ID        *uuid.UUID `json:"id,omitempty"`
-	Email     string     `json:"email"`
-	Token     string     `json:"token"` // shown once; only its hash is stored
-	ExpiresAt time.Time  `json:"expires_at"`
+const mailTimeout = 20 * time.Second
+
+func (s *server) mailDisabled(w http.ResponseWriter) bool {
+	if s.mailer == nil {
+		writeErr(w, 503, "MAIL_DISABLED", "e-mail is not configured on this server (MAIL_URL)")
+		return true
+	}
+	return false
 }
 
 func (s *server) postInvite(w http.ResponseWriter, r *http.Request) {
+	if s.mailDisabled(w) {
+		return
+	}
 	var req struct{ Email string }
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&req); err != nil {
 		writeErr(w, 400, "BAD_REQUEST", "body must be a JSON object with email")
@@ -67,8 +74,17 @@ func (s *server) postInvite(w http.ResponseWriter, r *http.Request) {
 	}
 	token, hash := auth.NewLinkToken()
 	var inv repository.InviteRow
+	var tenant, inviter string
 	err := s.store.InTenant(r.Context(), auth.TenantID(r.Context()), func(tx *repository.Tx) (err error) {
-		inv, err = tx.CreateInvite(r.Context(), actor(r), email, hash)
+		if inv, err = tx.CreateInvite(r.Context(), actor(r), email, hash); err != nil {
+			return err
+		}
+		if by := actor(r); by != nil {
+			if inviter, err = tx.UserEmail(r.Context(), *by); err != nil {
+				return err
+			}
+		}
+		tenant, err = tx.TenantName(r.Context())
 		return err
 	})
 	if errors.Is(err, repository.ErrDuplicateEmail) {
@@ -79,7 +95,22 @@ func (s *server) postInvite(w http.ResponseWriter, r *http.Request) {
 		fail(w, err)
 		return
 	}
-	writeJSON(w, 201, linkOut{&inv.ID, inv.Email, token, inv.ExpiresAt})
+	who := tenant
+	if inviter != "" {
+		who = inviter + " (" + tenant + ")"
+	}
+	body := "Merhaba,\n\n" + who + " sizi matchwatch'a davet etti. Şifrenizi belirleyip hesabınızı açmak için:\n\n" +
+		s.baseURL + "/davet#" + token + "\n\nBağlantı 7 gün geçerlidir ve bir kez kullanılabilir. Bu daveti beklemiyorsanız " +
+		"bu e-postayı yok sayabilirsiniz.\n\nmatchwatch\n"
+	ctx, cancel := context.WithTimeout(r.Context(), mailTimeout)
+	defer cancel()
+	if err := s.mailer.Send(ctx, inv.Email, "matchwatch daveti: "+tenant, body); err != nil {
+		// the invite stays but nobody has its token; inviting again replaces it
+		log.Printf("invite mail: %v", err)
+		writeErr(w, 502, "MAIL_FAILED", "the invite e-mail could not be sent; try again")
+		return
+	}
+	writeJSON(w, 201, inv)
 }
 
 func (s *server) deleteInvite(w http.ResponseWriter, r *http.Request) {
@@ -97,23 +128,61 @@ func (s *server) deleteInvite(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (s *server) postResetLink(w http.ResponseWriter, r *http.Request) {
-	userID, ok := pathID(r)
-	if !ok {
-		writeErr(w, 404, "NOT_FOUND", "not found")
+// forgot ("Şifremi unuttum", no session) mails a reset link when the e-mail has a login. It always answers 202 at
+// once and does the work after the response, so neither the answer nor its timing tells whether an account exists.
+func (s *server) forgot(w http.ResponseWriter, r *http.Request) {
+	if s.mailDisabled(w) {
+		return
+	}
+	var req struct{ Email string }
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&req); err != nil {
+		writeErr(w, 400, "BAD_REQUEST", "body must be a JSON object with email")
+		return
+	}
+	email := strings.ToLower(strings.TrimSpace(req.Email))
+	if !validEmail(email) {
+		writeErr(w, 422, "INVALID_EMAIL", "email is not a valid address")
+		return
+	}
+	ip, _, err := net.SplitHostPort(r.RemoteAddr) // the client, behind Caddy (see signup)
+	if err != nil {
+		ip = r.RemoteAddr
+	}
+	// per address and per mailbox, so nobody can flood one inbox from many addresses
+	if s.forgots.Blocked("ip:"+ip) || s.forgots.Blocked("mail:"+email) {
+		writeErr(w, 429, "TOO_MANY_RESETS", "too many reset requests; try again later")
+		return
+	}
+	s.forgots.Fail("ip:" + ip)
+	s.forgots.Fail("mail:" + email)
+	go s.mailReset(email)
+	w.WriteHeader(http.StatusAccepted)
+}
+
+func (s *server) mailReset(email string) {
+	ctx, cancel := context.WithTimeout(context.Background(), mailTimeout)
+	defer cancel()
+	cred, ok, err := s.store.LookupLogin(ctx, email)
+	if err != nil || !ok {
+		if err != nil {
+			log.Printf("reset lookup: %v", err)
+		}
 		return
 	}
 	token, hash := auth.NewLinkToken()
-	out := linkOut{Token: token}
-	err := s.store.InTenant(r.Context(), auth.TenantID(r.Context()), func(tx *repository.Tx) (err error) {
-		out.Email, out.ExpiresAt, err = tx.CreateResetLink(r.Context(), userID, actor(r), hash)
+	if err := s.store.InTenant(ctx, cred.TenantID, func(tx *repository.Tx) error {
+		_, _, err := tx.CreateResetLink(ctx, cred.UserID, hash)
 		return err
-	})
-	if err != nil {
-		fail(w, err)
+	}); err != nil {
+		log.Printf("reset link: %v", err)
 		return
 	}
-	writeJSON(w, 201, out)
+	body := "Merhaba,\n\nmatchwatch hesabınız için şifre sıfırlama istendi. Yeni şifrenizi belirlemek için:\n\n" +
+		s.baseURL + "/sifre#" + token + "\n\nBağlantı 1 saat geçerlidir ve bir kez kullanılabilir. Yeni şifreyi kaydettiğinizde " +
+		"açık bütün oturumlarınız kapanır. Bunu siz istemediyseniz bu e-postayı yok sayın; şifreniz değişmez.\n\nmatchwatch\n"
+	if err := s.mailer.Send(ctx, email, "matchwatch şifre sıfırlama", body); err != nil {
+		log.Printf("reset mail: %v", err)
+	}
 }
 
 // linkInfo (no session) tells the link page what a link is for. The token comes in the body, never the URL, so it

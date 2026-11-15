@@ -44,7 +44,7 @@ func main() {
 	}
 	token, hash := auth.NewLinkToken()
 	err = store.InTenant(ctx, cred.TenantID, func(tx *repository.Tx) error {
-		_, _, err := tx.CreateResetLink(ctx, cred.UserID, nil, hash)
+		_, _, err := tx.CreateResetLink(ctx, cred.UserID, hash)
 		return err
 	})
 	if err != nil {

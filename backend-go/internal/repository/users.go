@@ -133,11 +133,11 @@ func (tx *Tx) RevokeInvite(ctx context.Context, id uuid.UUID) error {
 }
 
 // CreateResetLink stores a reset link's hash for a user of the tenant and returns that user's e-mail and the
-// link's expiry; another tenant's user is ErrNotFound. by is nil for the operator or a dev token.
-func (tx *Tx) CreateResetLink(ctx context.Context, userID uuid.UUID, by *uuid.UUID, hash []byte) (string, time.Time, error) {
+// link's expiry; another tenant's user is ErrNotFound.
+func (tx *Tx) CreateResetLink(ctx context.Context, userID uuid.UUID, hash []byte) (string, time.Time, error) {
 	var email string
 	var exp time.Time
-	err := tx.QueryRow(ctx, `SELECT email, expires_at FROM auth_reset_issue($1, $2, $3, $4)`, tx.tenantID, userID, by, hash).
+	err := tx.QueryRow(ctx, `SELECT email, expires_at FROM auth_reset_issue($1, $2, $3)`, tx.tenantID, userID, hash).
 		Scan(&email, &exp)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", exp, ErrNotFound
@@ -174,4 +174,12 @@ func (s *Store) RedeemLink(ctx context.Context, hash []byte, passwordHash string
 		return c, false, ErrDuplicateEmail
 	}
 	return c, err == nil, wrap("redeem link", err)
+}
+
+// SessionOK reports whether a session token issued at iat for this user is still good: the user exists in the
+// tenant and has not reset the password since.
+func (s *Store) SessionOK(ctx context.Context, userID, tenantID uuid.UUID, iat time.Time) (bool, error) {
+	var ok bool
+	err := s.pool.QueryRow(ctx, `SELECT auth_session_ok($1, $2, $3)`, userID, tenantID, iat).Scan(&ok)
+	return ok, wrap("session check", err)
 }

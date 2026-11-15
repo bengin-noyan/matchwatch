@@ -16,39 +16,42 @@ async function mountIt() {
 const button = (w: Awaited<ReturnType<typeof mountIt>>, text: string) => w.findAll('button').find((b) => b.text() === text)
 
 describe('UsersView', () => {
-  it('invites by e-mail and shows the one-time link', async () => {
+  it('sends an invite by e-mail and never shows a link', async () => {
     vi.spyOn(api, 'users').mockResolvedValueOnce({ users: [user], invites: [] }).mockResolvedValueOnce({ users: [user], invites: [invite] })
-    const create = vi.spyOn(api, 'invite').mockResolvedValue({ id: 'i1', email: invite.email, token: 'tok', expires_at: invite.expires_at })
+    const create = vi.spyOn(api, 'invite').mockResolvedValue(invite)
     const w = await mountIt()
     await w.find('input[type=email]').setValue(invite.email)
     await w.find('form').trigger('submit')
     await flushPromises()
     expect(create).toHaveBeenCalledWith(invite.email)
-    expect((w.find('input[aria-label=Bağlantı]').element as HTMLInputElement).value).toBe(`${location.origin}/davet#tok`)
+    expect(w.find('[role=status]').text()).toContain('Davet yeni@firma.com.tr adresine gönderildi')
+    expect(w.html()).not.toContain('#')
     expect(w.text()).toContain('Davet edildi')
+    expect(button(w, 'Şifre sıfırlama bağlantısı')).toBeUndefined() // nobody can reset a colleague's password
   })
 
-  it('makes a reset link for a user and revokes an invite', async () => {
+  it('revokes an invite', async () => {
     vi.spyOn(api, 'users').mockResolvedValue({ users: [user], invites: [invite] })
-    const reset = vi.spyOn(api, 'resetLink').mockResolvedValue({ email: user.email, token: 'rst', expires_at: '2026-11-15T10:00:00Z' })
     const revoke = vi.spyOn(api, 'revokeInvite').mockResolvedValue()
     const w = await mountIt()
-    await button(w, 'Şifre sıfırlama bağlantısı')!.trigger('click')
-    await flushPromises()
-    expect(reset).toHaveBeenCalledWith('u1')
-    expect((w.find('input[aria-label=Bağlantı]').element as HTMLInputElement).value).toBe(`${location.origin}/sifre#rst`)
     await button(w, 'Daveti iptal et')!.trigger('click')
     await flushPromises()
     expect(revoke).toHaveBeenCalledWith('i1')
   })
 
-  it('says when the e-mail already has an account', async () => {
+  it('says when mail is off or the e-mail already has an account', async () => {
     vi.spyOn(api, 'users').mockResolvedValue({ users: [user], invites: [] })
-    vi.spyOn(api, 'invite').mockRejectedValue(new ApiError(409, 'EMAIL_TAKEN', 'taken'))
+    const create = vi.spyOn(api, 'invite')
     const w = await mountIt()
-    await w.find('input[type=email]').setValue(user.email)
-    await w.find('form').trigger('submit')
-    await flushPromises()
-    expect(w.find('[role=alert]').text()).toBe('Bu e-postayla zaten bir hesap var.')
+    for (const [err, text] of [
+      [new ApiError(409, 'EMAIL_TAKEN', 'taken'), 'Bu e-postayla zaten bir hesap var.'],
+      [new ApiError(503, 'MAIL_DISABLED', 'off'), 'Bu sunucuda e-posta gönderimi kapalı; davet gönderilemiyor.'],
+    ] as const) {
+      create.mockRejectedValueOnce(err)
+      await w.find('input[type=email]').setValue(user.email)
+      await w.find('form').trigger('submit')
+      await flushPromises()
+      expect(w.find('[role=alert]').text()).toBe(text)
+    }
   })
 })
