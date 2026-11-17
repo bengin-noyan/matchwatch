@@ -1,0 +1,63 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    env:
+      POSTGRES_PORT: "5432"
+      POSTGRES_PASSWORD: ci-postgres-pw
+      MATCHWATCH_OWNER_PASSWORD: ci-owner-pw
+      MATCHWATCH_APP_PASSWORD: ci-app-pw
+      MATCHWATCH_TEST_DATABASE_URL: postgres://matchwatch_app:ci-app-pw@localhost:5432/matchwatch?sslmode=disable
+      MATCHWATCH_TEST_MIGRATE_URL: postgres://matchwatch_owner:ci-owner-pw@localhost:5432/matchwatch?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend-go/go.mod
+          cache-dependency-path: backend-go/go.sum
+      # Rolleri yerelde olduğu gibi deploy/postgres/00-init.sh kursun diye Postgres'i compose ile açıyoruz.
+      - run: docker compose up -d --wait postgres
+      - name: gofmt
+        working-directory: backend-go
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+      - run: go vet ./...
+        working-directory: backend-go
+      - run: go test ./... -count=1
+        working-directory: backend-go
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+
+  ai-service:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ai-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: ai-service/requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      - run: python -m pytest -q

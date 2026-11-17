@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 matchwatch is an internal-audit engine for Turkish companies. It cross-checks purchase contracts, e-İrsaliye (`DespatchAdvice`) and e-Fatura (`Invoice`) documents in GİB UBL-TR 1.2 format, a "3-way match", and stores anomaly findings together with their evidence.
 
 - **Spec:** `docs/spec.md` is the authority. Its §4 "Kararlar" (D1–D15) deliberately deviate from the original "LeakZero" spec, and the D-decisions win where they conflict.
-- **Phases:** Faz 1 is the Go core and is done (merged to `main`). Faz 2a (PDF contract extraction via `ai-service/`) is merged to `main` (PR #2). Faz 2b (semantic item suggestions + human-confirmed aliases, D16) is merged (PR #3). Faz 2c (TCMB rates, D17) is merged (PR #4). Faz 3 (login, the Vue 3 web app in `web/`, dashboard, vendor pages, contract PDF viewer) is merged (PR #5). Faz 3e (invoice search, filters, paging) is merged (PR #6). Faz 3f (decision history) is merged (PR #7). Faz 3g (bulk decisions) is merged (PR #8). Faz 3h (alias management) is merged (PR #9). Faz 3i (public landing page on the login screen) is merged (PR #10). Faz 3j/3k (landing split from login, self sign-up) are merged (PR #12). The planned web work is complete. Faz 4 prep (the provider-agnostic production setup) is merged (PR #13). Faz 5a (user invites and password reset by one-time link) is merged (PR #14). The `FX_RATE_DEVIATION` rule (D18) is on branch `fx-rate-deviation`.
+- **Phases:** Faz 1 is the Go core and is done (merged to `main`). Faz 2a (PDF contract extraction via `ai-service/`) is merged to `main` (PR #2). Faz 2b (semantic item suggestions + human-confirmed aliases, D16) is merged (PR #3). Faz 2c (TCMB rates, D17) is merged (PR #4). Faz 3 (login, the Vue 3 web app in `web/`, dashboard, vendor pages, contract PDF viewer) is merged (PR #5). Faz 3e (invoice search, filters, paging) is merged (PR #6). Faz 3f (decision history) is merged (PR #7). Faz 3g (bulk decisions) is merged (PR #8). Faz 3h (alias management) is merged (PR #9). Faz 3i (public landing page on the login screen) is merged (PR #10). Faz 3j/3k (landing split from login, self sign-up) are merged (PR #12). The planned web work is complete. Faz 4 prep (the provider-agnostic production setup) is merged (PR #13). Faz 5a (user invites and password reset by one-time link) is merged (PR #14). The `FX_RATE_DEVIATION` rule (D18) is merged (PR #15), and the code comments were rewritten in plain Turkish (PR #16).
 - **Faz 1 plan:** `docs/superpowers/plans/2026-11-02-faz1-go-core.md` lists tasks, interfaces and the exact expected test values.
 
 ## Commands
@@ -125,7 +125,9 @@ The data flow is: parse XML → persist → load audit input → match → run r
 
   The whole stack was verified locally with `DOMAIN=localhost`: TLS redirect, HSTS, onboard, login, an upload written to storage, the sign-up limit holding against forged `X-Forwarded-For`, and backup → restore-check.
   - Faz 5a, user invites and password reset: PR #14, merge commit `1cb87c5`.
-- **In progress:** branch `fx-rate-deviation`, the `FX_RATE_DEVIATION` rule (D18, see Architecture).
+  - `FX_RATE_DEVIATION` rule (D18): PR #15, merge commit `764d3ae`.
+  - Code comments rewritten in plain Turkish: PR #16, merge commit `4e85f47`.
+- **CI:** `.github/workflows/ci.yml` runs on every PR and on `main`: Go (gofmt, vet, tests with the integration tests against a compose Postgres), web (Vitest + build) and ai-service (pytest; the OCR test skips without tesseract).
 - **Next steps, in order:**
   1. Finish Faz 4 once the user picks the provider, the domain and the off-host backup target (TR region, encrypted at rest): provision the host, DNS, the first deploy following the runbook, the backup cron and the off-host sync.
   - Faz 4 also picks the SMTP provider (TR region, KVKK) for `MAIL_URL`; until then production has no invites or "Şifremi unuttum".
@@ -146,7 +148,7 @@ The data flow is: parse XML → persist → load audit input → match → run r
   - The raw XML path includes the document kind.
   - Migration `004` adds the payment-term page and clause, and `CHECK (qty > 0)`.
   - Parser bounds: amounts and quantities below 1e15, prices below 1e13, currency `^[A-Z]{3}$`.
-  - The `go` directive is 1.25.0 (required by pgx).
+  - The `go` directive is 1.26.0 (pgx needs 1.25; `golang.org/x/crypto`, added for login in Faz 3a, raised it to 1.26).
 - **Known open minors:**
   - Summed allowance and tax totals are not bounded.
   - A post-commit audit failure leaves the invoice PENDING; recover with `POST /invoices/{id}/audit`.
