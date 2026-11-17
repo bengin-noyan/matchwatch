@@ -11,6 +11,7 @@ export const ruleLabel: Record<string, string> = {
   UNCONTRACTED_ITEM: 'Sözleşmede olmayan kalem',
   UOM_MISMATCH: 'Birim uyuşmuyor',
   FX_UNVERIFIED: 'Kur doğrulanamadı',
+  FX_RATE_DEVIATION: 'Faturadaki kur TCMB’den farklı',
 }
 
 export const statusLabel: Record<AuditStatus, string> = {

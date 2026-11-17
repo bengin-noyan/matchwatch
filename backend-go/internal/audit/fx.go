@@ -26,7 +26,8 @@ const fxTimeout = 20 * time.Second
 var trt = time.FixedZone("TRT", 3*60*60) // Türkiye has no DST since 2016
 
 // fxFallback finds TCMB rates (D17) from the invoice currency to every contract item currency the invoice's own
-// PricingExchangeRate does not cover: forex buying of the latest bulletin published before the issue date.
+// PricingExchangeRate does not cover, plus that rate's own pair (D18): forex buying of the latest bulletin published
+// before the issue date.
 // It runs outside the audit transaction because it may call TCMB; any error means "no fallback" (FX_UNVERIFIED).
 func (s *Service) fxFallback(ctx context.Context, tenantID, invoiceID uuid.UUID) (map[string]domain.ExchangeRate, error) {
 	if s.fx == nil {
@@ -45,6 +46,9 @@ func (s *Service) fxFallback(ctx context.Context, tenantID, invoiceID uuid.UUID)
 			if it.Currency != inv.Currency && (r == nil || r.Source != inv.Currency || r.Target != it.Currency) {
 				need[it.Currency] = true
 			}
+		}
+		if r := inv.ExchangeRate; r != nil && r.Source == inv.Currency && r.Target != r.Source {
+			need[r.Target] = true // D18: the invoice's own rate is checked against TCMB, contract or not
 		}
 		return err
 	})

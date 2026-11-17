@@ -34,7 +34,7 @@ type Input struct {
 	Duplicates          []domain.DuplicateCandidate
 	WithholdingPercents map[string]decimal.Decimal
 	FinancingRateAnnual decimal.Decimal
-	FXFallback          map[string]domain.ExchangeRate // TCMB rates from the invoice currency, by target (D17)
+	FXFallback          map[string]domain.ExchangeRate // TCMB rates from the invoice currency, by target (D17, D18)
 }
 
 // Run applies every rule in a fixed order: per line (in input order), then header rules.
@@ -49,5 +49,6 @@ func Run(in Input) []domain.Finding {
 	}
 	out = append(out, maturityViolation(in)...)
 	out = append(out, duplicateSuspect(in)...)
+	out = append(out, fxRateDeviation(in)...)
 	return out
 }

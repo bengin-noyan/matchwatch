@@ -18,7 +18,7 @@ describe('LandingView', () => {
     const { w } = await mountAt('/tanitim')
     expect(w.find('h1').text()).toContain('Sözleşmede ne yazıyorsa')
     expect(w.findAll('#nasil li')).toHaveLength(3)
-    expect(w.findAll('#kurallar li')).toHaveLength(9)
+    expect(w.findAll('#kurallar li')).toHaveLength(10)
     expect(w.text()).toContain('Sözleşmeden yüksek fiyat')
     expect(w.text()).toContain('52 GİB tevkifat kodu') // jsdom has no IntersectionObserver: numbers show final values
     expect(w.find('svg[role=img] title').text()).toContain('470,00 TL')

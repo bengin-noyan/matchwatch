@@ -37,6 +37,8 @@ const sides = computed<[string, string]>(() => {
       return ['Sözleşmedeki birim', 'Faturadaki birim']
     case 'FX_UNVERIFIED':
       return ['Sözleşme para birimi', 'Fatura para birimi']
+    case 'FX_RATE_DEVIATION':
+      return [`TCMB döviz alış kuru (${formatDate(str('tcmb_rate_date'))} bülteni)`, 'Faturadaki kur']
     default:
       return ['Beklenen', 'Faturada']
   }

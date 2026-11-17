@@ -153,9 +153,10 @@ func TestPriceUsesTCMBFallback(t *testing.T) {
 
 func TestPriceInvoiceRateBeatsTCMB(t *testing.T) {
 	in, _ := usdLine()
-	in.Invoice.ExchangeRate = &domain.ExchangeRate{Source: "TRY", Target: "USD", Rate: dec("0.0195")}
+	in.Invoice.ExchangeRate = &domain.ExchangeRate{Source: "TRY", Target: "USD", Rate: dec("0.0199")} // 0.5% off: trusted (D18)
 	in.FXFallback = map[string]domain.ExchangeRate{"USD": {Source: "TRY", Target: "USD", Rate: dec("0.02"), TCMBDate: date("2026-02-27")}}
-	if fs := Run(in); len(fs) != 0 { // 20 * 0.0195 = 0.39: no mismatch, TCMB ignored
+	fs := Run(in) // 20 * 0.0199 = 0.398 vs 0.39 -> 0.08 USD (TCMB would give 0.10)
+	if len(fs) != 1 || fs[0].ImpactMinor != 8 || fs[0].Evidence["fx_rate"] != "0.0199" || fs[0].Evidence["fx_source"] != nil {
 		t.Fatalf("%+v", fs)
 	}
 }

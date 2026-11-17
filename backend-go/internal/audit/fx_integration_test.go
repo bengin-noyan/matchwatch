@@ -93,6 +93,32 @@ func TestTCMBFallbackWeekendChainAndCache(t *testing.T) {
 	}
 }
 
+func TestFXRateDeviationAgainstTCMB(t *testing.T) {
+	e := setup(t)
+	clearFX(t)
+	f := &fakeTCMB{days: map[string][]domain.FXQuote{"2026-02-27": {
+		{Currency: "USD", Unit: 1, ForexBuying: decimal.RequireFromString("40.0000")}}}}
+	e.svc = New(e.store, nil, f)
+	inv := e.ingest(t, false)
+	// the TRY contract needs no rate; the invoice's own USD->TRY 42 is still checked (D18)
+	e.exec(t, `UPDATE invoices SET currency='USD', fx_source='USD', fx_target='TRY', fx_rate=42 WHERE id=$1`, inv)
+	var payable int64
+	if err := e.store.InTenant(context.Background(), e.tid, func(tx *repository.Tx) error {
+		return tx.QueryRow(context.Background(), `SELECT payable_minor FROM invoices WHERE id=$1`, inv).Scan(&payable)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	e.audit(t, inv)
+	rows := e.findings(t, inv)
+	d := ruleRow(rows, domain.RuleFXRateDeviation, "")
+	if d == nil || d.impact != payable*2 || d.evidence["deviation_pct"] != "5.00" || d.evidence["tcmb_rate_date"] != "2026-02-27" {
+		t.Fatalf("findings %v / %+v", sig(rows), d)
+	}
+	if p := ruleRow(rows, domain.RulePriceMismatch, "1"); p == nil || p.evidence["fx_source"] != "TCMB" || p.evidence["fx_rate"] != "40" {
+		t.Fatalf("price must use TCMB, not the deviating rate: %v / %+v", sig(rows), p)
+	}
+}
+
 func TestTCMBTransientErrorIsNotCached(t *testing.T) {
 	e := setup(t)
 	clearFX(t)

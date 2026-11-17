@@ -36,7 +36,7 @@ if (typeof IntersectionObserver !== 'undefined') {
 
 // Facts, counted up when they come into view. Every number here is a property of the product, not a claim.
 const facts = [
-  { n: 9, label: 'denetim kuralı', note: 'fiyat, miktar, vade, tevkifat, kur, mükerrerlik…' },
+  { n: 10, label: 'denetim kuralı', note: 'fiyat, miktar, vade, tevkifat, kur, mükerrerlik…' },
   { n: 3, label: 'belge, tek bakışta', note: 'sözleşme, e-İrsaliye ve e-Fatura' },
   { n: 52, label: 'GİB tevkifat kodu', note: 'UBL-TR Kod Listeleri V1.43 ile doğrulandı' },
   { n: 0, label: 'tutar yapay zekâya hesaplatılır', note: 'her kuruş kuralla, kanıtıyla' },
@@ -79,6 +79,7 @@ const rules: { code: string; text: string }[] = [
   { code: 'UNCONTRACTED_ITEM', text: 'Sözleşmede olmayan bir kalem faturalanmış; benzer kalemler önerilir.' },
   { code: 'UOM_MISMATCH', text: 'Faturadaki birim sözleşmedekiyle aynı değil.' },
   { code: 'FX_UNVERIFIED', text: 'Döviz kuru doğrulanamadı; faturada yoksa TCMB kuruna bakılır.' },
+  { code: 'FX_RATE_DEVIATION', text: 'Faturadaki kur, TCMB döviz alış kurundan %1’den fazla sapıyor.' },
 ]
 
 const trust = ['Kurulum yok, tarayıcıda çalışır', 'Veriler Türkiye’de (KVKK)', 'GİB UBL-TR 1.2']
