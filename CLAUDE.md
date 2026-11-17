@@ -148,7 +148,7 @@ The data flow is: parse XML → persist → load audit input → match → run r
   - The raw XML path includes the document kind.
   - Migration `004` adds the payment-term page and clause, and `CHECK (qty > 0)`.
   - Parser bounds: amounts and quantities below 1e15, prices below 1e13, currency `^[A-Z]{3}$`.
-  - The `go` directive is 1.25.0 (required by pgx).
+  - The `go` directive is 1.26.0 (pgx needs 1.25; `golang.org/x/crypto`, added for login in Faz 3a, raised it to 1.26).
 - **Known open minors:**
   - Summed allowance and tax totals are not bounded.
   - A post-commit audit failure leaves the invoice PENDING; recover with `POST /invoices/{id}/audit`.
