@@ -164,6 +164,19 @@ export interface AliasRow {
   uom: string
   contract_item: ContractItemRow
   created_at: string
+  confirmed_by_email: string | null // dev token'la ya da kayıt tutulmaya başlamadan önce onaylandıysa null
+}
+
+// Kaldırılmış bir eşleşmenin kaydı: neydi, kim, ne zaman kaldırdı.
+export interface RemovedAlias {
+  vendor_id: string
+  vendor_name: string
+  name_key: string
+  uom: string
+  contract_no: string
+  item_name: string
+  removed_by_email: string | null
+  removed_at: string
 }
 
 export interface VendorRow {
@@ -350,7 +363,7 @@ export const api = {
   decideMany: (findingIds: string[], resolution_status: Resolution, note: string) =>
     request<{ updated: number }>('POST', '/findings/decisions',
       json({ finding_ids: findingIds, resolution_status, note }), 'application/json'),
-  aliases: (vendorId?: string) => request<{ items: AliasRow[] }>('GET', `/aliases${vendorId ? `?vendor_id=${id(vendorId)}` : ''}`),
+  aliases: (vendorId?: string) => request<{ items: AliasRow[]; removed: RemovedAlias[] }>('GET', `/aliases${vendorId ? `?vendor_id=${id(vendorId)}` : ''}`),
   deleteAlias: (aliasId: string) => request<{ reaudited: string[] }>('DELETE', `/aliases/${id(aliasId)}`),
   matchLine: (lineId: string, contractItemId: string) =>
     request<{ invoice_id: string; audit_status: AuditStatus }>('POST', `/invoice-lines/${id(lineId)}/match`,

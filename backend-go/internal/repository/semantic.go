@@ -93,8 +93,9 @@ func (tx *Tx) Suggestions(ctx context.Context, contractID uuid.UUID, uom, model 
 }
 
 // UpsertAlias, lineID'deki kalem adının (o tedarikçi ve birim için) itemID anlamına geldiğini kaydeder; önceki seçimin
-// yerine geçer. Satırın faturasını döner ki çağıran onu yeniden denetleyebilsin.
-func (tx *Tx) UpsertAlias(ctx context.Context, lineID, itemID uuid.UUID) (uuid.UUID, error) {
+// yerine geçer ve kimin onayladığını alias_events'e yazar (by, dev token'da nil). Satırın faturasını döner ki çağıran
+// onu yeniden denetleyebilsin.
+func (tx *Tx) UpsertAlias(ctx context.Context, lineID, itemID uuid.UUID, by *uuid.UUID) (uuid.UUID, error) {
 	var invoiceID, vendorID, itemVendor uuid.UUID
 	var name, uom string
 	err := tx.QueryRow(ctx, `SELECT il.invoice_id, i.vendor_id, il.item_name, il.uom FROM invoice_lines il
@@ -122,11 +123,23 @@ func (tx *Tx) UpsertAlias(ctx context.Context, lineID, itemID uuid.UUID) (uuid.U
 	if key == "" {
 		return uuid.Nil, ErrEmptyItemName
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO item_aliases(tenant_id, vendor_id, name_key, uom, contract_item_id) VALUES ($1,$2,$3,$4,$5)
-		ON CONFLICT (tenant_id, vendor_id, name_key, uom) DO UPDATE SET contract_item_id=EXCLUDED.contract_item_id, created_at=now()`,
-		tx.tenantID, vendorID, key, uom, itemID)
+	_, err = tx.Exec(ctx, `WITH a AS (
+			INSERT INTO item_aliases(tenant_id, vendor_id, name_key, uom, contract_item_id) VALUES ($1,$4,$5,$6,$7)
+			ON CONFLICT (tenant_id, vendor_id, name_key, uom) DO UPDATE SET contract_item_id=EXCLUDED.contract_item_id, created_at=now()
+			RETURNING id, vendor_id, name_key, uom, contract_item_id)
+		`+aliasEventSQL, tx.tenantID, "CONFIRMED", by, vendorID, key, uom, itemID)
 	return invoiceID, wrap("upsert alias", err)
 }
+
+// aliasEventSQL, `a` adlı CTE'deki eşleşme için bir alias_events satırı ekler; $1 tenant, $2 olay, $3 kişi. Sözleşme
+// kalemi ve kişinin e-postası o anki halleriyle kopyalanır.
+const aliasEventSQL = `INSERT INTO alias_events(tenant_id, alias_id, contract_item_id, action, vendor_id, name_key, uom,
+		contract_no, item_name, by_user, by_email)
+	SELECT $1, a.id, a.contract_item_id, $2, a.vendor_id, a.name_key, a.uom, c.contract_no, ci.item_name,
+		$3::uuid, (SELECT email FROM auth_user($3::uuid, $1))
+	FROM a JOIN contract_items ci ON ci.tenant_id=$1 AND ci.id=a.contract_item_id
+	JOIN contracts c ON c.tenant_id=ci.tenant_id AND c.id=ci.contract_id
+	RETURNING vendor_id, name_key, uom, contract_item_id`
 
 // AliasRow, bir insanın onayladığı tek bir kalem eşleşmesi ve gösterdiği sözleşme kalemidir.
 type AliasRow struct {
@@ -137,12 +150,28 @@ type AliasRow struct {
 	UOM          string          `json:"uom"`
 	ContractItem ContractItemRow `json:"contract_item"`
 	CreatedAt    time.Time       `json:"created_at"` // onaylandığı (ya da en son değiştirildiği) zaman
+	// Son onaylayanın e-postası; dev token'la ya da migration 014'ten önce onaylananlarda null.
+	ConfirmedByEmail *string `json:"confirmed_by_email"`
+}
+
+// RemovedAlias, kaldırılmış bir eşleşmenin kaydıdır: neydi, kim, ne zaman kaldırdı.
+type RemovedAlias struct {
+	VendorID       uuid.UUID `json:"vendor_id"`
+	VendorName     string    `json:"vendor_name"`
+	NameKey        string    `json:"name_key"`
+	UOM            string    `json:"uom"`
+	ContractNo     string    `json:"contract_no"`
+	ItemName       string    `json:"item_name"`
+	RemovedByEmail *string   `json:"removed_by_email"` // dev token'la kaldırıldıysa null
+	RemovedAt      time.Time `json:"removed_at"`
 }
 
 // ListAliases, tenant'ın eşleşmelerini (istenirse tek bir tedarikçininkileri) tedarikçi ve ada göre sıralı döner.
 // shortcut: sayfalama yok; bir tenant'ta on binlerce değil yüzlerce eşleşme olmasını bekliyoruz.
 func (tx *Tx) ListAliases(ctx context.Context, vendorID *uuid.UUID) ([]AliasRow, error) {
 	rows, err := tx.Query(ctx, `SELECT a.id, a.vendor_id, v.name, a.name_key, a.uom, a.created_at,
+		(SELECT e.by_email FROM alias_events e WHERE e.tenant_id=a.tenant_id AND e.alias_id=a.id AND e.action='CONFIRMED'
+			ORDER BY e.at DESC LIMIT 1),
 		ci.id, c.contract_no, ci.item_code, ci.item_name, ci.unit_price::text, ci.currency, ci.uom, ci.source_page, ci.source_clause_text
 		FROM item_aliases a
 		JOIN vendors v ON v.tenant_id=a.tenant_id AND v.id=a.vendor_id
@@ -157,7 +186,7 @@ func (tx *Tx) ListAliases(ctx context.Context, vendorID *uuid.UUID) ([]AliasRow,
 	for rows.Next() {
 		var a AliasRow
 		ci := &a.ContractItem
-		if err := rows.Scan(&a.ID, &a.VendorID, &a.VendorName, &a.NameKey, &a.UOM, &a.CreatedAt,
+		if err := rows.Scan(&a.ID, &a.VendorID, &a.VendorName, &a.NameKey, &a.UOM, &a.CreatedAt, &a.ConfirmedByEmail,
 			&ci.ID, &ci.ContractNo, &ci.ItemCode, &ci.Name, &ci.UnitPrice, &ci.Currency, &ci.UOM, &ci.SourcePage, &ci.SourceClauseText); err != nil {
 			return nil, wrap("scan alias", err)
 		}
@@ -166,13 +195,37 @@ func (tx *Tx) ListAliases(ctx context.Context, vendorID *uuid.UUID) ([]AliasRow,
 	return out, rows.Err()
 }
 
-// DeleteAlias bir eşleşmeyi siler ve bir satırı bu eşleşmeyle eşleşmiş faturaları döner, ki çağıran onları yeniden
-// denetleyebilsin (bu satırlar yeni önerilerle UNCONTRACTED_ITEM'a döner).
-func (tx *Tx) DeleteAlias(ctx context.Context, id uuid.UUID) ([]uuid.UUID, error) {
+// ListRemovedAliases, kaldırılan eşleşmelerin kaydını (istenirse tek bir tedarikçininkileri) en yenisi başta döner.
+// shortcut: son 50 kayıt; daha eskisi gerekirse sayfalama eklenir.
+func (tx *Tx) ListRemovedAliases(ctx context.Context, vendorID *uuid.UUID) ([]RemovedAlias, error) {
+	rows, err := tx.Query(ctx, `SELECT e.vendor_id, v.name, e.name_key, e.uom, e.contract_no, e.item_name, e.by_email, e.at
+		FROM alias_events e JOIN vendors v ON v.tenant_id=e.tenant_id AND v.id=e.vendor_id
+		WHERE e.tenant_id=$1 AND e.action='REMOVED' AND ($2::uuid IS NULL OR e.vendor_id=$2) ORDER BY e.at DESC LIMIT 50`,
+		tx.tenantID, vendorID)
+	if err != nil {
+		return nil, wrap("list removed aliases", err)
+	}
+	defer rows.Close()
+	out := []RemovedAlias{}
+	for rows.Next() {
+		var r RemovedAlias
+		if err := rows.Scan(&r.VendorID, &r.VendorName, &r.NameKey, &r.UOM, &r.ContractNo, &r.ItemName, &r.RemovedByEmail, &r.RemovedAt); err != nil {
+			return nil, wrap("scan removed alias", err)
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+// DeleteAlias bir eşleşmeyi siler, kimin kaldırdığını alias_events'e yazar (by, dev token'da nil) ve bir satırı bu
+// eşleşmeyle eşleşmiş faturaları döner, ki çağıran onları yeniden denetleyebilsin (bu satırlar yeni önerilerle
+// UNCONTRACTED_ITEM'a döner).
+func (tx *Tx) DeleteAlias(ctx context.Context, id uuid.UUID, by *uuid.UUID) ([]uuid.UUID, error) {
 	var vendorID, itemID uuid.UUID
 	var key, uom string
-	err := tx.QueryRow(ctx, `DELETE FROM item_aliases WHERE tenant_id=$1 AND id=$2 RETURNING vendor_id, name_key, uom, contract_item_id`,
-		tx.tenantID, id).Scan(&vendorID, &key, &uom, &itemID)
+	err := tx.QueryRow(ctx, `WITH a AS (
+			DELETE FROM item_aliases WHERE tenant_id=$1 AND id=$4 RETURNING id, vendor_id, name_key, uom, contract_item_id)
+		`+aliasEventSQL, tx.tenantID, "REMOVED", by, id).Scan(&vendorID, &key, &uom, &itemID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
