@@ -1,6 +1,7 @@
 <script setup lang="ts">
-// /davet#<token> and /sifre#<token>: set a password from an invite or a reset link, then land signed in. The token
-// lives in the URL fragment, so it never reaches a server or proxy log; the API gets it in a POST body.
+// /davet#<token> ve /sifre#<token>: davet ya da sıfırlama bağlantısıyla şifre belirlenir, sonra kullanıcı giriş yapmış
+// olarak içeri girer. Token URL'nin # kısmında durur, böylece hiçbir sunucu ya da proxy loguna düşmez; API onu bir POST
+// gövdesinde alır.
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api, ApiError, type LinkInfo } from '../api'

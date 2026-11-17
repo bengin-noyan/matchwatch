@@ -20,7 +20,8 @@ func tokenSet(names []string) map[string]bool {
 	return set
 }
 
-// tokenJaccard is |A∩B| / |A∪B| over the Turkish-lowercased word tokens of all names.
+// tokenJaccard, iki faturadaki kalem adlarının ne kadar benzediğini ölçer: ortak kelime sayısı / toplam farklı kelime
+// sayısı. Kelimeler Türkçe kurallarıyla küçük harfe çevrilir.
 func tokenJaccard(a, b []string) decimal.Decimal {
 	sa, sb := tokenSet(a), tokenSet(b)
 	inter := 0
@@ -47,7 +48,7 @@ func duplicateSuspect(in Input) []domain.Finding {
 	for _, c := range in.Duplicates {
 		switch {
 		case c.Number == in.Invoice.Number:
-			reason = "same_number" // same_number wins when mixed with amount matches
+			reason = "same_number" // aynı fatura numarası, tutar eşleşmesinden önce gelir
 		case c.PayableMinor == in.Invoice.PayableMinor && tokenJaccard(names, c.LineNames).GreaterThanOrEqual(threshold):
 			if reason == "" {
 				reason = "same_amount_similar_items"

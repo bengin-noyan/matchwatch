@@ -5,8 +5,8 @@ import (
 	"time"
 )
 
-// Limiter counts failed logins per key (e-mail) in a sliding window.
-// shortcut: in-process memory, correct for one API instance; move to Postgres when the API runs replicated.
+// Limiter, başarısız girişleri anahtara (e-posta) göre kayan bir zaman penceresinde sayar.
+// shortcut: sayaç bellekte tutuluyor, tek API örneği için doğru; API birden çok kopya çalışınca Postgres'e taşı.
 type Limiter struct {
 	mu     sync.Mutex
 	max    int
@@ -35,7 +35,7 @@ func (l *Limiter) recent(key string) []time.Time {
 	return kept
 }
 
-// Blocked reports whether key has used up its failed attempts in the window.
+// Blocked, anahtarın penceredeki başarısız deneme hakkını bitirip bitirmediğini söyler.
 func (l *Limiter) Blocked(key string) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -54,5 +54,5 @@ func (l *Limiter) Reset(key string) {
 	delete(l.fails, key)
 }
 
-// PasswordCost is the bcrypt cost for stored passwords (cmd/onboard) and the login timing decoy.
+// PasswordCost, saklanan şifrelerin bcrypt maliyeti (cmd/onboard). Girişte zamanlamayı eşitlemek için de kullanılır.
 const PasswordCost = 12

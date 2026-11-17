@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# End-to-end AI smoke: real Postgres, Ollama + ai-service containers, real API binary.
-# PDF -> draft -> approved contract, then a code-less invoice line -> suggestion -> confirmed alias -> PRICE_MISMATCH.
+# Yapay zekâ için uçtan uca duman testi: gerçek Postgres, Ollama ve ai-service konteynerleri, gerçek API programı.
+# PDF -> taslak -> onaylı sözleşme, sonra kodsuz bir fatura satırı -> öneri -> onaylanan eşleşme -> PRICE_MISMATCH.
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
@@ -16,7 +16,7 @@ api_pid=""
 cleanup() { [ -n "$api_pid" ] && kill "$api_pid" 2>/dev/null || true; rm -rf "$tmp"; }
 trap cleanup EXIT
 
-# CPU inference is slow: generous timeouts.
+# CPU'da model çalıştırmak yavaş: süreleri bol tutuyoruz.
 export LLM_TIMEOUT_S=900 EXTRACT_DEADLINE_S=870 AI_EXTRACT_TIMEOUT=15m AI_SERVICE_URL=http://127.0.0.1:8090
 port="${SMOKE_PORT:-18089}"
 export HTTP_ADDR="127.0.0.1:$port" STORAGE_DIR="$tmp/storage"
@@ -48,12 +48,13 @@ for i in $(seq 1 30); do
 done
 
 pdf="$root/ai-service/tests/fixtures/contract_text.pdf"
-if command -v cygpath >/dev/null; then pdf="$(cygpath -m "$pdf")"; fi # native curl needs a Windows path
+if command -v cygpath >/dev/null; then pdf="$(cygpath -m "$pdf")"; fi # Windows'taki curl Windows yolu ister
 code="$(curl -sS --max-time 1200 -o "$tmp/draft.json" -w '%{http_code}' -X POST "$base/api/v1/contract-drafts" \
   -H "Authorization: Bearer $token" -F "file=@$pdf;type=application/pdf")"
 [ "$code" = 201 ] || { echo "upload -> $code" >&2; cat "$tmp/draft.json" >&2; exit 1; }
 
-# Prints status/contract_no/warnings, writes the approval body ($tmp/contract.json), fails on missing required fields.
+# Durumu, sözleşme numarasını ve uyarıları yazdırır, onay gövdesini ($tmp/contract.json) yazar, zorunlu bir alan eksikse
+# hata verir.
 python -X utf8 -I - "$tmp/draft.json" "$tmp/contract.json" <<'PY'
 import json, sys
 r = json.load(open(sys.argv[1], encoding="utf-8"))
@@ -82,7 +83,7 @@ id="$(python -X utf8 -I -c "import json,sys;print(json.load(open(sys.argv[1]))['
 st="$(curl -sSf "$base/api/v1/contract-drafts/$id" -H "Authorization: Bearer $token" | python -X utf8 -I -c "import json,sys;print(json.load(sys.stdin)['status'])")"
 [ "$st" = APPROVED ] || { echo "draft status $st, want APPROVED" >&2; exit 1; }
 
-# Faz 2b (D16): the invoice says "BEYAZ PEYNIR TAM YAGLI 1KG" with no code; the contract item is "Beyaz Peynir 1 kg".
+# Faz 2b (D16): faturada kodsuz "BEYAZ PEYNIR TAM YAGLI 1KG" yazıyor; sözleşmedeki kalem "Beyaz Peynir 1 kg".
 inv="$(cat "$root/backend-go/testdata/invoice_semantic.xml")"
 inv="${inv//3d2c1b0a-9f8e-4d7c-8b6a-5f4e3d2c1b0a/$(python -I -c 'import uuid;print(uuid.uuid4())')}"
 printf '%s' "$inv" >"$tmp/invoice.xml"
@@ -91,7 +92,7 @@ code="$(curl -sS --max-time 300 -o "$tmp/inv.json" -w '%{http_code}' -X POST "$b
 inv_id="$(python -X utf8 -I -c "import json,sys;print(json.load(open(sys.argv[1]))['id'])" "$tmp/inv.json")"
 curl -sSf "$base/api/v1/invoices/$inv_id" -H "Authorization: Bearer $token" >"$tmp/detail.json"
 
-# Prints the suggestions, writes the confirm body and the line id, fails unless the cheese item is suggested first.
+# Önerileri yazdırır, onay gövdesini ve satır id'sini yazar; peynir kalemi ilk öneri değilse hata verir.
 python -X utf8 -I - "$tmp/detail.json" "$tmp/match.json" "$tmp/line_id" <<'PY'
 import json, sys
 d = json.load(open(sys.argv[1], encoding="utf-8"))

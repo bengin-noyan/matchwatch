@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
-/* Faz 3 design tokens (docs/superpowers/specs/2026-11-05-faz3-web-design.md):
-   red pencil = what the system found, blue ballpoint = what a person decided. */
+/* Faz 3 tasarım değerleri (docs/superpowers/specs/2026-11-05-faz3-web-design.md): kırmızı kalem = sistemin bulduğu,
+   mavi tükenmez = bir kişinin karar verdiği. */
 @theme {
   --color-paper: #EFF3EC;
   --color-sheet: #FFFFFF;
@@ -18,7 +18,7 @@
   --font-sans: "Atkinson Hyperlegible Next Variable", ui-sans-serif, system-ui, sans-serif;
   --font-hand: "Caveat", "Segoe Print", cursive;
 
-  /* Bringhurst's classic scale */
+  /* Bringhurst'ün klasik ölçeği */
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
   --text-base: 1rem;
@@ -50,7 +50,7 @@
   }
 }
 
-/* Ballpoint blue is the colour of a person's decision, so primary actions (which record one) wear it. */
+/* Mavi tükenmez bir kişinin kararının rengi; ana butonlar bir karar kaydettiği için bu rengi taşır. */
 @layer components {
   .field {
     width: 100%;

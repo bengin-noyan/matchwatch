@@ -1,4 +1,4 @@
-// Package anomaly holds the pure audit rules; it never touches the DB or network.
+// Package anomaly, denetim kurallarını içerir. Kurallar saf fonksiyonlardır: veritabanına ya da ağa hiç dokunmazlar.
 package anomaly
 
 import (
@@ -11,7 +11,7 @@ import (
 type LineContext struct {
 	Line         domain.InvoiceLine
 	ContractItem *domain.ContractItem
-	MatchMethod  string // MatchAlias when ContractItem came from a human-confirmed alias, else "" (code/barcode)
+	MatchMethod  string // sözleşme kalemi bir insanın onayladığı eşleşmeden geldiyse MatchAlias, kod ya da barkoddan geldiyse ""
 	Suggestions  []domain.Suggestion
 	Delivery     matcher.DeliveryResult
 	PriceHistory []domain.PricePoint
@@ -19,7 +19,7 @@ type LineContext struct {
 
 const MatchAlias = "ALIAS"
 
-// withMatch records how the contract item was found when it was not a plain code/barcode hit (D16).
+// withMatch, sözleşme kalemi düz bir kod ya da barkod eşleşmesiyle bulunmadıysa nasıl bulunduğunu kanıta yazar (D16).
 func withMatch(ev map[string]any, lc LineContext) map[string]any {
 	if lc.MatchMethod != "" {
 		ev["match_method"] = lc.MatchMethod
@@ -34,10 +34,11 @@ type Input struct {
 	Duplicates          []domain.DuplicateCandidate
 	WithholdingPercents map[string]decimal.Decimal
 	FinancingRateAnnual decimal.Decimal
-	FXFallback          map[string]domain.ExchangeRate // TCMB rates from the invoice currency, by target (D17, D18)
+	FXFallback          map[string]domain.ExchangeRate // fatura para biriminden hedef para birimine TCMB kurları (D17, D18)
 }
 
-// Run applies every rule in a fixed order: per line (in input order), then header rules.
+// Run, bütün kuralları sabit bir sırayla çalıştırır: önce her satır için (geldikleri sırayla), sonra fatura geneli
+// için.
 func Run(in Input) []domain.Finding {
 	var out []domain.Finding
 	for _, lc := range in.Lines {

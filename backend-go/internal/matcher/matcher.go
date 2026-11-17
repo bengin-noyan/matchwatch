@@ -1,4 +1,4 @@
-// Package matcher is pure: no DB, no network.
+// Package matcher saf fonksiyonlardan oluşur: veritabanı yok, ağ yok.
 package matcher
 
 import (
@@ -16,7 +16,8 @@ type DeliveryResult struct {
 	CandidateCount int
 }
 
-// MatchContractItem matches by ItemCode first, then Barcode. Empty codes never match. UOM is not checked here.
+// MatchContractItem önce kalem koduna, sonra barkoda göre eşleştirir. Boş kodlar asla eşleşmez. Birim burada kontrol
+// edilmez.
 func MatchContractItem(line domain.InvoiceLine, items []domain.ContractItem) *domain.ContractItem {
 	if line.ItemCode != "" {
 		for i := range items {
@@ -35,8 +36,8 @@ func MatchContractItem(line domain.InvoiceLine, items []domain.ContractItem) *do
 	return nil
 }
 
-// Allocate fills the line oldest-shipment-first from cands with the same code/barcode and UOM,
-// and decrements cands[i].Available in place so later lines cannot reuse the quantity.
+// Allocate, satırı aynı kod/barkod ve birimdeki irsaliye satırlarından, en eski sevkiyattan başlayarak doldurur.
+// cands[i].Available değerini yerinde azaltır, böylece sonraki satırlar aynı miktarı tekrar kullanamaz.
 func Allocate(line domain.InvoiceLine, cands []domain.DespatchCandidate) DeliveryResult {
 	res := DeliveryResult{AvailableTotal: decimal.Zero}
 	var idx []int
@@ -76,7 +77,7 @@ var suggestionFloor = decimal.RequireFromString("0.50")
 
 const maxSuggestions = 3
 
-// MatchAlias resolves a human-confirmed alias (D16). An alias whose item is not in the active contract is ignored.
+// MatchAlias, bir insanın onayladığı eşleşmeyi çözer (D16). Kalemi aktif sözleşmede olmayan eşleşme yok sayılır.
 func MatchAlias(line domain.InvoiceLine, items []domain.ContractItem, aliases map[domain.AliasKey]uuid.UUID) *domain.ContractItem {
 	id, ok := aliases[domain.AliasKey{NameKey: domain.NameKey(line.Name), UOM: line.UOM}]
 	if !ok {
@@ -90,7 +91,7 @@ func MatchAlias(line domain.InvoiceLine, items []domain.ContractItem, aliases ma
 	return nil
 }
 
-// PickSuggestions keeps candidates (already ordered best first) at or above the floor, at most three.
+// PickSuggestions, en iyiden kötüye sıralı gelen adaylardan eşiğin üstündekileri tutar, en fazla üç tane.
 func PickSuggestions(cands []domain.Suggestion) []domain.Suggestion {
 	var out []domain.Suggestion
 	for _, c := range cands {

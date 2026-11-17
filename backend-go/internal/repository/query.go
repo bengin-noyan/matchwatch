@@ -13,21 +13,23 @@ import (
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/domain"
 )
 
-// Row types carry JSON tags because the REST layer returns them as is. Decimals are strings, money is kuruş.
+// Satır tiplerinde JSON etiketleri var, çünkü REST katmanı onları olduğu gibi döner. Ondalıklar string, para kuruş
+// cinsinden.
 
 type InvoiceFilter struct {
 	Status   string
 	VendorID *uuid.UUID
-	Query    string  // substring of invoice no, vendor name or ETTN; case-blind, Turkish i's folded
-	From, To *string // issue date range, YYYY-MM-DD, inclusive
-	OpenOnly bool    // only invoices with findings still waiting for a decision
-	Sort     string  // a key of invoiceSorts; "" = newest upload first
+	Query    string  // fatura no, tedarikçi adı ya da ETTN içinde geçen metin; büyük-küçük harf ve Türkçe i'ler fark etmez
+	From, To *string // düzenleme tarihi aralığı, YYYY-MM-DD, uçlar dahil
+	OpenOnly bool    // yalnızca hâlâ karar bekleyen bulgusu olan faturalar
+	Sort     string  // invoiceSorts'taki anahtarlardan biri; "" ise en son yüklenen önce
 	Desc     bool
 	Limit    int
 	Offset   int
 }
 
-// InvoiceCounts counts the matches per audit status, ignoring the status filter, so the status chips can show them.
+// InvoiceCounts, denetim durumuna göre eşleşme sayılarını verir. Durum filtresini dikkate almaz, böylece durum çipleri
+// sayıları gösterebilir.
 type InvoiceCounts map[string]int
 
 type InvoiceRow struct {
@@ -41,7 +43,7 @@ type InvoiceRow struct {
 	Currency     string    `json:"currency"`
 	PayableMinor int64     `json:"payable_minor"`
 	AuditStatus  string    `json:"audit_status"`
-	OpenFindings int       `json:"open_findings"` // OPEN findings still waiting for a human decision
+	OpenFindings int       `json:"open_findings"` // hâlâ bir insan kararı bekleyen OPEN bulgular
 }
 
 const openFindings = `(SELECT count(*) FROM audit_findings f
@@ -49,7 +51,7 @@ const openFindings = `(SELECT count(*) FROM audit_findings f
 const invoiceCols = `i.id, i.vendor_id, v.name, i.ettn, i.invoice_no, i.issue_date::text, i.due_date::text, i.currency,
 	i.payable_minor, i.audit_status, ` + openFindings
 
-// invoiceSorts whitelists the ORDER BY expressions a client may pick.
+// invoiceSorts, istemcinin seçebileceği ORDER BY ifadelerinin izinli listesidir.
 var invoiceSorts = map[string]string{
 	"issue_date":    "i.issue_date",
 	"invoice_no":    "i.invoice_no",
@@ -59,10 +61,10 @@ var invoiceSorts = map[string]string{
 	"open_findings": openFindings,
 }
 
-// ValidInvoiceSort reports whether key may be passed as InvoiceFilter.Sort.
+// ValidInvoiceSort, key'in InvoiceFilter.Sort olarak verilip verilemeyeceğini söyler.
 func ValidInvoiceSort(key string) bool { _, ok := invoiceSorts[key]; return ok }
 
-// likeEscape makes s match literally inside a LIKE pattern (backslash is the default escape).
+// likeEscape, s'nin LIKE kalıbı içinde harfi harfine eşleşmesini sağlar (varsayılan kaçış karakteri ters bölü).
 func likeEscape(s string) string {
 	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(s)
 }

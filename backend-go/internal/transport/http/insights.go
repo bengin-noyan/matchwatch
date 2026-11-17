@@ -8,7 +8,7 @@ import (
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/repository"
 )
 
-// getDashboard: ?from=YYYY-MM-DD&to=YYYY-MM-DD on the invoice issue date, both optional.
+// getDashboard: ?from=YYYY-MM-DD&to=YYYY-MM-DD, faturanın düzenleme tarihine göre; ikisi de isteğe bağlı.
 func (s *server) getDashboard(w http.ResponseWriter, r *http.Request) {
 	var bounds [2]*time.Time
 	for i, k := range []string{"from", "to"} {

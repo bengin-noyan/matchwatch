@@ -94,7 +94,7 @@ func (e *env) do(method, path, token string, body []byte) (int, resp) {
 	e.srv.ServeHTTP(rec, req)
 	var out resp
 	d := json.NewDecoder(rec.Body)
-	d.UseNumber() // no float64 anywhere, even in tests
+	d.UseNumber() // testlerde bile hiçbir yerde float64 yok
 	d.Decode(&out)
 	return rec.Code, out
 }
@@ -381,7 +381,7 @@ func TestContractValidation(t *testing.T) {
 			t.Errorf("%s: %d %v", name, code, b)
 		}
 	}
-	// decimals as JSON numbers are accepted
+	// JSON sayısı olarak gelen ondalıklar da kabul edilir
 	numeric := strings.Replace(good, `"1.250000"`, `1.25`, 1)
 	if code, b := e.req("POST", "/api/v1/contracts", []byte(numeric)); code != 201 {
 		t.Fatalf("numeric price: %d %v", code, b)
@@ -394,7 +394,7 @@ func TestContractValidation(t *testing.T) {
 func TestSharedETTNKeepsBothRawFiles(t *testing.T) {
 	e := setup(t, "9876543210")
 	invXML := fixture(t, "invoice_basic.xml", invETTN, desETTN, "ABC2026000000001", "T"+uuid.NewString()[:12])
-	desXML := fixture(t, "despatch_basic.xml") // keeps desETTN, which the invoice reuses
+	desXML := fixture(t, "despatch_basic.xml") // desETTN'yi koruyoruz, fatura onu tekrar kullanıyor
 	for path, body := range map[string][]byte{"/api/v1/despatches": desXML, "/api/v1/invoices": invXML} {
 		code, b := e.req("POST", path, body)
 		e.mustStatus(201, code, b)
@@ -423,7 +423,7 @@ func TestPatchFindingRefreshesAuditStatus(t *testing.T) {
 	if status() != "RED" {
 		t.Fatalf("initial status %s", status())
 	}
-	// CRITICALs first: RED -> YELLOW only once both are approved, GREEN once the WARNING is too
+	// önce CRITICAL'lar: ikisi de onaylanınca RED → YELLOW, WARNING de onaylanınca GREEN
 	var crit, warn []string
 	for _, f := range list(b["findings"]) {
 		if str(obj(f)["severity"]) == "CRITICAL" {
@@ -441,7 +441,7 @@ func TestPatchFindingRefreshesAuditStatus(t *testing.T) {
 			t.Fatalf("after approving %d finding(s): %s, want %s", i+1, got, want)
 		}
 	}
-	// reopening one brings the status back
+	// birini yeniden açmak durumu geri getirir
 	code, b = e.req("PATCH", "/api/v1/findings/"+crit[0], []byte(`{"resolution_status":"OPEN"}`))
 	e.mustStatus(200, code, b)
 	if got := status(); got != "RED" {

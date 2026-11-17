@@ -14,7 +14,7 @@ import (
 
 func fixture(t *testing.T) []byte {
 	t.Helper()
-	b, err := os.ReadFile("testdata/03112026.xml") // real TCMB bulletin of 2026-11-03
+	b, err := os.ReadFile("testdata/03112026.xml") // TCMB'nin 3 Kasım 2026 tarihli gerçek bülteni
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +59,7 @@ func TestDay(t *testing.T) {
 		switch r.URL.Path {
 		case "/kurlar/202611/03112026.xml":
 			w.Write(fixture(t))
-		case "/kurlar/202611/04112026.xml": // a server that answers with the wrong day
+		case "/kurlar/202611/04112026.xml": // yanlış günün bülteniyle cevap veren bir sunucu
 			w.Write(fixture(t))
 		case "/kurlar/202611/05112026.xml":
 			w.WriteHeader(500)
@@ -87,7 +87,7 @@ func TestDay(t *testing.T) {
 	}
 }
 
-// TestLiveTCMB hits the real service; run with MATCHWATCH_TCMB_LIVE=1.
+// TestLiveTCMB gerçek servise gider; MATCHWATCH_TCMB_LIVE=1 ile çalıştır.
 func TestLiveTCMB(t *testing.T) {
 	if os.Getenv("MATCHWATCH_TCMB_LIVE") == "" {
 		t.Skip("MATCHWATCH_TCMB_LIVE not set")

@@ -26,7 +26,7 @@ type fakeAI struct {
 	err   error
 	delay time.Duration
 	calls int
-	// optional: Extract signals started, then waits for release (ignoring ctx unless it is cancelled)
+	// isteğe bağlı: Extract started ile başladığını bildirir, sonra release'i bekler (ctx iptal edilmedikçe ctx'e bakmaz)
 	started, release chan struct{}
 }
 
@@ -81,7 +81,7 @@ func multipartPDF(t *testing.T, content string) ([]byte, string) {
 	return buf.Bytes(), mw.FormDataContentType()
 }
 
-// withAI swaps the env's router for one wired to ai.
+// withAI, ortamın router'ını ai'ye bağlı bir router'la değiştirir.
 func (e *env) withAI(ai Extractor, timeout time.Duration) {
 	e.srv = NewRouter(e.store, audit.New(e.store, nil, nil), e.storage, secret, ai, timeout, false, e.mails, "https://mw.test")
 }
@@ -233,7 +233,7 @@ func TestDraftCrossTenant(t *testing.T) {
 }
 
 func TestDraftDisabled(t *testing.T) {
-	e := setup(t, "9876543210") // setup wires NewRouter(..., nil, 0)
+	e := setup(t, "9876543210") // setup router'ı NewRouter(..., nil, 0) ile kuruyor
 	code, b := e.upload(fakePDF)
 	e.mustStatus(503, code, b)
 	if str(b["code"]) != "AI_DISABLED" {
@@ -246,7 +246,7 @@ func TestDraftDisabled(t *testing.T) {
 	}
 }
 
-// reading a draft needs no extractor: only the POST routes are gated
+// taslağı okumak için çıkarım gerekmez: yalnızca POST yolları kapalı
 func TestDraftGetWithoutAI(t *testing.T) {
 	e := setup(t, "9876543210")
 	id := uuid.New()
@@ -318,7 +318,7 @@ func TestDraftTooLarge(t *testing.T) {
 func TestDraftPDFOver20MiB(t *testing.T) {
 	e := setup(t, "9876543210")
 	e.withAI(&fakeAI{}, 10*time.Second)
-	// 20 MiB + 1 byte: inside the 21 MiB multipart cap, over the PDF cap
+	// 20 MiB + 1 bayt: 21 MiB'lık multipart sınırının içinde, PDF sınırının üstünde
 	code, b := e.upload("%PDF-" + strings.Repeat("x", maxPDF+1-5))
 	e.mustStatus(413, code, b)
 	if n := e.count(`SELECT count(*) FROM contract_drafts`); n != 0 {
@@ -344,7 +344,7 @@ func TestDraftSurvivesClientDisconnect(t *testing.T) {
 		e.srv.ServeHTTP(httptest.NewRecorder(), req)
 	}()
 	<-ai.started
-	cancel() // client goes away mid-extraction
+	cancel() // istemci çıkarımın ortasında bağlantıyı kesiyor
 	time.Sleep(50 * time.Millisecond)
 	close(ai.release)
 	<-done
@@ -381,7 +381,7 @@ func TestContractPDF(t *testing.T) {
 		t.Fatalf("no contract_no: %d", rec.Code)
 	}
 
-	// another tenant's contract with the same number is invisible, and a contract entered without a PDF has none
+	// başka bir tenant'ın aynı numaralı sözleşmesi görünmez; PDF'siz girilmiş bir sözleşmenin de PDF'i yoktur
 	o := setup(t, "9876543210")
 	if rec := o.getPDF("S-2026-001"); rec.Code != 404 {
 		t.Fatalf("other tenant: %d %q", rec.Code, rec.Body)

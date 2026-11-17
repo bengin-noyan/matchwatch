@@ -1,5 +1,5 @@
-// Command onboard opens a customer account: a tenant and its first user. It runs with the owner role
-// (MIGRATE_DATABASE_URL) because the API's role cannot create users. The password is read from stdin.
+// Command onboard, yeni bir müşteri hesabı açar: bir tenant ve onun ilk kullanıcısı. Owner rolüyle çalışır
+// (MIGRATE_DATABASE_URL), çünkü API'nin rolü kullanıcı oluşturamaz. Şifreyi stdin'den okur.
 package main
 
 import (
@@ -54,7 +54,7 @@ func main() {
 	defer pool.Close()
 	tid := uuid.New()
 	var uid uuid.UUID
-	err = repository.NewStore(pool).InTenant(ctx, tid, func(tx *repository.Tx) error { // tenant and user, or neither
+	err = repository.NewStore(pool).InTenant(ctx, tid, func(tx *repository.Tx) error { // ya tenant da kullanıcı da açılır ya da hiçbiri
 		if err := tx.InsertTenant(ctx, *name, *vkn, r); err != nil {
 			return err
 		}

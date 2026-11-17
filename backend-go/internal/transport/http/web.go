@@ -8,8 +8,9 @@ import (
 	"strings"
 )
 
-// WithWeb serves the built SPA (web/dist) from dir on the same origin as the API, so no CORS is needed and the
-// SameSite=Strict session cookie works. /api/ and /healthz go to api; unknown paths get index.html (client routing).
+// WithWeb, derlenmiş SPA'yı (web/dist) dir klasöründen API ile aynı adreste sunar; böylece CORS gerekmez ve
+// SameSite=Strict oturum çerezi çalışır. /api/ ve /healthz API'ye gider; bilinmeyen yollar index.html alır
+// (yönlendirmeyi tarayıcı yapar).
 func WithWeb(api http.Handler, dir string) http.Handler {
 	files := http.FileServer(http.Dir(dir))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -28,10 +29,10 @@ func WithWeb(api http.Handler, dir string) http.Handler {
 		h.Set("Referrer-Policy", "no-referrer")
 		clean := path.Clean("/" + r.URL.Path)
 		if st, err := os.Stat(filepath.Join(dir, filepath.FromSlash(clean))); err == nil && !st.IsDir() {
-			if strings.HasPrefix(clean, "/assets/") { // Vite fingerprints these file names
+			if strings.HasPrefix(clean, "/assets/") { // Vite bu dosya adlarına içerik özeti ekliyor
 				h.Set("Cache-Control", "public, max-age=31536000, immutable")
 			}
-			if strings.HasSuffix(clean, ".mjs") { // the OS mime table (Windows registry, /etc/mime.types) may say text/plain
+			if strings.HasSuffix(clean, ".mjs") { // işletim sisteminin MIME tablosu (Windows kayıt defteri, /etc/mime.types) text/plain diyebilir
 				h.Set("Content-Type", "text/javascript; charset=utf-8")
 			}
 			files.ServeHTTP(w, r)

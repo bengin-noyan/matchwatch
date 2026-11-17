@@ -19,12 +19,13 @@ class Settings:
 
 
 def is_private_host(host: str) -> bool:
-    # shortcut: host adına bakar, DNS'e değil; TR bulutunda iç DNS adları (ör. ollama.internal) gerekirse izinli sonek listesi eklenir
+    # shortcut: yalnızca host adına bakıyor, DNS'e değil; TR bulutunda iç DNS adları (ör. ollama.internal) gerekirse
+    # izinli sonek listesi ekle
     if not host:
         return False
     if host.startswith("[") and host.endswith("]"):
         host = host[1:-1]
-    try:  # inet_aton also parses decimal/hex/octal forms (2852039166, 0xa9fea9fe) the way getaddrinfo does
+    try:  # inet_aton, getaddrinfo gibi onluk/onaltılık/sekizlik yazımları da (2852039166, 0xa9fea9fe) çözer
         ip = ipaddress.IPv4Address(socket.inet_aton(host))
     except (OSError, ValueError):
         try:

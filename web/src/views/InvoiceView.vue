@@ -30,7 +30,7 @@ async function reaudit() {
   }
 }
 
-// Findings grouped under their invoice line; header findings (vade, mükerrer) come first.
+// Bulgular kendi fatura satırının altında toplanır; fatura geneli bulgular (vade, mükerrer) önce gelir.
 const groups = computed(() => {
   if (!inv.value) return []
   const byLine = new Map<string | null, InvoiceDetail['findings']>()

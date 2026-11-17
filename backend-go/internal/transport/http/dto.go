@@ -35,7 +35,7 @@ type invoiceResp struct {
 type invoiceListResp struct {
 	Items  []repository.InvoiceRow  `json:"items"`
 	Total  int                      `json:"total"`
-	Counts repository.InvoiceCounts `json:"counts"` // per audit status, ignoring the status filter
+	Counts repository.InvoiceCounts `json:"counts"` // denetim durumuna göre, durum filtresi dikkate alınmadan
 }
 
 type patchReq struct {
@@ -50,13 +50,13 @@ type bulkDecisionReq struct {
 }
 
 type bulkDecisionResp struct {
-	Updated int `json:"updated"` // distinct findings
+	Updated int `json:"updated"` // ayrı bulgu sayısı
 }
 
 type findingListResp struct {
 	Items  []repository.FindingListRow `json:"items"`
 	Total  int                         `json:"total"`
-	Counts repository.FindingCounts    `json:"counts"` // per rule code, ignoring the rule filter
+	Counts repository.FindingCounts    `json:"counts"` // kural koduna göre, kural filtresi dikkate alınmadan
 }
 
 type patchResp struct {

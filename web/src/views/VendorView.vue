@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// One vendor: what was agreed (contract terms and prices), what was billed against it (price history per item),
-// and the invoices themselves.
+// Tek bir tedarikçi: ne anlaşıldı (sözleşme şartları ve fiyatlar), buna karşı ne faturalandı (kalem başına fiyat
+// geçmişi) ve faturaların kendisi.
 import { computed, ref, watch } from 'vue'
 import { api, ApiError, type InvoiceRow, type VendorDetail } from '../api'
 import { currencyLabel, formatDate, formatDecimal, formatMinor } from '../money'
@@ -32,7 +32,8 @@ watch(
 const active = computed(() => v.value?.contracts.find((c) => c.status === 'ACTIVE') ?? v.value?.contracts[0])
 const others = computed(() => v.value?.contracts.filter((c) => c !== active.value) ?? [])
 
-// Only invoices in the item's own currency are plotted against its price (FX lines would need a rate per point).
+// Kalemin fiyatına karşı yalnızca kalemle aynı para birimindeki faturalar çizilir (dövizli satırlar için her noktada
+// ayrı bir kur gerekirdi).
 function history(itemId: string, currency: string): PricePoint[] {
   return (v.value?.price_history[itemId] ?? [])
     .filter((p) => p.currency === currency)
@@ -40,7 +41,7 @@ function history(itemId: string, currency: string): PricePoint[] {
       invoiceId: p.invoice_id,
       invoiceNo: p.invoice_no,
       date: p.issue_date,
-      price: Number(p.net_unit_price), // geometry only
+      price: Number(p.net_unit_price), // yalnızca çizim için
       priceText: `${formatDecimal(p.net_unit_price, 2)} ${currencyLabel(p.currency)}`,
     }))
 }

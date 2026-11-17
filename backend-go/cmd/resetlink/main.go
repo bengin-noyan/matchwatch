@@ -1,6 +1,6 @@
-// Command resetlink prints a one-time password reset link for a user, for when no colleague can issue one (the
-// company's only user forgot the password). It runs as the owner role (MIGRATE_DATABASE_URL). The link is valid for
-// one hour; hand it to the user over a channel where you know it is them.
+// Command resetlink, bir kullanıcı için tek kullanımlık şifre sıfırlama bağlantısı yazdırır. E-posta çalışmıyorsa ya da
+// şirketin tek kullanıcısı şifresini unuttuysa işe yarar. Owner rolüyle çalışır (MIGRATE_DATABASE_URL). Bağlantı bir
+// saat geçerlidir; kullanıcıya, karşıdakinin gerçekten o olduğundan emin olduğun bir kanaldan ilet.
 package main
 
 import (

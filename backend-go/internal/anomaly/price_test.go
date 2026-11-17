@@ -96,12 +96,12 @@ func TestPriceSubKurusNoFinding(t *testing.T) {
 }
 
 func TestPriceHalfKurusIsNoise(t *testing.T) {
-	lc := baseCtx("2", "0.08")                // net 0.04
-	lc.ContractItem.UnitPrice = dec("0.0375") // impact exactly 0.005
+	lc := baseCtx("2", "0.08")                // net 0,04
+	lc.ContractItem.UnitPrice = dec("0.0375") // etki tam 0,005
 	if fs := only(t, Run(baseInput(lc)), domain.RulePriceMismatch); len(fs) != 0 {
 		t.Errorf("half kurus: %+v", fs)
 	}
-	lc.ContractItem.UnitPrice = dec("0.0374") // impact 0.0052
+	lc.ContractItem.UnitPrice = dec("0.0374") // etki 0,0052
 	if fs := only(t, Run(baseInput(lc)), domain.RulePriceMismatch); len(fs) != 1 || fs[0].ImpactMinor != 1 {
 		t.Errorf("just above: %+v", fs)
 	}
@@ -122,7 +122,7 @@ func TestUncontractedItemCarriesSuggestions(t *testing.T) {
 }
 
 func TestAliasMatchMarksEvidence(t *testing.T) {
-	lc := baseCtx("10", "200") // net 20 > 1.25
+	lc := baseCtx("10", "200") // net 20, yani 1,25'ten fazla
 	lc.MatchMethod = MatchAlias
 	fs := Run(baseInput(lc))
 	if len(fs) != 1 || fs[0].RuleCode != domain.RulePriceMismatch || fs[0].Evidence["match_method"] != "ALIAS" {
@@ -135,7 +135,7 @@ func TestAliasMatchMarksEvidence(t *testing.T) {
 }
 
 func usdLine() (Input, LineContext) {
-	lc := baseCtx("10", "200") // TRY net 20.00
+	lc := baseCtx("10", "200") // net 20,00 TRY
 	lc.ContractItem.Currency, lc.ContractItem.UnitPrice = "USD", dec("0.390000")
 	in := baseInput(lc)
 	return in, lc
@@ -144,7 +144,7 @@ func usdLine() (Input, LineContext) {
 func TestPriceUsesTCMBFallback(t *testing.T) {
 	in, _ := usdLine()
 	in.FXFallback = map[string]domain.ExchangeRate{"USD": {Source: "TRY", Target: "USD", Rate: dec("0.02"), TCMBDate: date("2026-02-27")}}
-	fs := Run(in) // 20.00 TRY * 0.02 = 0.40 USD > 0.39
+	fs := Run(in) // 20,00 TRY × 0,02 = 0,40 USD, yani 0,39'dan fazla
 	if len(fs) != 1 || fs[0].RuleCode != domain.RulePriceMismatch || fs[0].ImpactMinor != 10 || fs[0].ImpactCurrency != "USD" ||
 		fs[0].Evidence["fx_source"] != "TCMB" || fs[0].Evidence["fx_rate_date"] != "2026-02-27" || fs[0].Evidence["fx_rate"] != "0.02" {
 		t.Fatalf("%+v", fs)
@@ -153,9 +153,9 @@ func TestPriceUsesTCMBFallback(t *testing.T) {
 
 func TestPriceInvoiceRateBeatsTCMB(t *testing.T) {
 	in, _ := usdLine()
-	in.Invoice.ExchangeRate = &domain.ExchangeRate{Source: "TRY", Target: "USD", Rate: dec("0.0199")} // 0.5% off: trusted (D18)
+	in.Invoice.ExchangeRate = &domain.ExchangeRate{Source: "TRY", Target: "USD", Rate: dec("0.0199")} // %0,5 fark: kur kabul edilir (D18)
 	in.FXFallback = map[string]domain.ExchangeRate{"USD": {Source: "TRY", Target: "USD", Rate: dec("0.02"), TCMBDate: date("2026-02-27")}}
-	fs := Run(in) // 20 * 0.0199 = 0.398 vs 0.39 -> 0.08 USD (TCMB would give 0.10)
+	fs := Run(in) // 20 × 0,0199 = 0,398, sözleşme 0,39 → 0,08 USD fark (TCMB kuruyla 0,10 olurdu)
 	if len(fs) != 1 || fs[0].ImpactMinor != 8 || fs[0].Evidence["fx_rate"] != "0.0199" || fs[0].Evidence["fx_source"] != nil {
 		t.Fatalf("%+v", fs)
 	}

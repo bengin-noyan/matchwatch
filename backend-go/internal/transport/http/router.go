@@ -1,4 +1,4 @@
-// Package transporthttp is the REST API under /api/v1; every route except /healthz requires a tenant JWT.
+// Package transporthttp, /api/v1 altındaki REST API'dir; /healthz dışındaki her yol tenant JWT'si ister.
 package transporthttp
 
 import (
@@ -15,15 +15,15 @@ type server struct {
 	store          *repository.Store
 	auditor        *audit.Service
 	storageDir     string
-	ai             Extractor // nil = extraction disabled
+	ai             Extractor // nil ise çıkarım kapalı
 	extractTimeout time.Duration
 	secret         []byte
 	cookieSecure   bool
 	limiter        *auth.Limiter
 	signups        *auth.Limiter
 	forgots        *auth.Limiter
-	mailer         mail.Mailer // nil = invites and "Şifremi unuttum" disabled
-	baseURL        string      // the links in mails
+	mailer         mail.Mailer // nil ise davet ve "Şifremi unuttum" kapalı
+	baseURL        string      // e-postalardaki bağlantıların adresi
 }
 
 func NewRouter(store *repository.Store, auditor *audit.Service, storageDir string, secret []byte, ai Extractor, extractTimeout time.Duration, cookieSecure bool, mailer mail.Mailer, baseURL string) http.Handler {
@@ -60,7 +60,7 @@ func NewRouter(store *repository.Store, auditor *audit.Service, storageDir strin
 
 	root := http.NewServeMux()
 	root.HandleFunc("GET /healthz", s.healthz)
-	root.HandleFunc("POST /api/v1/auth/login", s.login) // the only API routes without a session
+	root.HandleFunc("POST /api/v1/auth/login", s.login) // oturum istemeyen tek API yolları bunlar
 	root.HandleFunc("POST /api/v1/auth/signup", s.signup)
 	root.HandleFunc("POST /api/v1/auth/logout", s.logout)
 	root.HandleFunc("POST /api/v1/auth/forgot", s.forgot)

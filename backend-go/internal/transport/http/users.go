@@ -17,11 +17,11 @@ import (
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/repository"
 )
 
-// Invites and password resets are one-time links mailed to the address they are for. Nobody else ever sees the
-// token, so no colleague (and no inviter) can use a link meant for someone else. Every user of a company may invite;
-// there are no roles yet.
+// Davetler ve şifre sıfırlamalar, yalnızca ilgili adrese e-postayla gönderilen tek kullanımlık bağlantılardır. Token'ı
+// başka kimse görmez; böylece ne bir iş arkadaşı ne de daveti gönderen, başkası için gönderilmiş bir bağlantıyı
+// kullanabilir. Bir şirketin her kullanıcısı davet gönderebilir; henüz rol yok.
 
-// actor is the signed-in user, nil for a dev token (sub is not a user id).
+// actor giriş yapmış kullanıcıdır; dev token'da nil (sub bir kullanıcı id'si değil).
 func actor(r *http.Request) *uuid.UUID {
 	if id, err := uuid.Parse(auth.Subject(r.Context())); err == nil {
 		return &id
@@ -105,7 +105,7 @@ func (s *server) postInvite(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), mailTimeout)
 	defer cancel()
 	if err := s.mailer.Send(ctx, inv.Email, "matchwatch daveti: "+tenant, body); err != nil {
-		// the invite stays but nobody has its token; inviting again replaces it
+		// davet duruyor ama token'ı kimsede yok; yeniden davet etmek onun yerine geçer
 		log.Printf("invite mail: %v", err)
 		writeErr(w, 502, "MAIL_FAILED", "the invite e-mail could not be sent; try again")
 		return
@@ -128,8 +128,9 @@ func (s *server) deleteInvite(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// forgot ("Şifremi unuttum", no session) mails a reset link when the e-mail has a login. It always answers 202 at
-// once and does the work after the response, so neither the answer nor its timing tells whether an account exists.
+// forgot ("Şifremi unuttum", oturum gerekmez), e-postanın bir girişi varsa sıfırlama bağlantısı gönderir. Her zaman
+// hemen 202 döner ve işi cevaptan sonra yapar; böylece ne cevaptan ne de süresinden bir hesabın var olup olmadığı
+// anlaşılır.
 func (s *server) forgot(w http.ResponseWriter, r *http.Request) {
 	if s.mailDisabled(w) {
 		return
@@ -144,11 +145,11 @@ func (s *server) forgot(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 422, "INVALID_EMAIL", "email is not a valid address")
 		return
 	}
-	ip, _, err := net.SplitHostPort(r.RemoteAddr) // the client, behind Caddy (see signup)
+	ip, _, err := net.SplitHostPort(r.RemoteAddr) // istemci, Caddy'nin arkasında (signup'a bak)
 	if err != nil {
 		ip = r.RemoteAddr
 	}
-	// per address and per mailbox, so nobody can flood one inbox from many addresses
+	// hem gönderen adrese hem de posta kutusuna göre; böylece kimse birçok adresten tek bir kutuyu dolduramaz
 	if s.forgots.Blocked("ip:"+ip) || s.forgots.Blocked("mail:"+email) {
 		writeErr(w, 429, "TOO_MANY_RESETS", "too many reset requests; try again later")
 		return
@@ -185,8 +186,8 @@ func (s *server) mailReset(email string) {
 	}
 }
 
-// linkInfo (no session) tells the link page what a link is for. The token comes in the body, never the URL, so it
-// stays out of access logs; the web app keeps it in the URL fragment.
+// linkInfo (oturum gerekmez), bağlantı sayfasına bağlantının ne için olduğunu söyler. Token URL'de değil gövdede gelir,
+// böylece erişim loglarına düşmez; web uygulaması onu URL'nin # kısmında tutar.
 func (s *server) linkInfo(w http.ResponseWriter, r *http.Request) {
 	var req struct{ Token string }
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10)).Decode(&req); err != nil {
@@ -213,7 +214,8 @@ func (s *server) linkInfo(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]string{"kind": li.Kind, "email": li.Email, "tenant_name": tenant})
 }
 
-// redeemLink (no session) sets the password from an invite or reset link and logs the user in.
+// redeemLink (oturum gerekmez), davet ya da sıfırlama bağlantısıyla şifreyi belirler ve kullanıcıyı giriş yapmış hale
+// getirir.
 func (s *server) redeemLink(w http.ResponseWriter, r *http.Request) {
 	var req struct{ Token, Password string }
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&req); err != nil {

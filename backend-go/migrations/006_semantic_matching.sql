@@ -1,5 +1,5 @@
--- Faz 2b (D16): contract item name vectors for suggestions, and human-confirmed item aliases.
--- vector(1024) fits bge-m3; a model with another dimension needs a new migration.
+-- Faz 2b (D16): öneriler için sözleşme kalemi adlarının vektörleri ve insanların onayladığı kalem eşleşmeleri.
+-- vector(1024) bge-m3'e uyar; boyutu farklı bir model yeni bir migration ister.
 ALTER TABLE contract_items ADD COLUMN name_embedding vector(1024);
 ALTER TABLE contract_items ADD COLUMN embedding_model TEXT;
 ALTER TABLE contract_items ADD CONSTRAINT contract_items_embedding_pair

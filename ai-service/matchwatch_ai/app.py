@@ -15,7 +15,7 @@ from .pdftext import MAX_BYTES, PdfError, extract_pages, tesseract_ocr
 log = logging.getLogger("matchwatch_ai")
 _PDF_STATUS = {"NOT_PDF": 400, "TOO_LARGE": 413, "ENCRYPTED_PDF": 422}
 MAX_TEXTS, MAX_TEXT_CHARS, MAX_EMBED_BYTES = 256, 512, 1 << 20
-# Fixed messages: never echo exception or upstream text (KVKK).
+# Sabit mesajlar: hatanın ya da karşı servisin metnini asla geri yazma (KVKK).
 _MSG = {
     "NOT_PDF": "body is not a PDF",
     "TOO_LARGE": "request body is too large",
@@ -117,5 +117,5 @@ def create_app(settings: Settings, llm: LLM | None = None, ocr=tesseract_ocr, em
 
 
 def factory() -> FastAPI:
-    logging.basicConfig(level=logging.INFO)  # summary line only, never content
+    logging.basicConfig(level=logging.INFO)  # yalnızca özet satırı, içerik asla
     return create_app(load())

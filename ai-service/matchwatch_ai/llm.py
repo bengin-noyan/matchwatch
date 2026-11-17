@@ -5,7 +5,7 @@ import httpx
 
 
 class LLMError(Exception):
-    """code: LLM_UNAVAILABLE | LLM_BAD_OUTPUT. Messages never carry document text or model output."""
+    """code: LLM_UNAVAILABLE | LLM_BAD_OUTPUT. Mesajlar asla belge metni ya da model çıktısı taşımaz."""
 
     def __init__(self, code: str, message: str = ""):
         super().__init__(message or code)
@@ -34,7 +34,7 @@ class OpenAICompatLLM:
             "response_format": {"type": "json_schema", "json_schema": {"name": "contract", "schema": schema}},
         }
         try:
-            # trust_env=False: proxy env vars must never reroute contract text
+            # trust_env=False: ortamdaki proxy değişkenleri sözleşme metnini asla başka yere yönlendirmemeli
             with httpx.Client(timeout=min(self.timeout_s, timeout_s or self.timeout_s), transport=self.transport,
                               trust_env=False) as c:
                 r = c.post(f"{self.base_url}/v1/chat/completions", json=body)
@@ -61,7 +61,7 @@ class OpenAICompatEmbedder:
 
     def embed(self, texts: list[str]) -> list[list]:
         try:
-            # trust_env=False: proxy env vars must never reroute item names
+            # trust_env=False: ortamdaki proxy değişkenleri kalem adlarını asla başka yere yönlendirmemeli
             with httpx.Client(timeout=self.timeout_s, transport=self.transport, trust_env=False) as c:
                 r = c.post(f"{self.base_url}/v1/embeddings", json={"model": self.model, "input": texts})
         except httpx.HTTPError as e:

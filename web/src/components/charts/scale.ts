@@ -1,7 +1,7 @@
-// Chart geometry helpers. Amounts become Number here only to place pixels; every amount shown as text is formatted
-// from the API's own kuruş/decimal value (spec rule 1), never from these numbers.
+// Grafik çizim yardımcıları. Tutarlar burada yalnızca piksel yerleştirmek için Number'a çevrilir; ekranda yazı olarak
+// görünen her tutar, bu sayılardan değil, API'nin kendi kuruş/ondalık değerinden biçimlendirilir (spec kural 1).
 
-/** Clean axis ticks from 0 to at least max: steps of 1, 2 or 5 × 10^k, about `count` of them. */
+/** 0'dan en az max'a kadar temiz eksen değerleri: 1, 2 ya da 5 × 10^k adımlarla, yaklaşık `count` tane. */
 export function niceTicks(max: number, count = 4): number[] {
   if (!(max > 0)) return [0]
   const raw = max / count
@@ -16,7 +16,7 @@ export function niceTicks(max: number, count = 4): number[] {
 const compact = new Intl.NumberFormat('tr-TR', { notation: 'compact', maximumFractionDigits: 1 })
 const full = new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 2 })
 
-/** Axis label for a tick value in whole currency units: full under 10.000, compact above (10 B, 1,5 Mn). */
+/** Tam para birimi cinsinden bir eksen değerinin etiketi: 10.000'in altında tam, üstünde kısa (10 B, 1,5 Mn). */
 export function tickLabel(v: number, max: number): string {
   return max >= 10_000 ? compact.format(v) : full.format(v)
 }
@@ -27,7 +27,7 @@ const long = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'long', y
 export const shortDate = (iso: string) => short.format(new Date(`${iso}T00:00:00Z`))
 export const longDate = (iso: string) => long.format(new Date(`${iso}T00:00:00Z`))
 
-/** Mondays (YYYY-MM-DD) from the week of `from` through the week of `to`, inclusive. */
+/** `from`'un haftasından `to`'nun haftasına kadar (uçlar dahil) pazartesiler, YYYY-MM-DD. */
 export function weeksBetween(from: string, to: string): string[] {
   const monday = (iso: string) => {
     const d = new Date(`${iso}T00:00:00Z`)

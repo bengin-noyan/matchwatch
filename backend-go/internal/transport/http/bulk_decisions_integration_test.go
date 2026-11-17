@@ -29,7 +29,7 @@ func TestFindingListAndBulkDecisions(t *testing.T) {
 		t.Fatalf("fixture should yield several findings per invoice: %d, %d", len(fa), len(fb))
 	}
 
-	// the list: every OPEN finding of the tenant, largest impact first, counted per rule
+	// liste: tenant'ın bütün OPEN bulguları, etkisi en büyük olan önce, kural başına sayılmış
 	code, b := e.req("GET", "/api/v1/findings?resolution=OPEN", nil)
 	e.mustStatus(200, code, b)
 	if n, _ := strconv.Atoi(num(b["total"])); n != len(fa)+len(fb) {
@@ -62,7 +62,7 @@ func TestFindingListAndBulkDecisions(t *testing.T) {
 		}
 	}
 
-	// an unknown id fails the whole batch: nothing is decided
+	// bilinmeyen bir id bütün grubu düşürür: hiçbirine karar verilmez
 	body := func(status string, ids ...string) []byte {
 		return []byte(`{"resolution_status":"` + status + `","note":"toplu onay","finding_ids":["` + strings.Join(ids, `","`) + `"]}`)
 	}
@@ -74,7 +74,7 @@ func TestFindingListAndBulkDecisions(t *testing.T) {
 		}
 	}
 
-	// all of A plus one of B, with a duplicate: A turns GREEN, B keeps its other findings open
+	// A'nın hepsi ve B'den bir tane, bir de tekrar eden id: A GREEN olur, B'nin diğer bulguları açık kalır
 	ids := []string{str(fb[0]["id"]), str(fa[0]["id"])}
 	for _, f := range fa {
 		ids = append(ids, str(f["id"]))
@@ -110,7 +110,7 @@ func TestFindingListAndBulkDecisions(t *testing.T) {
 		t.Fatalf("approved total %v", b["total"])
 	}
 
-	// another tenant cannot decide on these findings
+	// başka bir tenant bu bulgulara karar veremez
 	other := setup(t, "9876543210")
 	code, b = other.req("POST", "/api/v1/findings/decisions", body("DISPUTED", str(fb[1]["id"])))
 	other.mustStatus(404, code, b)

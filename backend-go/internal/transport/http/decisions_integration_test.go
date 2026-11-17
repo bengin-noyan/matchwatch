@@ -32,9 +32,9 @@ func TestDecisionHistory(t *testing.T) {
 
 	code, b = e.do("PATCH", "/api/v1/findings/"+fid, userTok, []byte(`{"resolution_status":"DISPUTED","note":"tedarikçi iade edecek"}`))
 	e.mustStatus(200, code, b)
-	code, b = e.req("PATCH", "/api/v1/findings/"+fid, []byte(`{"resolution_status":"OPEN"}`)) // dev token: no user
+	code, b = e.req("PATCH", "/api/v1/findings/"+fid, []byte(`{"resolution_status":"OPEN"}`)) // dev token: kullanıcı yok
 	e.mustStatus(200, code, b)
-	// the re-audit deletes the reopened finding and recreates it under a new id; its trail must follow
+	// yeniden denetim, yeniden açılan bulguyu silip yeni bir id ile tekrar oluşturur; karar geçmişi de onunla gelmeli
 	code, b = e.req("POST", inv+"/audit", nil)
 	e.mustStatus(200, code, b)
 
@@ -67,7 +67,7 @@ func TestDecisionHistory(t *testing.T) {
 		t.Errorf("second decision: %v", d1)
 	}
 
-	// append-only: the app role may not rewrite the trail
+	// yalnızca ekleme: uygulama rolü geçmişi değiştiremez
 	for _, q := range []string{"UPDATE finding_decisions SET note='x'", "DELETE FROM finding_decisions"} {
 		err := e.store.InTenant(context.Background(), e.tid, func(tx *repository.Tx) error {
 			_, err := tx.Exec(context.Background(), q)

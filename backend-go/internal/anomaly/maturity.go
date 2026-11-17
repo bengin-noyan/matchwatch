@@ -9,7 +9,7 @@ import (
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/domain"
 )
 
-// calendarDays counts whole days between the calendar dates of a and b, ignoring zone/DST.
+// calendarDays, a ile b'nin takvim tarihleri arasındaki tam gün sayısını verir; saat dilimi ve yaz saati hesaba girmez.
 func calendarDays(a, b time.Time) int {
 	ay, am, ad := a.Date()
 	by, bm, bd := b.Date()

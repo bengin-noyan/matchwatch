@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// A contract read from a PDF, shown as an editable form. Nothing here is used by any audit until a person
-// approves it (spec rule 2): every value sits next to the page and sentence it was read from.
+// PDF'ten okunmuş bir sözleşme, düzenlenebilir bir form olarak. Bir kişi onaylayana kadar buradaki hiçbir şey denetimde
+// kullanılmaz (spec kural 2): her değer, okunduğu sayfa ve cümlenin yanında durur.
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { api, ApiError, type ContractDraft, type Draft, type DraftItem } from '../api'

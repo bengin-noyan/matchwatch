@@ -10,7 +10,7 @@ import (
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/domain"
 )
 
-// FXDay reports whether the TCMB bulletin of day was already fetched, whether it existed, and its quotes.
+// FXDay, o günün TCMB bülteninin daha önce çekilip çekilmediğini, yayımlanıp yayımlanmadığını ve kurlarını söyler.
 func (tx *Tx) FXDay(ctx context.Context, day time.Time) (known, published bool, quotes []domain.FXQuote, err error) {
 	err = tx.QueryRow(ctx, `SELECT published FROM fx_days WHERE rate_date=$1`, day).Scan(&published)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -36,7 +36,8 @@ func (tx *Tx) FXDay(ctx context.Context, day time.Time) (known, published bool, 
 	return true, true, quotes, rows.Err()
 }
 
-// SaveFXDay stores a fetched bulletin (or its absence). A concurrent save of the same day is a no-op.
+// SaveFXDay, çekilen bülteni (ya da bültenin olmadığını) kaydeder. Aynı gün aynı anda iki kez kaydedilirse ikincisi bir
+// şey yapmaz.
 func (tx *Tx) SaveFXDay(ctx context.Context, day time.Time, published bool, quotes []domain.FXQuote) error {
 	tag, err := tx.Exec(ctx, `INSERT INTO fx_days(rate_date, published) VALUES ($1,$2) ON CONFLICT DO NOTHING`, day, published)
 	if err != nil || tag.RowsAffected() == 0 {

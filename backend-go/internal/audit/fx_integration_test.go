@@ -17,8 +17,8 @@ import (
 
 type fakeTCMB struct {
 	calls []string
-	days  map[string][]domain.FXQuote // published bulletins
-	fail  map[string]bool             // transient errors
+	days  map[string][]domain.FXQuote // yayımlanmış bültenler
+	fail  map[string]bool             // geçici hatalar
 }
 
 func (f *fakeTCMB) Day(_ context.Context, day time.Time) ([]domain.FXQuote, bool, error) {
@@ -31,7 +31,8 @@ func (f *fakeTCMB) Day(_ context.Context, day time.Time) ([]domain.FXQuote, bool
 	return q, ok, nil
 }
 
-// clearFX removes the fixed test days from the global fx tables (they are shared by every run) before and after.
+// clearFX, sabit test günlerini global kur tablolarından testten önce ve sonra siler; bu tablolar her test
+// çalıştırmasında ortak.
 func clearFX(t *testing.T) {
 	t.Helper()
 	del := func() {
@@ -52,7 +53,7 @@ func clearFX(t *testing.T) {
 	t.Cleanup(del)
 }
 
-// usdContract reprices the basic contract in USD: M8 bolt 0.03 USD, maintenance 25 USD.
+// usdContract, temel sözleşmeyi USD fiyatlarla günceller: M8 cıvata 0,03 USD, bakım 25 USD.
 func (e *env) usdContract(t *testing.T) {
 	e.exec(t, `UPDATE contract_items SET currency='USD', unit_price = CASE WHEN item_code='CV-M8-20' THEN 0.03 ELSE 25 END`)
 }
@@ -61,7 +62,7 @@ func TestTCMBFallbackWeekendChainAndCache(t *testing.T) {
 	e := setup(t)
 	clearFX(t)
 	e.usdContract(t)
-	// invoice_basic is dated Sunday 2026-03-01: Saturday has no bulletin, Friday's is used
+	// invoice_basic'in tarihi 1 Mart 2026 Pazar: cumartesi bülten yok, cumanınki kullanılır
 	f := &fakeTCMB{days: map[string][]domain.FXQuote{"2026-02-27": {
 		{Currency: "USD", Unit: 1, ForexBuying: decimal.RequireFromString("40.0000")},
 		{Currency: "JPY", Unit: 100, ForexBuying: decimal.RequireFromString("26.0000")},
@@ -69,7 +70,7 @@ func TestTCMBFallbackWeekendChainAndCache(t *testing.T) {
 	e.svc = New(e.store, nil, f)
 	inv := e.ingest(t, false)
 	e.audit(t, inv)
-	// line 1: 1.30 TRY / 40 = 0.0325 USD vs 0.03 -> 2.50 USD; line 2: 1000 / 40 = 25 USD, no mismatch
+	// 1. satır: 1,30 TRY / 40 = 0,0325 USD, sözleşme 0,03 → 2,50 USD fark; 2. satır: 1000 / 40 = 25 USD, fark yok
 	rows := e.findings(t, inv)
 	p := ruleRow(rows, domain.RulePriceMismatch, "1")
 	if p == nil || p.impact != 250 || p.evidence["fx_source"] != "TCMB" || p.evidence["fx_rate_date"] != "2026-02-27" ||
@@ -79,11 +80,11 @@ func TestTCMBFallbackWeekendChainAndCache(t *testing.T) {
 	if fmt.Sprint(f.calls) != "[2026-02-28 2026-02-27]" {
 		t.Fatalf("calls %v", f.calls)
 	}
-	e.audit(t, inv) // both days are cached now, the holiday included
+	e.audit(t, inv) // iki gün de artık önbellekte, tatil günü dahil
 	if len(f.calls) != 2 {
 		t.Fatalf("re-audit fetched again: %v", f.calls)
 	}
-	// the app role may add bulletins but never rewrite them
+	// uygulama rolü bülten ekleyebilir ama var olanı asla değiştiremez
 	err := e.store.InTenant(context.Background(), e.tid, func(tx *repository.Tx) error {
 		_, err := tx.Exec(context.Background(), `UPDATE fx_rates SET forex_buying=1 WHERE rate_date='2026-02-27'`)
 		return err
@@ -100,7 +101,7 @@ func TestFXRateDeviationAgainstTCMB(t *testing.T) {
 		{Currency: "USD", Unit: 1, ForexBuying: decimal.RequireFromString("40.0000")}}}}
 	e.svc = New(e.store, nil, f)
 	inv := e.ingest(t, false)
-	// the TRY contract needs no rate; the invoice's own USD->TRY 42 is still checked (D18)
+	// TRY sözleşmesi için kur gerekmez; ama faturanın kendi USD→TRY 42 kuru yine de kontrol edilir (D18)
 	e.exec(t, `UPDATE invoices SET currency='USD', fx_source='USD', fx_target='TRY', fx_rate=42 WHERE id=$1`, inv)
 	var payable int64
 	if err := e.store.InTenant(context.Background(), e.tid, func(tx *repository.Tx) error {

@@ -7,11 +7,11 @@ import (
 	"github.com/google/uuid"
 )
 
-// "Caught" everywhere below means every finding except APPROVED_EXCEPTION, as in Summary.
-// The period filters on the invoice's issue date; nil bounds are open.
+// Aşağıda "yakalanan", APPROVED_EXCEPTION dışındaki her bulgu demek, Summary'deki gibi. Dönem filtresi faturanın
+// düzenleme tarihine bakar; nil sınır açık uç demek.
 
 type WeekPoint struct {
-	Week        string `json:"week"` // Monday of the ISO week, YYYY-MM-DD
+	Week        string `json:"week"` // ISO haftasının pazartesisi, YYYY-MM-DD
 	Currency    string `json:"currency"`
 	CaughtMinor int64  `json:"caught_minor"`
 }

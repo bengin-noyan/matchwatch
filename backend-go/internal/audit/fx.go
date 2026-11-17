@@ -12,23 +12,25 @@ import (
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/repository"
 )
 
-// FXSource returns the TCMB bulletin of a day; published=false means none was issued (weekend, holiday).
-// Implemented by tcmb.Client.
+// FXSource, bir günün TCMB bültenini getirir. published=false o gün bülten yayımlanmadığını gösterir (hafta sonu,
+// tatil). tcmb.Client bunu uygular.
 type FXSource interface {
 	Day(ctx context.Context, day time.Time) ([]domain.FXQuote, bool, error)
 }
 
-const fxLookback = 10 // longest Turkish holiday run (Kurban Bayramı + bridge days) stays inside this
+const fxLookback = 10 // en uzun tatil bile (Kurban Bayramı ve köprü günleri) bu süreye sığar
 
-// Whole-lookup budget, well under the API's 60s WriteTimeout (a cold cache may need several TCMB requests).
+// Bütün arama için süre sınırı. API'nin 60 saniyelik WriteTimeout'unun epey altında; önbellek boşsa TCMB'ye birkaç
+// istek atmak gerekebilir.
 const fxTimeout = 20 * time.Second
 
-var trt = time.FixedZone("TRT", 3*60*60) // Türkiye has no DST since 2016
+var trt = time.FixedZone("TRT", 3*60*60) // Türkiye 2016'dan beri yaz saati uygulamıyor
 
-// fxFallback finds TCMB rates (D17) from the invoice currency to every contract item currency the invoice's own
-// PricingExchangeRate does not cover, plus that rate's own pair (D18): forex buying of the latest bulletin published
-// before the issue date.
-// It runs outside the audit transaction because it may call TCMB; any error means "no fallback" (FX_UNVERIFIED).
+// fxFallback, fatura para biriminden TCMB kurlarını bulur (D17). Faturanın kendi kurunun karşılamadığı her sözleşme
+// para birimi için, ayrıca faturanın kendi kur çifti için (D18), düzenleme tarihinden önce yayımlanan son bültenin
+// döviz alış kurunu kullanır.
+// TCMB'yi çağırabileceği için denetim transaction'ının dışında çalışır. Bir hata olursa TCMB kuru kullanılmaz ve fiyat
+// kuralı FX_UNVERIFIED yazar.
 func (s *Service) fxFallback(ctx context.Context, tenantID, invoiceID uuid.UUID) (map[string]domain.ExchangeRate, error) {
 	if s.fx == nil {
 		return nil, nil
@@ -48,7 +50,7 @@ func (s *Service) fxFallback(ctx context.Context, tenantID, invoiceID uuid.UUID)
 			}
 		}
 		if r := inv.ExchangeRate; r != nil && r.Source == inv.Currency && r.Target != r.Source {
-			need[r.Target] = true // D18: the invoice's own rate is checked against TCMB, contract or not
+			need[r.Target] = true // D18: sözleşme olsun olmasın, faturanın kendi kurunu TCMB ile karşılaştırıyoruz
 		}
 		return err
 	})
@@ -75,7 +77,7 @@ func (s *Service) fxFallback(ctx context.Context, tenantID, invoiceID uuid.UUID)
 			if quotes, published, err = s.fx.Day(ctx, day); err != nil {
 				return nil, err
 			}
-			// today's bulletin appears at 15:30: a missing one is not a holiday yet, so it is not remembered
+			// bugünün bülteni 15:30'da çıkar; henüz yoksa tatil olduğunu bilemeyiz, o yüzden "bülten yok" diye kaydetmiyoruz
 			if published || day.Before(todayDate) {
 				if err := s.store.InTenant(ctx, tenantID, func(tx *repository.Tx) error {
 					return tx.SaveFXDay(ctx, day, published, quotes)
@@ -91,7 +93,8 @@ func (s *Service) fxFallback(ctx context.Context, tenantID, invoiceID uuid.UUID)
 	return nil, fmt.Errorf("no TCMB bulletin in the %d days before %s", fxLookback, inv.IssueDate.Format("2006-01-02"))
 }
 
-// crossRates converts from -> each target through TRY: (TRY per from) / (TRY per target). Unquoted pairs are left out.
+// crossRates, kaynaktan her hedefe TRY üzerinden çapraz kur hesaplar: (kaynağın TRY karşılığı) / (hedefin TRY
+// karşılığı). Bültende olmayan çiftler sonuca girmez.
 func crossRates(from string, targets map[string]bool, quotes []domain.FXQuote, day time.Time) map[string]domain.ExchangeRate {
 	perTRY := map[string]decimal.Decimal{"TRY": decimal.NewFromInt(1)}
 	for _, q := range quotes {

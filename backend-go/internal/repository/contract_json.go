@@ -11,21 +11,21 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-// ContractDoc is a decoded contract JSON document; the vendor still has to be upserted by the caller.
+// ContractDoc, çözülmüş bir sözleşme JSON belgesidir; tedarikçiyi çağıranın ayrıca kaydetmesi gerekir.
 type ContractDoc struct {
 	VendorVKN, VendorName string
-	DraftID               *uuid.UUID // set when approving a reviewed extraction draft
+	DraftID               *uuid.UUID // gözden geçirilmiş bir çıkarım taslağı onaylanınca dolar
 	ContractInput
 }
 
 var (
 	vknRe      = regexp.MustCompile(`^(\d{10}|\d{11})$`)
 	currencyRe = regexp.MustCompile(`^[A-Z]{3}$`)
-	maxPrice   = decimal.New(1, 13) // NUMERIC(19,6) holds 13 integer digits
+	maxPrice   = decimal.New(1, 13) // NUMERIC(19,6) en fazla 13 tam hane alır
 )
 
-// contractJSON uses pointers for fields that must be present; decimal.Decimal parses JSON strings and numbers
-// from their text, so no float is involved.
+// contractJSON, mutlaka gelmesi gereken alanlar için pointer kullanır. decimal.Decimal JSON'daki string'i de sayıyı da
+// metninden okur, yani float hiç devreye girmez.
 type contractJSON struct {
 	VendorVKN       string           `json:"vendor_vkn"`
 	VendorName      string           `json:"vendor_name"`
@@ -46,16 +46,17 @@ type contractJSON struct {
 		Currency         string           `json:"currency"`
 		UOM              string           `json:"uom"`
 		WithholdingCode  string           `json:"withholding_code"`
-		RequiresDelivery *bool            `json:"requires_delivery"` // absent means true
+		RequiresDelivery *bool            `json:"requires_delivery"` // gelmezse true sayılır
 		SourcePage       int              `json:"source_page"`
 		SourceClauseText string           `json:"source_clause_text"`
 	} `json:"items"`
 }
 
-// sane rejects absurd exponents before any arithmetic: Cmp on 1e999999999 would allocate gigabytes.
+// sane, saçma büyüklükteki üsleri hesaba girmeden reddeder: 1e999999999 ile Cmp yapmak gigabaytlarca bellek ayırırdı.
 func sane(d decimal.Decimal) bool { return d.Exponent() >= -12 && d.Exponent() <= 12 }
 
-// ParseContractJSON decodes and validates the contract import format (decimals as strings or numbers, dates as YYYY-MM-DD).
+// ParseContractJSON, sözleşme içe aktarma biçimini çözer ve doğrular (ondalıklar string ya da sayı, tarihler
+// YYYY-MM-DD).
 func ParseContractJSON(r io.Reader) (ContractDoc, error) {
 	var j contractJSON
 	if err := json.NewDecoder(r).Decode(&j); err != nil {

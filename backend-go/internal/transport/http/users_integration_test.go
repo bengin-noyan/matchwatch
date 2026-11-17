@@ -19,7 +19,7 @@ import (
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/repository"
 )
 
-// mailbox records the mails the API sends instead of delivering them.
+// mailbox, API'nin gönderdiği e-postaları teslim etmek yerine kaydeder.
 type mailbox struct {
 	mu   sync.Mutex
 	sent []struct{ to, subject, body string }
@@ -32,7 +32,7 @@ func (m *mailbox) Send(_ context.Context, to, subject, body string) error {
 	return nil
 }
 
-// count is how many mails went to address.
+// count, adrese kaç e-posta gittiğini söyler.
 func (m *mailbox) count(to string) int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -45,8 +45,8 @@ func (m *mailbox) count(to string) int {
 	return n
 }
 
-// mailedToken waits (reset mails go out after the response) for the n-th mail (1-based) to address and returns the
-// token of the link in it, checking the link's page.
+// mailedToken, adrese giden n'inci e-postayı bekler (1'den başlayarak; sıfırlama e-postaları cevaptan sonra gider),
+// içindeki bağlantının token'ını döner ve bağlantının sayfasını kontrol eder.
 func (e *env) mailedToken(to, page string, n int) string {
 	e.t.Helper()
 	for i := 0; i < 100; i++ {
@@ -82,7 +82,7 @@ func sessionOf(rec interface{ Result() *http.Response }) *http.Cookie {
 	return nil
 }
 
-// api calls the API with the setup's dev token (no user behind it).
+// api, API'yi setup'ın dev token'ıyla çağırır (arkasında kullanıcı yok).
 func (e *env) api(method, path, body string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
 	req.Header.Set("Authorization", "Bearer "+e.token)
@@ -91,7 +91,7 @@ func (e *env) api(method, path, body string) *httptest.ResponseRecorder {
 	return rec
 }
 
-// loginAs signs in with e-mail and password and returns the session cookie (nil when refused).
+// loginAs, e-posta ve şifreyle giriş yapar ve oturum çerezini döner (reddedilirse nil).
 func (e *env) loginAs(email, pw string) *http.Cookie {
 	return sessionOf(e.raw("POST", "/api/v1/auth/login", `{"email":"`+email+`","password":"`+pw+`"}`, nil))
 }
@@ -126,7 +126,7 @@ func TestInviteFlow(t *testing.T) {
 		return out.ID
 	}
 	invite()
-	id := invite() // replaces the first
+	id := invite() // ilkinin yerine geçer
 	first, token := e.mailedToken(lower, "/davet", 1), e.mailedToken(lower, "/davet", 2)
 	if e.mails.sent[len(e.mails.sent)-1].body == "" || !strings.Contains(e.mails.sent[len(e.mails.sent)-1].body, admin) {
 		t.Fatalf("invite mail does not say who invited: %s", e.mails.sent[len(e.mails.sent)-1].body)
@@ -151,7 +151,7 @@ func TestInviteFlow(t *testing.T) {
 	if rec.Code != 200 || !strings.Contains(rec.Body.String(), lower) || sessionOf(rec) == nil {
 		t.Fatalf("redeem: %d %s", rec.Code, rec.Body)
 	}
-	// the new login sees the inviting company's data
+	// yeni giriş, davet eden şirketin verilerini görür
 	if rec := e.raw("GET", "/api/v1/users", "", sessionOf(rec)); !strings.Contains(rec.Body.String(), admin) {
 		t.Fatalf("new user in another tenant: %s", rec.Body)
 	}
@@ -214,7 +214,7 @@ func TestForgotPasswordEndsOldSessions(t *testing.T) {
 		t.Fatalf("link info: %s", rec.Body)
 	}
 
-	time.Sleep(1100 * time.Millisecond) // JWT iat has whole seconds; the old session must be from an earlier one
+	time.Sleep(1100 * time.Millisecond) // JWT iat tam saniyedir; eski oturum daha önceki bir saniyeden olmalı
 	rec := e.raw("POST", "/api/v1/auth/redeem", `{"token":"`+token+`","password":"yeni-sifre-4567"}`, nil)
 	fresh := sessionOf(rec)
 	if rec.Code != 200 || fresh == nil {
@@ -229,7 +229,7 @@ func TestForgotPasswordEndsOldSessions(t *testing.T) {
 	if e.loginAs(user, "eski-sifre-123") != nil || e.loginAs(user, "yeni-sifre-4567") == nil {
 		t.Fatal("password not replaced")
 	}
-	// the dev token has no user behind it and is not affected
+	// dev token'ın arkasında kullanıcı yok, bundan etkilenmez
 	if rec := e.api("GET", "/api/v1/users", ""); rec.Code != 200 {
 		t.Fatalf("dev token: %d", rec.Code)
 	}

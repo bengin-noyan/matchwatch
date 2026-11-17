@@ -25,7 +25,7 @@ def fixture_pages() -> list[str]:
 
 
 class FakeLLM:
-    """Returns (dict) or raises (Exception) the given answers in order; records user messages."""
+    """Verilen cevapları sırayla döner (dict) ya da fırlatır (Exception); kullanıcı mesajlarını kaydeder."""
 
     model = "fake"
 

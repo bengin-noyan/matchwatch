@@ -1,11 +1,12 @@
-"""Fill a dev tenant with a few months of realistic documents so the web app's charts have something to show.
+"""Bir geliştirme tenant'ını birkaç aylık gerçekçi belgeyle doldurur, böylece web uygulamasının grafiklerinde gösterecek bir şey olur.
 
-Development only. Usage (API running, account opened with cmd/onboard):
+Yalnızca geliştirme için. Kullanım (API çalışıyor, hesap cmd/onboard ile açılmış):
     python -X utf8 -I scripts/seed-demo.py http://127.0.0.1:8080 demo@matchwatch.local demo-sifre-2026
 
-Three vendors with contracts; weekly despatches and invoices from July to early November 2026. About a quarter of
-the invoices carry a price above the contract, some a shorter payment term, some more than was delivered.
-Deterministic (fixed random seed); re-running adds a new batch with fresh ETTNs.
+Sözleşmeli üç tedarikçi; Temmuz'dan Kasım 2026 başına kadar haftalık irsaliyeler ve faturalar. Faturaların
+yaklaşık dörtte birinde fiyat sözleşmenin üstünde, bazılarında vade daha kısa, bazılarında teslim edilenden fazla
+miktar var. Her seferinde aynı veriyi üretir (sabit rastgele tohum); yeniden çalıştırmak yeni ETTN'lerle yeni bir
+parti ekler.
 """
 import json
 import random
@@ -136,7 +137,7 @@ def main():
             for code, name, price, (lo, hi) in items:
                 qty = Decimal(rnd.randrange(lo, hi, 10 if hi > 100 else 1))
                 p = Decimal(price)
-                if rnd.random() < 0.27:  # a quiet price rise above the contract
+                if rnd.random() < 0.27:  # sözleşmenin üstünde sessiz bir fiyat artışı
                     p = (p * (1 + Decimal(rnd.choice([2, 4, 5, 8, 12])) / 100)).quantize(Decimal("0.01"))
                 invoiced.append((code, name, qty, p.quantize(Decimal("0.01")) if p >= 1 else p))
                 short = rnd.random() < 0.15
@@ -156,7 +157,7 @@ def main():
         week += timedelta(days=7)
 
     disputed = 0
-    for inv in dispute:  # a person already disputed a few, so the "disputed" figures are not all zero
+    for inv in dispute:  # bazılarına zaten itiraz edilmiş olsun ki "itiraz edildi" rakamları hep sıfır görünmesin
         _, d = api.call("GET", f"/invoices/{inv}")
         for f in d.get("findings", []):
             if f["rule_code"] == "PRICE_MISMATCH":

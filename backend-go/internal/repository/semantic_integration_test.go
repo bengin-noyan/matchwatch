@@ -14,7 +14,7 @@ import (
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/domain"
 )
 
-// vec builds a 1024-dim pgvector literal with the given leading components and zeros elsewhere.
+// vec, verilen ilk bileşenlerle başlayan, gerisi sıfır olan 1024 boyutlu bir pgvector değeri üretir.
 func vec(lead ...string) json.RawMessage {
 	parts := make([]string, 1024)
 	for i := range parts {
@@ -26,7 +26,7 @@ func vec(lead ...string) json.RawMessage {
 	return json.RawMessage("[" + strings.Join(parts, ",") + "]")
 }
 
-// semanticContract must not t.Fatal: it runs inside a tenant transaction.
+// semanticContract t.Fatal çağırmamalı: bir tenant transaction'ının içinde çalışıyor.
 func semanticContract(ctx context.Context, tx *Tx, vendor uuid.UUID) (uuid.UUID, map[string]uuid.UUID, error) {
 	item := func(name, uom string) ContractItemInput {
 		return ContractItemInput{Name: name, UOM: uom, Currency: "TRY", UnitPrice: decimal.RequireFromString("1"), RequiresDelivery: true}
@@ -150,7 +150,7 @@ func TestUpsertAliasAndRLS(t *testing.T) {
 			t.Errorf("upsert: %v %v", got, err)
 			return errors.New("fail")
 		}
-		if _, err := tx.UpsertAlias(ctx, lineID, itemID); err != nil { // a second choice replaces the first
+		if _, err := tx.UpsertAlias(ctx, lineID, itemID); err != nil { // ikinci seçim ilkinin yerine geçer
 			return err
 		}
 		al, err := tx.Aliases(ctx, v)

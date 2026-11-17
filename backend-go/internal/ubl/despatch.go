@@ -12,7 +12,7 @@ import (
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/domain"
 )
 
-// ErrNotDespatch means the root element is not a UBL DespatchAdvice.
+// ErrNotDespatch, kök elemanın bir UBL DespatchAdvice olmadığını gösterir.
 var ErrNotDespatch = errors.New("ubl: document is not a DespatchAdvice")
 
 type DespatchLine struct {
@@ -63,7 +63,7 @@ type xmlDespatch struct {
 	} `xml:"urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2 DespatchLine"`
 }
 
-// ParseDespatch decodes and validates a UBL-TR DespatchAdvice. It never panics on bad input.
+// ParseDespatch, bir UBL-TR DespatchAdvice'ı (e-İrsaliye) çözer ve doğrular. Hatalı girdide asla panic etmez.
 func ParseDespatch(r io.Reader) (*DespatchAdvice, error) {
 	var x xmlDespatch
 	if err := decodeRoot(r, "urn:oasis:names:specification:ubl:schema:xsd:DespatchAdvice-2", "DespatchAdvice", ErrNotDespatch, &x); err != nil {

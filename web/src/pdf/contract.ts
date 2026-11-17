@@ -1,4 +1,4 @@
-// pdf.js is loaded only when a contract page is first opened, so the rest of the app stays light.
+// pdf.js ancak bir sözleşme sayfası ilk kez açıldığında yüklenir; böylece uygulamanın geri kalanı hafif kalır.
 import { getDocument, GlobalWorkerOptions, Util, type PDFDocumentProxy } from 'pdfjs-dist'
 import type { TextItem } from 'pdfjs-dist/types/src/display/api'
 import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
@@ -7,8 +7,9 @@ import { clauseItems } from './clause'
 
 GlobalWorkerOptions.workerSrc = workerSrc
 
-// One download per contract while the tab is open; a failed one is forgotten so it can be retried.
-// shortcut: no standardFontDataUrl/wasmUrl, so non-embedded fonts use system fonts and JBIG2/JPX scans the JS decoders; ship those dirs if scans look wrong.
+// Sekme açık kaldıkça her sözleşme bir kez indirilir; başarısız indirme unutulur ki tekrar denenebilsin.
+// shortcut: standardFontDataUrl/wasmUrl yok; yani PDF'e gömülmemiş fontlar sistem fontlarıyla çizilir, JBIG2/JPX
+// taramaları da JS çözücüler açar. Taramalar yanlış görünürse o klasörleri de pakete ekle.
 const docs = new Map<string, Promise<PDFDocumentProxy>>()
 function contractDoc(contractNo: string): Promise<PDFDocumentProxy> {
   let p = docs.get(contractNo)
@@ -20,12 +21,12 @@ function contractDoc(contractNo: string): Promise<PDFDocumentProxy> {
   return p
 }
 
-// A highlight box in percent of the page, so it scales with the canvas.
+// Sayfanın yüzdesi cinsinden bir vurgu kutusu, böylece canvas'la birlikte ölçeklenir.
 export type Box = { left: number; top: number; width: number; height: number }
 export type Rendered = { pages: number; aspect: number; boxes: Box[] }
 
-// Draws page pageNo of the contract into canvas at cssWidth and finds the clause on it.
-// Throws RangeError when the PDF has fewer pages.
+// Sözleşmenin pageNo numaralı sayfasını cssWidth genişliğinde canvas'a çizer ve maddeyi o sayfada bulur. PDF'te daha az
+// sayfa varsa RangeError fırlatır.
 export async function renderContractPage(contractNo: string, pageNo: number, clause: string, canvas: HTMLCanvasElement, cssWidth: number): Promise<Rendered> {
   const doc = await contractDoc(contractNo)
   if (pageNo > doc.numPages) throw new RangeError(`page ${pageNo} of ${doc.numPages}`)
@@ -40,7 +41,7 @@ export async function renderContractPage(contractNo: string, pageNo: number, cla
   const boxes = clauseItems(items, clause).map((i) => {
     const it = items[i]!
     const tx = Util.transform(base.transform, it.transform)
-    const h = Math.hypot(tx[2], tx[3]) // font size in viewport units
+    const h = Math.hypot(tx[2], tx[3]) // viewport biriminde font boyutu
     return {
       left: (tx[4] / base.width) * 100,
       top: ((tx[5] - h) / base.height) * 100,

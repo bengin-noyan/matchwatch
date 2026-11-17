@@ -18,7 +18,7 @@ const (
 	taxKDV    = "0015"
 )
 
-// ErrNotInvoice means the root element is not a UBL Invoice.
+// ErrNotInvoice, kök elemanın bir UBL Invoice olmadığını gösterir.
 var ErrNotInvoice = errors.New("ubl: document is not an Invoice")
 
 type DocRef struct {
@@ -115,7 +115,7 @@ type xmlInvoice struct {
 	} `xml:"urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2 InvoiceLine"`
 }
 
-// ParseInvoice decodes and validates a UBL-TR Invoice. It never panics on bad input.
+// ParseInvoice, bir UBL-TR Invoice'u (e-Fatura) çözer ve doğrular. Hatalı girdide asla panic etmez.
 func ParseInvoice(r io.Reader) (*Invoice, error) {
 	dec := xml.NewDecoder(r)
 	var start xml.StartElement

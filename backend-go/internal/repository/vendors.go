@@ -13,10 +13,10 @@ type VendorRow struct {
 	ID           uuid.UUID       `json:"id"`
 	Name         string          `json:"name"`
 	VKN          string          `json:"vkn"`
-	ContractNo   string          `json:"contract_no"` // newest ACTIVE contract, "" if none
+	ContractNo   string          `json:"contract_no"` // en yeni ACTIVE sözleşme, yoksa ""
 	InvoiceCount int             `json:"invoice_count"`
 	OpenFindings int             `json:"open_findings"`
-	Caught       json.RawMessage `json:"caught"` // [{currency, caught_minor}], findings except APPROVED_EXCEPTION
+	Caught       json.RawMessage `json:"caught"` // [{currency, caught_minor}], APPROVED_EXCEPTION dışındaki bulgular
 }
 
 const vendorCols = `v.id, v.name, v.vkn,
@@ -67,7 +67,7 @@ type PricePointRow struct {
 	InvoiceID    uuid.UUID `json:"invoice_id"`
 	InvoiceNo    string    `json:"invoice_no"`
 	IssueDate    string    `json:"issue_date"`
-	NetUnitPrice string    `json:"net_unit_price"` // line_extension / qty, NUMERIC in SQL (D2)
+	NetUnitPrice string    `json:"net_unit_price"` // line_extension / qty, SQL'de NUMERIC olarak (D2)
 	Currency     string    `json:"currency"`
 	UOM          string    `json:"uom"`
 }
@@ -75,7 +75,7 @@ type PricePointRow struct {
 type VendorDetail struct {
 	VendorRow
 	Contracts    []ContractRow              `json:"contracts"`
-	PriceHistory map[string][]PricePointRow `json:"price_history"` // by contract item id, oldest first
+	PriceHistory map[string][]PricePointRow `json:"price_history"` // sözleşme kalemi id'sine göre, eskiden yeniye
 }
 
 func (tx *Tx) VendorDetail(ctx context.Context, id uuid.UUID) (VendorDetail, error) {

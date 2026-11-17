@@ -1,2 +1,2 @@
--- Faz 3h: a person may undo a wrong item match from the alias screen.
+-- Faz 3h: bir kişi, yanlış bir kalem eşleşmesini eşleşmeler ekranından geri alabilir.
 GRANT DELETE ON item_aliases TO matchwatch_app;

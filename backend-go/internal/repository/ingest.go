@@ -21,7 +21,7 @@ type ContractInput struct {
 	PaymentTermDays       int
 	Currency              string
 	QtyTolerancePct       decimal.Decimal
-	PaymentTermSourcePage int // 0 = unknown
+	PaymentTermSourcePage int // 0 bilinmiyor demek
 	PaymentTermClauseText string
 	FilePath              string
 	Items                 []ContractItemInput
@@ -81,9 +81,9 @@ func (tx *Tx) InsertContract(ctx context.Context, c ContractInput) (uuid.UUID, e
 	return id, nil
 }
 
-// InsertDespatch stores the despatch and its lines.
+// InsertDespatch, irsaliyeyi ve satırlarını kaydeder.
 func (tx *Tx) InsertDespatch(ctx context.Context, vendorID uuid.UUID, d *ubl.DespatchAdvice, rawPath string) (uuid.UUID, error) {
-	ship := d.IssueDate // shipment_date is NOT NULL; fall back to the issue date
+	ship := d.IssueDate // shipment_date boş olamaz; yoksa düzenleme tarihini kullanıyoruz
 	if d.ShipmentDate != nil {
 		ship = *d.ShipmentDate
 	}
@@ -107,7 +107,7 @@ func (tx *Tx) InsertDespatch(ctx context.Context, vendorID uuid.UUID, d *ubl.Des
 	return id, nil
 }
 
-// ApplyReceipt sets rejected_qty on the referenced despatch's lines.
+// ApplyReceipt, atıf yapılan irsaliyenin satırlarına reddedilen miktarı (rejected_qty) yazar.
 func (tx *Tx) ApplyReceipt(ctx context.Context, vendorID uuid.UUID, r *ubl.ReceiptAdvice) (string, error) {
 	var despatchID uuid.UUID
 	err := tx.QueryRow(ctx, `SELECT id FROM despatch_advices WHERE tenant_id=$1 AND vendor_id=$2 AND despatch_no=$3
@@ -122,7 +122,7 @@ func (tx *Tx) ApplyReceipt(ctx context.Context, vendorID uuid.UUID, r *ubl.Recei
 		tag, err := tx.Exec(ctx, `UPDATE despatch_lines SET rejected_qty=$1 WHERE tenant_id=$2 AND despatch_id=$3 AND line_id=$4`,
 			num(l.RejectedQty), tx.tenantID, despatchID, l.DespatchLineID)
 		if err != nil {
-			return "", wrap("apply receipt line "+l.DespatchLineID, err) // includes the rejected <= delivered CHECK
+			return "", wrap("apply receipt line "+l.DespatchLineID, err) // reddedilen <= teslim edilen CHECK'i de buraya dahil
 		}
 		if tag.RowsAffected() == 0 {
 			return "", fmt.Errorf("%w: %s has no line %s", ErrUnknownDespatch, r.DespatchNumber, l.DespatchLineID)
@@ -131,7 +131,7 @@ func (tx *Tx) ApplyReceipt(ctx context.Context, vendorID uuid.UUID, r *ubl.Recei
 	return r.DespatchNumber, nil
 }
 
-// InsertInvoice stores the invoice, its lines and despatch references.
+// InsertInvoice, faturayı, satırlarını ve irsaliye atıflarını kaydeder.
 func (tx *Tx) InsertInvoice(ctx context.Context, vendorID uuid.UUID, inv *ubl.Invoice, rawPath string) (uuid.UUID, error) {
 	var fxSrc, fxTgt *string
 	var fxRate any

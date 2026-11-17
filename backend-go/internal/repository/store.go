@@ -1,4 +1,4 @@
-// Package repository is the only code that talks to Postgres; every tenant query runs inside Store.InTenant.
+// Package repository, Postgres ile konuşan tek koddur. Her tenant sorgusu Store.InTenant içinde çalışır.
 package repository
 
 import (
@@ -27,13 +27,14 @@ type Store struct{ pool *pgxpool.Pool }
 
 func NewStore(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 
-// Tx is a transaction with app.current_tenant_id already set.
+// Tx, app.current_tenant_id'si önceden ayarlanmış bir transaction'dır.
 type Tx struct {
 	pgx.Tx
 	tenantID uuid.UUID
 }
 
-// InTenant runs fn in a transaction scoped to tenantID; it rolls back on error and on panic (re-panicking).
+// InTenant, fn'i tenantID'ye bağlı bir transaction'da çalıştırır; hata ya da panic olursa geri alır (panic'i sonra
+// yeniden fırlatır).
 func (s *Store) InTenant(ctx context.Context, tenantID uuid.UUID, fn func(tx *Tx) error) (err error) {
 	ptx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -57,26 +58,26 @@ func (s *Store) InTenant(ctx context.Context, tenantID uuid.UUID, fn func(tx *Tx
 	return ptx.Commit(ctx)
 }
 
-// CreateTenant generates the id in Go so the RLS GUC can be set before the insert.
+// CreateTenant id'yi Go'da üretir, böylece kayıttan önce RLS ayarı yapılabilir.
 func (s *Store) CreateTenant(ctx context.Context, name, vkn string, financingRate decimal.Decimal) (uuid.UUID, error) {
 	id := uuid.New()
 	err := s.InTenant(ctx, id, func(tx *Tx) error { return tx.InsertTenant(ctx, name, vkn, financingRate) })
 	return id, err
 }
 
-// InsertTenant creates the transaction's own tenant (its id is the one InTenant was given).
+// InsertTenant, transaction'ın kendi tenant'ını oluşturur (id'si InTenant'a verilen id'dir).
 func (tx *Tx) InsertTenant(ctx context.Context, name, vkn string, financingRate decimal.Decimal) error {
 	_, err := tx.Exec(ctx, `INSERT INTO tenants(id, name, vkn, financing_rate_annual) VALUES ($1,$2,$3,$4)`,
 		tx.tenantID, name, vkn, num(financingRate))
 	return err
 }
 
-// num converts a decimal to pgx's numeric without going through float.
+// num, bir ondalığı float'a hiç uğramadan pgx'in numeric tipine çevirir.
 func num(d decimal.Decimal) pgtype.Numeric {
 	return pgtype.Numeric{Int: d.Coefficient(), Exp: d.Exponent(), Valid: true}
 }
 
-// isUniqueOn reports a 23505 violation on a constraint whose name contains part.
+// isUniqueOn, adında part geçen bir kısıtta 23505 (benzersizlik) ihlali olup olmadığını söyler.
 func isUniqueOn(err error, part string) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "23505" && strings.Contains(pgErr.ConstraintName, part)
@@ -89,5 +90,5 @@ func wrap(op string, err error) error {
 	return fmt.Errorf("%s: %w", op, err)
 }
 
-// Ping checks database connectivity (used by /healthz).
+// Ping, veritabanına bağlanılabiliyor mu diye bakar (/healthz kullanır).
 func (s *Store) Ping(ctx context.Context) error { return s.pool.Ping(ctx) }

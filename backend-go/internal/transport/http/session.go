@@ -19,7 +19,8 @@ import (
 
 const sessionTTL = 8 * time.Hour
 
-// dummyHash keeps a login for an unknown e-mail as slow as a wrong password, so timing does not reveal accounts.
+// dummyHash, bilinmeyen bir e-postayla girişi yanlış şifre kadar yavaş tutar; böylece cevabın süresinden hesabın var
+// olup olmadığı anlaşılmaz.
 var dummyHash, _ = bcrypt.GenerateFromPassword([]byte("matchwatch-no-such-user"), auth.PasswordCost)
 
 func (s *server) sessionCookie(value string, maxAge int) *http.Cookie {
@@ -62,8 +63,8 @@ func (s *server) login(w http.ResponseWriter, r *http.Request) {
 	s.writeMe(w, r, cred.TenantID, cred.UserID.String())
 }
 
-// signup opens a new company account with its first user and logs that user in. Each sign-up is its own tenant:
-// VKNs are not unique, so nobody can claim another company's VKN and lock it out.
+// signup, yeni bir şirket hesabını ilk kullanıcısıyla açar ve o kullanıcıyı giriş yapmış hale getirir. Her kayıt kendi
+// tenant'ıdır: VKN'ler benzersiz değil, böylece kimse başka bir şirketin VKN'sini sahiplenip onu dışarıda bırakamaz.
 func (s *server) signup(w http.ResponseWriter, r *http.Request) {
 	var req struct{ Company, VKN, Email, Password string }
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&req); err != nil {
@@ -85,7 +86,7 @@ func (s *server) signup(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 422, "WEAK_PASSWORD", "password must be 12 characters to 72 bytes")
 		return
 	}
-	// The TCP peer; behind Caddy, BehindProxy (TRUST_PROXY=true) has already put the client address here.
+	// TCP'deki karşı taraf; Caddy'nin arkasında BehindProxy (TRUST_PROXY=true) istemcinin adresini zaten buraya koymuştur.
 	ip, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		ip = r.RemoteAddr
@@ -94,7 +95,7 @@ func (s *server) signup(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 429, "TOO_MANY_SIGNUPS", "too many sign-ups from this address; try again later")
 		return
 	}
-	s.signups.Fail(ip) // every attempt counts, successful or not
+	s.signups.Fail(ip) // başarılı olsun olmasın her deneme sayılır
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), auth.PasswordCost)
 	if err != nil {
 		fail(w, err)
@@ -126,13 +127,14 @@ func (s *server) signup(w http.ResponseWriter, r *http.Request) {
 	}{email, company})
 }
 
-// validEmail is a shape check; it also keeps the address safe for a mail header (no spaces, controls or brackets).
+// validEmail yalnızca biçime bakar; adresin bir e-posta header'ına güvenle girmesini de sağlar (boşluk, kontrol
+// karakteri ya da köşeli parantez yok).
 func validEmail(email string) bool {
 	return len(email) <= 254 && !strings.ContainsFunc(email, func(r rune) bool { return r <= ' ' || strings.ContainsRune("<>,;\"()[]\\", r) }) && strings.Count(email, "@") == 1 && !strings.HasPrefix(email, "@") && !strings.HasSuffix(email, "@")
 }
 
 func validPassword(pw string) bool {
-	return utf8.RuneCountInString(pw) >= 12 && len(pw) <= 72 // bcrypt reads at most 72 bytes
+	return utf8.RuneCountInString(pw) >= 12 && len(pw) <= 72 // bcrypt en fazla 72 bayt okur
 }
 
 func (s *server) logout(w http.ResponseWriter, r *http.Request) {
@@ -144,7 +146,7 @@ func (s *server) me(w http.ResponseWriter, r *http.Request) {
 	s.writeMe(w, r, auth.TenantID(r.Context()), auth.Subject(r.Context()))
 }
 
-// writeMe answers {email, tenant_name}; a dev token (sub is not a user id) has no e-mail.
+// writeMe {email, tenant_name} döner; dev token'ın (sub bir kullanıcı id'si değil) e-postası yoktur.
 func (s *server) writeMe(w http.ResponseWriter, r *http.Request, tenantID uuid.UUID, sub string) {
 	var out struct {
 		Email      string `json:"email"`

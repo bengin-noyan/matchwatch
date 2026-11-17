@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
-# End-to-end smoke test: real Postgres, real API binary, happy-path flow. No make needed.
+# Uçtan uca duman testi: gerçek Postgres, gerçek API programı, her şeyin yolunda gittiği akış. make gerekmez.
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 
-# Same precedence as the Makefile: .env overrides .env.example.
+# Makefile'daki öncelik sırası: .env, .env.example'ın üstüne yazar.
 set -a
 . ./.env.example
 [ -f .env ] && . ./.env
 set +a
 
 tmp="$(mktemp -d)"
-if command -v cygpath >/dev/null; then tmp="$(cygpath -m "$tmp")"; fi # native Go needs a Windows path
+if command -v cygpath >/dev/null; then tmp="$(cygpath -m "$tmp")"; fi # Windows'taki Go, Windows yolu ister
 api_pid=""
 cleanup() { [ -n "$api_pid" ] && kill "$api_pid" 2>/dev/null || true; rm -rf "$tmp"; }
 trap cleanup EXIT
@@ -39,7 +39,7 @@ for i in $(seq 1 30); do
   sleep 1
 done
 
-# post <path> <content-type> <file>: fail with the response body on non-2xx.
+# post <yol> <content-type> <dosya>: cevap 2xx değilse cevabın gövdesiyle hata verir.
 post() {
   local code
   code="$(curl -sS -o "$tmp/out" -w '%{http_code}' -X POST "$base$1" \

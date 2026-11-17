@@ -165,7 +165,8 @@ func TestDraftCrossTenantContractFK(t *testing.T) {
 	wantPgCode(t, err, "23503")
 }
 
-// cleanupTenant removes an extra tenant created by a test (owner role, GUC set because FORCE RLS applies).
+// cleanupTenant, bir testin açtığı ek tenant'ı siler (owner rolüyle; FORCE RLS owner'a da uygulandığı için tenant ayarı
+// yapılır).
 func cleanupTenant(t *testing.T, tid uuid.UUID) {
 	t.Cleanup(func() {
 		ctx := context.Background()

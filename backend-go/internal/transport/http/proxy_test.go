@@ -15,8 +15,8 @@ func TestBehindProxyUsesRightmostForwardedFor(t *testing.T) {
 	}{
 		{nil, "10.0.0.9:5555"},
 		{[]string{"203.0.113.7"}, "203.0.113.7:0"},
-		{[]string{"6.6.6.6, 203.0.113.7"}, "203.0.113.7:0"},   // forged left entry is ignored
-		{[]string{"6.6.6.6", "203.0.113.7"}, "203.0.113.7:0"}, // two header lines
+		{[]string{"6.6.6.6, 203.0.113.7"}, "203.0.113.7:0"},   // soldaki sahte girdi yok sayılır
+		{[]string{"6.6.6.6", "203.0.113.7"}, "203.0.113.7:0"}, // iki header satırı
 		{[]string{"2001:db8::1"}, "[2001:db8::1]:0"},
 		{[]string{"not-an-ip"}, "10.0.0.9:5555"},
 	} {

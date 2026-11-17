@@ -69,8 +69,8 @@ def test_ungrounded_item_name_drops_item(text_pages, good_answer):
     out = extract(text_pages, FakeLLM([good_answer]))
     assert [i["name"] for i in out["draft"]["items"]] == ["Tereyağı 500 g", "Soğuk zincir nakliye hizmeti"]
     dropped = next(w for w in out["warnings"] if w["code"] == "UNGROUNDED")
-    assert dropped["field"] == "items[0]" and "dropped" in dropped["message"]  # LLM's own index
-    # kept items' warnings follow the output list: "sefer" is now items[1]
+    assert dropped["field"] == "items[0]" and "dropped" in dropped["message"]  # LLM'in kendi sıra numarası
+    # tutulan kalemlerin uyarıları çıktı listesini izler: "sefer" artık items[1]
     assert any(w["code"] == "UNKNOWN_UOM" and w["field"] == "items[1].uom" for w in out["warnings"])
 
 
@@ -105,7 +105,8 @@ def test_negative_price_unparseable(fixture_pages, good_answer, page_text, quote
 
 
 def test_zero_price_accepted(fixture_pages, good_answer):
-    # own page: on the fixture page "0,00 TL" also sits inside "1.250,00 TL" and is rightly rejected
+    # kendi sayfası: fixture sayfasında "0,00 TL" aynı zamanda "1.250,00 TL"nin içinde geçiyor ve haklı olarak
+    # reddediliyor
     pages = [Page(1, fixture_pages[0], False), Page(2, "Beyaz Peynir 1 kg | kg | 0,00 TL", False)]
     item, ws = _price(None, good_answer, "0,00 TL", pages)
     assert item["unit_price"] == "0.00" and ws == []
@@ -149,7 +150,7 @@ def test_chunking_merges_and_dedupes(text_pages, good_answer):
     assert len(llm.calls) == 2 and "=== SAYFA 1 ===" in llm.calls[0] and "=== SAYFA 2 ===" in llm.calls[1]
     assert "=== SAYFA 2 ===" not in llm.calls[0]
     assert len(out["draft"]["items"]) == 3 and out["draft"]["contract_no"] == "SZL-2026-014"
-    # header fields are filled by group 1, so group 2's repeats do not warn
+    # başlık alanlarını 1. grup dolduruyor, o yüzden 2. grubun tekrarları uyarı vermez
     assert not any(w["code"] == "UNGROUNDED" for w in out["warnings"])
 
 
@@ -222,7 +223,7 @@ def test_date_range_fills_missing_end(text_pages, good_answer):
 
 
 def test_end_not_after_start_is_unparseable(text_pages, good_answer):
-    good_answer["valid_until"]["text"] = "01.01.2026"  # the model's real-run mistake: start date as end
+    good_answer["valid_until"]["text"] = "01.01.2026"  # modelin gerçek denemede yaptığı hata: başlangıç tarihini bitiş olarak yazdı
     out = extract(text_pages, FakeLLM([good_answer]))
     assert out["draft"]["valid_from"] == "2026-01-01" and out["draft"]["valid_until"] is None
     w = next(w for w in out["warnings"] if w["field"] == "valid_until")
@@ -231,7 +232,7 @@ def test_end_not_after_start_is_unparseable(text_pages, good_answer):
 
 def test_range_recovers_end_quoted_as_start(text_pages, good_answer):
     good_answer["valid_from"]["text"] = "01.01.2026 – 31.12.2026"
-    good_answer["valid_until"]["text"] = "01.01.2026"  # the real-model mistake
+    good_answer["valid_until"]["text"] = "01.01.2026"  # gerçek modelin hatası
     out = extract(text_pages, FakeLLM([good_answer]))
     assert (out["draft"]["valid_from"], out["draft"]["valid_until"]) == ("2026-01-01", "2026-12-31")
     assert not any(w["code"] == "UNPARSEABLE" and w["field"] == "valid_until" for w in out["warnings"])
@@ -268,7 +269,7 @@ def test_deadline_exceeded_never_calls_llm(text_pages, good_answer):
 
 
 def test_call_timeout_capped_by_remaining_time(text_pages, good_answer):
-    t = iter([0.0, 10.0, 250.0, 269.0])  # start, first call, retry, (spare)
+    t = iter([0.0, 10.0, 250.0, 269.0])  # başlangıç, ilk çağrı, yeniden deneme, (yedek)
     bad = {"vendor_vkn": 1}
     llm = FakeLLM([bad, good_answer])
     extract(text_pages, llm, deadline_s=270, clock=lambda: next(t))

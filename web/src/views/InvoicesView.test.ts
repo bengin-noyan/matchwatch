@@ -34,7 +34,7 @@ describe('InvoicesView', () => {
     expect(router.currentRoute.value.query.page).toBe('3')
     expect(list).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 100 }))
 
-    // a filter change goes back to page 1 and keeps the rest
+    // filtre değişince 1. sayfaya dönülür, gerisi korunur
     await w.findAll('button').find((b) => b.text().startsWith(statusLabel.GREEN))!.trigger('click')
     await flushPromises()
     expect(router.currentRoute.value.query).toEqual({ q: 'demir', status: 'GREEN', sort: 'issue_date', dir: 'desc', open: '1' })

@@ -13,25 +13,27 @@ import (
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/repository"
 )
 
-// Embedder turns item names into vectors (raw JSON arrays) with the named model; implemented by aiclient.Client.
+// Embedder, kalem adlarını verilen modelle vektöre çevirir (ham JSON dizisi olarak). aiclient.Client bunu uygular.
 type Embedder interface {
 	Embed(ctx context.Context, texts []string) (string, []json.RawMessage, error)
 }
 
-// Well under the API's 60s WriteTimeout: ingest and /match audit inline, and the invoice is already committed.
-// shortcut: fixed timeout, move to config if CPU embedding of large invoices needs longer.
+// API'nin 60 saniyelik WriteTimeout'unun epey altında: yükleme ve /match denetimi istek içinde yapıyor ve fatura zaten
+// kaydedilmiş oluyor.
+// shortcut: süre sabit; büyük faturaların embedding'i CPU'da daha uzun sürerse config'e taşı.
 const embedTimeout = 30 * time.Second
 
-const maxEmbedChars = 512 // ai-service limit per text
+const maxEmbedChars = 512 // ai-service'in metin başına sınırı
 
-// embedText is what gets embedded: the normalized name (better recall in calibration), capped to the service limit.
+// embedText, embedding'e gönderilen metindir: normalleştirilmiş ad (denemelerde daha iyi sonuç verdi), servisin
+// sınırına göre kısaltılmış.
 func embedText(name string) string {
 	r := []rune(domain.NameKey(name))
 	return string(r[:min(len(r), maxEmbedChars)])
 }
 
-// suggest computes D16 suggestions for the invoice's lines that no code, barcode or alias matches.
-// It runs outside the audit transaction because it calls the AI service; any error means "no suggestions".
+// suggest, kod, barkod ya da onaylı eşleşmeyle bulunamayan fatura satırları için öneriler üretir (D16).
+// AI servisini çağırdığı için denetim transaction'ının dışında çalışır. Bir hata olursa öneri çıkmaz, o kadar.
 func (s *Service) suggest(ctx context.Context, tenantID, invoiceID uuid.UUID) (map[uuid.UUID][]domain.Suggestion, error) {
 	if s.emb == nil {
 		return nil, nil

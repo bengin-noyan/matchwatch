@@ -1,13 +1,13 @@
 <script setup lang="ts">
-// One series over time: 2px red-pencil line with a 10% wash, a crosshair that snaps to the nearest week,
-// and the same values as a table for anyone who cannot or will not hover.
+// Zaman içinde tek bir seri: 2 piksellik kırmızı kalem çizgisi ve altında %10'luk gölge, en yakın haftaya yapışan bir
+// dikey çizgi; ayrıca üstüne gelemeyen ya da gelmek istemeyen herkes için aynı değerler tablo olarak.
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { niceTicks, shortDate, tickLabel } from './scale'
 
 export interface TrendPoint {
-  x: string // ISO date
-  value: number // geometry only
-  text: string // the formatted amount shown to people
+  x: string // ISO tarih
+  value: number // yalnızca çizim için
+  text: string // kullanıcıya gösterilen biçimlendirilmiş tutar
 }
 
 const props = defineProps<{ points: TrendPoint[]; title: string; unit: string }>()
@@ -34,7 +34,7 @@ const line = computed(() => props.points.map((p, i) => `${i ? 'L' : 'M'}${x(i).t
 const area = computed(() =>
   props.points.length ? `${line.value}L${x(props.points.length - 1)},${y(0)}L${x(0)},${y(0)}Z` : '',
 )
-// label every k-th week so x labels never collide (~72px each)
+// x etiketleri çakışmasın diye her k'ıncı haftaya etiket koy (her biri yaklaşık 72 piksel)
 const every = computed(() => Math.max(1, Math.ceil((props.points.length * 72) / (width.value - pad.left - pad.right))))
 
 const hover = ref<number | null>(null)

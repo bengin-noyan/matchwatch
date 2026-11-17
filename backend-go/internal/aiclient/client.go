@@ -1,4 +1,4 @@
-// Package aiclient calls the Python AI service (extraction and embeddings).
+// Package aiclient, Python ile yazdığımız AI servisini çağırır: sözleşme çıkarımı ve embedding.
 package aiclient
 
 import (
@@ -18,7 +18,7 @@ type Result struct {
 	Draft, Warnings, Meta json.RawMessage
 }
 
-// Error carries only a code and status; never response or PDF content (KVKK).
+// Error yalnızca bir kod ve HTTP durumu taşır. Yanıtın ya da PDF'in içeriği asla buraya girmez (KVKK).
 type Error struct {
 	Code   string
 	Status int
@@ -35,7 +35,7 @@ func New(baseURL, token string, timeout time.Duration) *Client {
 	return &Client{base: strings.TrimRight(baseURL, "/"), token: token, hc: &http.Client{Timeout: timeout}}
 }
 
-// post sends body and returns the 200 response body, or an *Error carrying only a code and status.
+// post, isteği gönderir ve 200 yanıtının gövdesini döner. Hata olursa yalnızca kod ve durum taşıyan bir *Error döner.
 func (c *Client) post(ctx context.Context, path, contentType string, body []byte) ([]byte, error) {
 	unavailable := &Error{Code: "AI_UNAVAILABLE"}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base+path, bytes.NewReader(body))
@@ -46,7 +46,7 @@ func (c *Client) post(ctx context.Context, path, contentType string, body []byte
 	req.Header.Set("Authorization", "Bearer "+c.token)
 	resp, err := c.hc.Do(req)
 	if err != nil {
-		return nil, unavailable // url.Error may embed the URL; drop it
+		return nil, unavailable // url.Error içinde adres de olabilir, onu atıyoruz
 	}
 	defer resp.Body.Close()
 	out, err := io.ReadAll(io.LimitReader(resp.Body, maxResponse+1))
@@ -81,9 +81,10 @@ func (c *Client) Extract(ctx context.Context, pdf []byte) (Result, error) {
 	return Result(raw), nil
 }
 
-const embedBatch = 256 // ai-service limit per request
+const embedBatch = 256 // ai-service'in tek istekte kabul ettiği sınır
 
-// Embed returns one vector per text, in order, as raw JSON arrays (valid pgvector literals; never parsed into floats).
+// Embed, her metin için sırasıyla bir vektör döner. Vektörler ham JSON dizisi olarak kalır (geçerli birer pgvector
+// değeri); hiçbir zaman float'a çevrilmez.
 func (c *Client) Embed(ctx context.Context, texts []string) (string, []json.RawMessage, error) {
 	var model string
 	var vecs []json.RawMessage

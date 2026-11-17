@@ -118,7 +118,7 @@ func TestMatchAlias(t *testing.T) {
 	if got := MatchAlias(domain.InvoiceLine{Name: "AYÇİÇEK YAĞI 5LT", UOM: "KGM"}, items, aliases); got != nil {
 		t.Fatalf("other uom matched: %+v", got)
 	}
-	// alias pointing at an item outside the active contract is ignored
+	// aktif sözleşmenin dışındaki bir kalemi gösteren eşleşme yok sayılır
 	stale := map[domain.AliasKey]uuid.UUID{{NameKey: "aycicek yagi 5lt", UOM: "C62"}: uuid.New()}
 	if got := MatchAlias(domain.InvoiceLine{Name: "AYÇİÇEK YAĞI 5LT", UOM: "C62"}, items, stale); got != nil {
 		t.Fatalf("stale alias matched: %+v", got)

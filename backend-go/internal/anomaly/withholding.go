@@ -12,7 +12,7 @@ func withholdingError(in Input, lc LineContext) []domain.Finding {
 	if lc.ContractItem != nil {
 		expected = lc.ContractItem.WithholdingCode
 	}
-	pct := decimal.Zero // expected percent used for the impact
+	pct := decimal.Zero // etkiyi hesaplarken beklenen oranı kullanıyoruz
 	reason := ""
 	linePct, lineKnown := in.WithholdingPercents[line.WithholdingCode]
 	switch {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// The contract page a finding was read from, with the clause marked in red pencil over the original.
+// Bulgunun okunduğu sözleşme sayfası; madde, aslının üstünde kırmızı kalemle işaretli.
 import { nextTick, onMounted, ref } from 'vue'
 import { ApiError } from '../api'
 import type { Rendered } from '../pdf/contract'

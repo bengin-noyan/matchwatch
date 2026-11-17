@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// The company's logins and open invites. An invite link goes only to the invited address by e-mail, never to this
-// screen, so nobody can open an account in someone else's name. A forgotten password is reset from the login page.
+// Şirketin girişleri ve açık davetleri. Davet bağlantısı bu ekrana değil, yalnızca davet edilen adrese e-postayla
+// gider; böylece kimse başkası adına hesap açamaz. Unutulan şifre giriş sayfasından sıfırlanır.
 import { onMounted, ref } from 'vue'
 import { api, ApiError, type InviteRow, type UserRow } from '../api'
 import { formatDateTime } from '../money'

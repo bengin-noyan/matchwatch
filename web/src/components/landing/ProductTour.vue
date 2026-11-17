@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// A tour of three screens in a browser frame, switching by itself. Sample data, labelled as such.
+// Bir tarayıcı çerçevesinde, kendi kendine değişen üç ekranlık tur. Veriler örnek ve öyle olduğu yazıyor.
 import { onMounted, onUnmounted, ref } from 'vue'
 
 const tabs = [

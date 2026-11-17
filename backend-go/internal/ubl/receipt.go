@@ -8,7 +8,7 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-// ErrNotReceipt means the root element is not a UBL ReceiptAdvice.
+// ErrNotReceipt, kök elemanın bir UBL ReceiptAdvice olmadığını gösterir.
 var ErrNotReceipt = errors.New("ubl: document is not a ReceiptAdvice")
 
 type ReceiptLine struct {
@@ -40,7 +40,7 @@ type xmlReceipt struct {
 	} `xml:"urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2 ReceiptLine"`
 }
 
-// ParseReceipt decodes and validates a UBL-TR ReceiptAdvice (Irsaliye Yaniti). It never panics on bad input.
+// ParseReceipt, bir UBL-TR ReceiptAdvice'ı (İrsaliye Yanıtı) çözer ve doğrular. Hatalı girdide asla panic etmez.
 func ParseReceipt(r io.Reader) (*ReceiptAdvice, error) {
 	var x xmlReceipt
 	if err := decodeRoot(r, "urn:oasis:names:specification:ubl:schema:xsd:ReceiptAdvice-2", "ReceiptAdvice", ErrNotReceipt, &x); err != nil {

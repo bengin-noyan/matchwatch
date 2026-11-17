@@ -1,4 +1,4 @@
-# One image: the Go API serving the built SPA, plus the migrate, onboard and resetlink commands.
+# Tek imaj: derlenmiş SPA'yı da sunan Go API'si, yanında migrate, onboard ve resetlink komutları.
 FROM node:24-alpine AS web
 WORKDIR /web
 COPY web/package.json web/package-lock.json ./
