@@ -136,21 +136,21 @@ func TestUpsertAliasAndRLS(t *testing.T) {
 		}
 		otherItem = oids["exact"]
 
-		if _, err := tx.UpsertAlias(ctx, lineID, otherItem); !errors.Is(err, ErrVendorMismatch) {
+		if _, err := tx.UpsertAlias(ctx, lineID, otherItem, nil); !errors.Is(err, ErrVendorMismatch) {
 			t.Errorf("other vendor: %v", err)
 		}
-		if _, err := tx.UpsertAlias(ctx, uuid.New(), itemID); !errors.Is(err, ErrNotFound) {
+		if _, err := tx.UpsertAlias(ctx, uuid.New(), itemID, nil); !errors.Is(err, ErrNotFound) {
 			t.Errorf("unknown line: %v", err)
 		}
-		if _, err := tx.UpsertAlias(ctx, lineID, uuid.New()); !errors.Is(err, ErrNotFound) {
+		if _, err := tx.UpsertAlias(ctx, lineID, uuid.New(), nil); !errors.Is(err, ErrNotFound) {
 			t.Errorf("unknown item: %v", err)
 		}
-		got, err := tx.UpsertAlias(ctx, lineID, ids["near"])
+		got, err := tx.UpsertAlias(ctx, lineID, ids["near"], nil)
 		if err != nil || got != invID {
 			t.Errorf("upsert: %v %v", got, err)
 			return errors.New("fail")
 		}
-		if _, err := tx.UpsertAlias(ctx, lineID, itemID); err != nil { // ikinci seçim ilkinin yerine geçer
+		if _, err := tx.UpsertAlias(ctx, lineID, itemID, nil); err != nil { // ikinci seçim ilkinin yerine geçer
 			return err
 		}
 		al, err := tx.Aliases(ctx, v)
@@ -168,7 +168,7 @@ func TestUpsertAliasAndRLS(t *testing.T) {
 	other, _ := s.CreateTenant(ctx, "T2", uuid.NewString()[:8]+"01", decimal.RequireFromString("0.45"))
 	cleanupTenant(t, other)
 	err = s.InTenant(ctx, other, func(tx *Tx) error {
-		if _, err := tx.UpsertAlias(ctx, lineID, itemID); !errors.Is(err, ErrNotFound) {
+		if _, err := tx.UpsertAlias(ctx, lineID, itemID, nil); !errors.Is(err, ErrNotFound) {
 			t.Errorf("cross-tenant upsert: %v", err)
 		}
 		var n int

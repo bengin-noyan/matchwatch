@@ -34,7 +34,7 @@ func (s *server) postLineMatch(w http.ResponseWriter, r *http.Request) {
 	tid := auth.TenantID(r.Context())
 	var invoiceID uuid.UUID
 	err = s.store.InTenant(r.Context(), tid, func(tx *repository.Tx) error {
-		invoiceID, err = tx.UpsertAlias(r.Context(), lineID, itemID)
+		invoiceID, err = tx.UpsertAlias(r.Context(), lineID, itemID, actor(r))
 		return err
 	})
 	switch {
@@ -67,15 +67,19 @@ func (s *server) listAliases(w http.ResponseWriter, r *http.Request) {
 		vendorID = &id
 	}
 	var items []repository.AliasRow
+	var removed []repository.RemovedAlias
 	err := s.store.InTenant(r.Context(), auth.TenantID(r.Context()), func(tx *repository.Tx) (err error) {
-		items, err = tx.ListAliases(r.Context(), vendorID)
+		if items, err = tx.ListAliases(r.Context(), vendorID); err != nil {
+			return err
+		}
+		removed, err = tx.ListRemovedAliases(r.Context(), vendorID)
 		return
 	})
 	if err != nil {
 		fail(w, err)
 		return
 	}
-	writeJSON(w, 200, map[string]any{"items": items})
+	writeJSON(w, 200, map[string]any{"items": items, "removed": removed})
 }
 
 // deleteAlias, yanlış bir kalem eşleşmesini geri alır ve ona dayanan her faturayı yeniden denetler.
@@ -88,7 +92,7 @@ func (s *server) deleteAlias(w http.ResponseWriter, r *http.Request) {
 	tid := auth.TenantID(r.Context())
 	var invoices []uuid.UUID
 	err := s.store.InTenant(r.Context(), tid, func(tx *repository.Tx) (err error) {
-		invoices, err = tx.DeleteAlias(r.Context(), id)
+		invoices, err = tx.DeleteAlias(r.Context(), id, actor(r))
 		return
 	})
 	if err != nil {

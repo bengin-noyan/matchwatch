@@ -113,7 +113,7 @@ func TestSemanticSuggestionThenAlias(t *testing.T) {
 
 	itemID, _ := uuid.Parse(top["contract_item_id"].(string))
 	err := e.store.InTenant(context.Background(), e.tid, func(tx *repository.Tx) error {
-		_, err := tx.UpsertAlias(context.Background(), line1, itemID)
+		_, err := tx.UpsertAlias(context.Background(), line1, itemID, nil)
 		return err
 	})
 	if err != nil {

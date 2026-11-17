@@ -7,7 +7,7 @@ import { api, type AliasRow } from '../api'
 const VENDOR = '0f6c3d1e-8a5b-4c2d-9e7f-1a2b3c4d5e6f'
 const alias: AliasRow = {
   id: 'a1', vendor_id: VENDOR, vendor_name: 'Demir Bağlantı A.Ş.', name_key: 'm8 20mm inox civata', uom: 'ADET',
-  created_at: '2026-11-05T11:09:27Z',
+  created_at: '2026-11-05T11:09:27Z', confirmed_by_email: 'ayse@firma.com.tr',
   contract_item: { id: 'ci1', contract_no: 'S-2026-001', item_code: 'CV-M8-20', name: 'M8x20 paslanmaz civata', unit_price: '1.250000',
     currency: 'TRY', uom: 'ADET', source_page: 3, source_clause_text: '' },
 }
@@ -24,12 +24,16 @@ const button = (w: Awaited<ReturnType<typeof mountAt>>, text: string) => w.findA
 describe('AliasesView', () => {
   it('lists the matches for the vendor in the URL and removes one after confirming', async () => {
     vi.spyOn(api, 'vendors').mockResolvedValue({ items: [] })
-    const list = vi.spyOn(api, 'aliases').mockResolvedValueOnce({ items: [alias] }).mockResolvedValueOnce({ items: [] })
+    const removedRow = { vendor_id: VENDOR, vendor_name: alias.vendor_name, name_key: alias.name_key, uom: 'ADET', contract_no: 'S-2026-001',
+      item_name: 'M8x20 paslanmaz civata', removed_by_email: 'mehmet@firma.com.tr', removed_at: '2026-11-17T09:30:00Z' }
+    const list = vi.spyOn(api, 'aliases').mockResolvedValueOnce({ items: [alias], removed: [] }).mockResolvedValueOnce({ items: [], removed: [removedRow] })
     const del = vi.spyOn(api, 'deleteAlias').mockResolvedValue({ reaudited: ['i1', 'i2'] })
     const w = await mountAt(`/eslesmeler?vendor=${VENDOR}`)
     expect(list).toHaveBeenCalledWith(VENDOR)
     expect(w.text()).toContain('m8 20mm inox civata (ADET)')
     expect(w.text()).toContain('Sözleşme S-2026-001, kod CV-M8-20, 1,25 TL / ADET')
+    expect(w.text()).toContain('ayse@firma.com.tr')
+    expect(w.find('#kaldirilanlar').exists()).toBe(false)
 
     await button(w, 'Kaldır')!.trigger('click')
     expect(del).not.toHaveBeenCalled() // ilk tıklama yalnızca sorar
@@ -42,11 +46,14 @@ describe('AliasesView', () => {
     expect(del).toHaveBeenCalledWith('a1')
     expect(w.find('[role=status]').text()).toBe('“m8 20mm inox civata” eşleşmesi kaldırıldı; 2 fatura yeniden denetlendi.')
     expect(w.text()).toContain('Bu tedarikçi için eşleşme yok')
+    const log = w.find('section[aria-labelledby=kaldirilanlar]')
+    expect(log.text()).toContain('m8 20mm inox civata (ADET)')
+    expect(log.text()).toContain('mehmet@firma.com.tr')
   })
 
   it('ignores a vendor id that is not a UUID', async () => {
     vi.spyOn(api, 'vendors').mockResolvedValue({ items: [] })
-    const list = vi.spyOn(api, 'aliases').mockResolvedValue({ items: [] })
+    const list = vi.spyOn(api, 'aliases').mockResolvedValue({ items: [], removed: [] })
     await mountAt('/eslesmeler?vendor=nope')
     expect(list).toHaveBeenCalledWith(undefined)
   })
