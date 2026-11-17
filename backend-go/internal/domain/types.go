@@ -27,6 +27,7 @@ const (
 	RulePriceCreep         RuleCode = "PRICE_CREEP"
 	RuleFXUnverified       RuleCode = "FX_UNVERIFIED"
 	RuleUOMMismatch        RuleCode = "UOM_MISMATCH"
+	RuleFXRateDeviation    RuleCode = "FX_RATE_DEVIATION"
 )
 
 type AuditStatus string

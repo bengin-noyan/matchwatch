@@ -40,6 +40,7 @@ denetim katmanıdır:
 | WITHHOLDING_ERROR | beklenen tevkifat oranı ≠ faturadaki | CRITICAL | (beklenen − faturadaki tevkifat tutarı) |
 | PRICE_CREEP | sözleşmesiz kalemde birim fiyat > son 6 ay EMA × 1.10 | WARNING | (fiyat − EMA) × miktar |
 | UNCONTRACTED_ITEM | tedarikçinin aktif sözleşmesi var ama kalem yok | WARNING | 0 |
+| FX_RATE_DEVIATION | faturanın kendi kuru, TCMB döviz alış kurundan %1'den fazla sapıyor (D18) | WARNING | ödenecek tutar × (fatura kuru − TCMB kuru), yalnız pozitifse |
 
 Fatura durumu: bulgu yok → GREEN; yalnızca WARNING (INFO yok sayılır) → YELLOW; en az bir CRITICAL → RED.
 
@@ -84,6 +85,13 @@ Fatura durumu: bulgu yok → GREEN; yalnızca WARNING (INFO yok sayılır) → Y
   15:30'da ilan edilen kur ertesi gün için geçerlidir). Çapraz kur TRY üzerinden, `Unit` ile düzeltilir. En fazla 10 gün
   geriye gidilir; TCMB'ye ulaşılamazsa `FX_UNVERIFIED` kalır. Kanıt: `fx_source: TCMB`, `fx_rate`, `fx_rate_date`.
   Bültenler global `fx_days`/`fx_rates` tablolarında saklanır; 404 (tatil) önbelleğe alınır, diğer hatalar alınmaz.
+- **D18 Kur sapması:** faturada fatura para biriminden çıkan bir `PricingExchangeRate` varsa, aynı çift için D17'deki
+  TCMB kuruyla (önceki iş gününün döviz alış kuru) karşılaştırılır. Sapma %1'i aşarsa (TCMB satış kuru alışın ~%0,2
+  üstündedir, komşu gün bülteni de bu payın içinde kalır) `FX_RATE_DEVIATION` (WARNING, başlık bulgusu) yazılır ve
+  fiyat kuralı D4'e rağmen faturanın kurunu değil TCMB kurunu kullanır: böylece düşük gösterilen kur fiyat farkını
+  saklayamaz, yüksek gösterilen kur da fiyat farkı olarak iki kez sayılmaz. Etki: ödenecek tutar × (fatura kuru − TCMB
+  kuru), hedef para biriminde; fatura kuru alıcı lehineyse 0. Kanıt: `deviation_pct`, `tcmb_rate_date`,
+  `tolerance_pct`. TCMB'ye ulaşılamazsa kural çalışmaz ve faturanın kuru kullanılır (D4).
 
 ## 5. Fazlar
 

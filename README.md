@@ -33,6 +33,8 @@ Invoice lines that match no contract item by code or barcode get up to three emb
 
 When an invoice's currency differs from the contract's and the invoice carries no usable `PricingExchangeRate`, the price rule uses TCMB's forex buying rate from the last bulletin before the invoice date (D17), fetched from `TCMB_BASE_URL` (default `https://www.tcmb.gov.tr/kurlar`) and cached in the database. Set `TCMB_BASE_URL=` (empty) to turn this off; findings then fall back to `FX_UNVERIFIED`.
 
+When the invoice carries its own `PricingExchangeRate`, that rate is compared with the same TCMB rate; more than 1% off gives `FX_RATE_DEVIATION`, and the price rule then converts at TCMB instead (D18).
+
 `EXTRACT_DEADLINE_S` (ai-service, default 270) bounds the whole extraction, retries included, and must stay below `AI_EXTRACT_TIMEOUT` (API, default 5m) so the service answers before the API gives up. On slow CPU hosts raise both together (and `LLM_TIMEOUT_S`).
 
 ## Tests
