@@ -33,7 +33,7 @@ services:
       LLM_TIMEOUT_S: ${LLM_TIMEOUT_S:-240}
       EXTRACT_DEADLINE_S: ${EXTRACT_DEADLINE_S:-270}
     ports:
-      - "127.0.0.1:8090:8090" # dev only: the Go API runs on the host
+      - "127.0.0.1:8090:8090" # yalnızca geliştirme: Go API'si bilgisayarın kendisinde çalışır
     depends_on: [ollama]
 
 volumes:

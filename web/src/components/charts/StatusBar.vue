@@ -1,6 +1,7 @@
 <script setup lang="ts">
-// Thin segmented bar of invoice states, no text on it: the list beside it carries names and counts.
-// Fills validated with the dataviz palette checker (light amber keeps red/amber apart under deutan vision).
+// Fatura durumlarının ince, bölümlü çubuğu; üstünde yazı yok, adları ve sayıları yanındaki liste verir. Renkler dataviz
+// paleti denetleyicisiyle doğrulandı (açık kehribar, kırmızı-yeşil renk körlüğünde kırmızıyla kehribarı ayırt
+// edilebilir tutuyor).
 import { computed } from 'vue'
 import type { AuditStatus } from '../../api'
 import { statusLabel } from '../../labels'

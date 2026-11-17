@@ -14,7 +14,7 @@ import (
 
 var secret = []byte(strings.Repeat("s", 32))
 
-// call runs the middleware with the given Authorization header and returns the status and the tenant the handler saw.
+// call, middleware'i verilen Authorization header'ıyla çalıştırır; HTTP durumunu ve handler'ın gördüğü tenant'ı döner.
 func call(t *testing.T, header string) (int, uuid.UUID) {
 	t.Helper()
 	var seen uuid.UUID
@@ -30,7 +30,7 @@ func call(t *testing.T, header string) (int, uuid.UUID) {
 	return rec.Code, seen
 }
 
-// revokedUser's sessions were ended (a password reset); every other user's are good.
+// revokedUser'ın oturumları kapatıldı (şifresini sıfırladı); diğer herkesinki geçerli.
 var revokedUser = uuid.New()
 
 func revoked(_ context.Context, uid, _ uuid.UUID, _ time.Time) (bool, error) {

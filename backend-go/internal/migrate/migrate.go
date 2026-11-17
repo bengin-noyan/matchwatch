@@ -11,7 +11,7 @@ import (
 	"github.com/bengin-noyan/matchwatch/backend-go/migrations"
 )
 
-// Apply runs unapplied migrations in lexical order, each in its own transaction.
+// Apply, henüz uygulanmamış migration'ları dosya adı sırasıyla, her birini kendi transaction'ında çalıştırır.
 func Apply(ctx context.Context, conn *pgx.Conn) error {
 	if _, err := conn.Exec(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (
 		version TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())`); err != nil {
@@ -42,7 +42,7 @@ func applyOne(ctx context.Context, conn *pgx.Conn, name string) error {
 		return err
 	}
 	defer tx.Rollback(ctx)
-	// Serializes concurrent runners; the loser re-checks after the winner commits.
+	// Aynı anda çalışan iki migrate'i sıraya sokar; sırada bekleyen, ilki commit edince yeniden kontrol eder.
 	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock(727274)"); err != nil {
 		return err
 	}
@@ -54,7 +54,7 @@ func applyOne(ctx context.Context, conn *pgx.Conn, name string) error {
 	if err != nil {
 		return err
 	}
-	// No arguments -> simple protocol, which permits multi-statement files.
+	// Parametre vermiyoruz, böylece simple protocol kullanılır ve dosyada birden çok SQL cümlesi olabilir.
 	if _, err := tx.Exec(ctx, string(sql)); err != nil {
 		return err
 	}

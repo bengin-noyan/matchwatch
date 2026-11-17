@@ -1,4 +1,4 @@
-"""Deterministic Turkish text parsers. Return None when unparseable; never raise."""
+"""Türkçe metinler için her seferinde aynı sonucu veren ayrıştırıcılar. Okuyamazlarsa None döner, asla hata fırlatmaz."""
 import datetime
 import re
 from decimal import Decimal, InvalidOperation
@@ -7,7 +7,7 @@ _MONTHS = ["ocak", "şubat", "mart", "nisan", "mayıs", "haziran", "temmuz", "a�
 
 
 def _fold(s: str) -> str:
-    # casefold() maps "I" to "i" not "ı", so unify dotless i for ALL-CAPS input
+    # casefold() "I"yı "ı"ya değil "i"ye çevirir; bu yüzden TAMAMI BÜYÜK HARF girdide noktasız ı'yı da birleştiriyoruz
     return s.casefold().replace("ı", "i").replace("̇", "")
 
 
@@ -48,7 +48,7 @@ _CURRENCIES = [
 def parse_currency(text: str) -> str | None:
     t = _fold(text)
     found = [code for code, pat in _CURRENCIES if re.search(pat, t)]
-    return found[0] if len(found) == 1 else None  # two codes ("USD ... TL karşılığı") is ambiguous
+    return found[0] if len(found) == 1 else None  # iki kod ("USD ... TL karşılığı") belirsiz
 
 
 def parse_date(text: str) -> str | None:

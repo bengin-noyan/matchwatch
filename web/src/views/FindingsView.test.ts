@@ -27,10 +27,10 @@ describe('FindingsView', () => {
     const { w, router } = await mountAt('/bulgular?page=2&vendor=nope')
     expect(list).toHaveBeenLastCalledWith({ resolution: 'OPEN', rule: undefined, vendor_id: undefined, limit: 50, offset: 50 })
     expect(w.text()).toContain('Bütün kurallar 5')
-    expect(w.text()).toContain('470,00 TL') // the impact
+    expect(w.text()).toContain('470,00 TL') // etki
     await button(w, 'Kur doğrulanamadı').trigger('click')
     await flushPromises()
-    expect(router.currentRoute.value.query).toEqual({ rule: 'FX_UNVERIFIED', vendor: 'nope' }) // page resets; junk stays inert like on Faturalar
+    expect(router.currentRoute.value.query).toEqual({ rule: 'FX_UNVERIFIED', vendor: 'nope' }) // sayfa başa döner; anlamsız değer Faturalar'daki gibi etkisiz kalır
     await button(w, 'Tümü').trigger('click')
     await flushPromises()
     expect(list).toHaveBeenLastCalledWith(expect.objectContaining({ resolution: undefined, rule: 'FX_UNVERIFIED', offset: 0 }))
@@ -49,7 +49,7 @@ describe('FindingsView', () => {
     const head = w.find('thead input[type=checkbox]').element as HTMLInputElement
     expect(head.indeterminate).toBe(true)
     expect(w.text()).toContain('2 bulgu seçildi')
-    expect(w.text()).not.toContain('Kararı geri al') // nothing selected is decided yet
+    expect(w.text()).not.toContain('Kararı geri al') // seçilen hiçbir şeye henüz karar verilmedi
 
     await w.find('form[aria-label="Seçili bulgular için karar"] input').setValue('sözleşme eki ile uyumlu')
     await button(w, 'İstisna olarak onayla').trigger('click')
@@ -59,7 +59,7 @@ describe('FindingsView', () => {
     expect(w.find('[role=status]').text()).toBe('2 bulgu için karar kaydedildi.')
     expect(w.find('form[aria-label="Seçili bulgular için karar"]').exists()).toBe(false)
 
-    // the header box ticks the whole page
+    // başlıktaki kutu bütün sayfayı işaretler
     await w.find('thead input[type=checkbox]').setValue(true)
     expect(w.text()).toContain('3 bulgu seçildi')
   })

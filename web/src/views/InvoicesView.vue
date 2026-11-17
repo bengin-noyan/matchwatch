@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// The invoice list: the server searches, filters, sorts and pages; the filters live in the URL so the back
-// button and a shared link bring the same list back.
+// Fatura listesi: arama, filtre, sıralama ve sayfalamayı sunucu yapar. Filtreler URL'de durur; böylece geri tuşu ve
+// paylaşılan bir bağlantı aynı listeyi getirir.
 import { computed, h, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter, type LocationQueryValue } from 'vue-router'
 import { FlexRender, createColumnHelper, rowSortingFeature, tableFeatures, useTable, type SortingState } from '@tanstack/vue-table'
@@ -18,7 +18,7 @@ const vendors = ref<VendorRow[]>([])
 const loading = ref(true)
 const error = ref('')
 
-// --- URL <-> query ------------------------------------------------------------------------------------------
+// --- URL <-> sorgu -------------------------------------------------------------------------------------------
 type Sort = NonNullable<InvoiceQuery['sort']>
 const sorts: Sort[] = ['issue_date', 'invoice_no', 'vendor', 'payable', 'status', 'open_findings']
 const statuses: AuditStatus[] = ['RED', 'YELLOW', 'PENDING', 'GREEN']
@@ -44,7 +44,7 @@ const query = computed(() => {
   }
 })
 
-// set merges changes into the URL; any change but paging goes back to page 1.
+// set, değişiklikleri URL'ye ekler; sayfa değişimi dışındaki her değişiklik 1. sayfaya döner.
 function set(changes: Record<string, string | undefined>, replace = false) {
   const next: Record<string, string> = {}
   for (const [k, v] of Object.entries({ ...route.query, page: undefined, ...changes })) {
@@ -56,7 +56,7 @@ function set(changes: Record<string, string | undefined>, replace = false) {
 const filtered = computed(() => !!(query.value.q || query.value.status || query.value.vendor_id || query.value.from || query.value.to || query.value.open))
 const clear = () => router.push({ query: query.value.sort ? { sort: query.value.sort, dir: query.value.dir } : {} })
 
-// --- loading ------------------------------------------------------------------------------------------------
+// --- yükleme --------------------------------------------------------------------------------------------------
 let seq = 0
 async function load() {
   const my = ++seq
@@ -64,7 +64,7 @@ async function load() {
   const { page, ...p } = query.value
   try {
     const res = await api.invoices({ ...p, limit: PAGE, offset: (page - 1) * PAGE })
-    if (my !== seq) return // a newer request is on its way
+    if (my !== seq) return // daha yeni bir istek yolda
     list.value = res
     error.value = ''
   } catch (e) {
@@ -79,11 +79,11 @@ onMounted(async () => {
   try {
     vendors.value = (await api.vendors()).items
   } catch {
-    /* the vendor filter just stays empty */
+    /* tedarikçi filtresi boş kalır, o kadar */
   }
 })
 
-// The search box writes to the URL after a short pause, not on every key.
+// Arama kutusu her tuşta değil, kısa bir duraklamadan sonra URL'ye yazar.
 const search = ref(query.value.q)
 watch(() => query.value.q, (v) => { if (v !== search.value.trim()) search.value = v })
 let timer: ReturnType<typeof setTimeout> | undefined
@@ -92,7 +92,7 @@ watch(search, (v) => {
   timer = setTimeout(() => { if (v.trim() !== query.value.q) set({ q: v.trim() || undefined }, true) }, 300)
 })
 
-// --- summary, chips, paging ---------------------------------------------------------------------------------
+// --- özet, çipler, sayfalama -----------------------------------------------------------------------------------
 const rows = computed(() => list.value?.items ?? [])
 const total = computed(() => list.value?.total ?? 0)
 const allCount = computed(() => Object.values(list.value?.counts ?? {}).reduce((a, b) => a + (b ?? 0), 0))
@@ -106,11 +106,11 @@ const pages = computed(() => Math.max(1, Math.ceil(total.value / PAGE)))
 const goPage = (n: number) => set({ page: n > 1 ? String(n) : undefined }).then(() => window.scrollTo({ top: 0 }))
 const fmtCount = (n: number) => n.toLocaleString('tr-TR')
 
-// --- table --------------------------------------------------------------------------------------------------
+// --- tablo ----------------------------------------------------------------------------------------------------
 const features = tableFeatures({ rowSortingFeature })
 const col = createColumnHelper<typeof features, InvoiceRow>()
 const numeric = { numeric: true }
-// column id -> server sort key
+// sütun id'si -> sunucudaki sıralama anahtarı
 const sortKey: Record<string, Sort> = {
   status: 'status', invoice_no: 'invoice_no', vendor_name: 'vendor', issue_date: 'issue_date', payable_minor: 'payable', open_findings: 'open_findings',
 }

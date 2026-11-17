@@ -1,5 +1,5 @@
-// Package tcmb reads the Central Bank of Turkey's daily indicative rates (kurlar/YYYYMM/DDMMYYYY.xml).
-// Only a date leaves our infrastructure; no customer data is sent.
+// Package tcmb, Merkez Bankası'nın günlük gösterge kurlarını okur (kurlar/YYYYMM/DDMMYYYY.xml). Altyapımızdan yalnızca
+// bir tarih çıkar; hiçbir müşteri verisi gönderilmez.
 package tcmb
 
 import (
@@ -20,7 +20,7 @@ import (
 
 var code = regexp.MustCompile(`^[A-Z]{3}$`)
 
-// Parse reads one bulletin and returns its date and the currencies that carry a positive forex buying rate.
+// Parse, bir bülteni okur; tarihini ve döviz alış kuru pozitif olan para birimlerini döner.
 func Parse(r io.Reader) (time.Time, []domain.FXQuote, error) {
 	var x struct {
 		Tarih      string `xml:"Tarih,attr"`
@@ -42,7 +42,7 @@ func Parse(r io.Reader) (time.Time, []domain.FXQuote, error) {
 		fb, err := decimal.NewFromString(strings.TrimSpace(c.ForexBuying))
 		unit, uerr := decimal.NewFromString(strings.TrimSpace(c.Unit))
 		if err != nil || uerr != nil || !fb.IsPositive() || !unit.IsPositive() || !unit.IsInteger() || !code.MatchString(c.Code) {
-			continue // some currencies publish no forex rate
+			continue // bazı para birimlerinin döviz kuru yayımlanmıyor
 		}
 		out = append(out, domain.FXQuote{Currency: c.Code, Unit: unit.IntPart(), ForexBuying: fb})
 	}
@@ -61,8 +61,8 @@ func New(baseURL string) *Client {
 	return &Client{base: strings.TrimRight(baseURL, "/"), hc: &http.Client{Timeout: 10 * time.Second}}
 }
 
-// Day fetches the bulletin published on day. published=false (no error) means TCMB published none that day
-// (weekend, holiday: HTTP 404). Any other failure is an error and must not be cached as "no bulletin".
+// Day, o gün yayımlanan bülteni getirir. published=false (hatasız) TCMB'nin o gün bülten yayımlamadığını gösterir
+// (hafta sonu, tatil: HTTP 404). Başka her sorun hatadır ve "bülten yok" diye önbelleğe alınmamalıdır.
 func (c *Client) Day(ctx context.Context, day time.Time) ([]domain.FXQuote, bool, error) {
 	url := fmt.Sprintf("%s/%s/%s.xml", c.base, day.Format("200601"), day.Format("02012006"))
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)

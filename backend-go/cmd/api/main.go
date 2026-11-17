@@ -1,4 +1,4 @@
-// Command api serves the matchwatch REST API.
+// Command api, matchwatch'ın REST API'sini çalıştırır.
 package main
 
 import (
@@ -36,7 +36,7 @@ func main() {
 	}
 	defer pool.Close()
 	store := repository.NewStore(pool)
-	var ai transporthttp.Extractor // nil interfaces = disabled; a typed-nil *aiclient.Client would not be == nil
+	var ai transporthttp.Extractor // özellik kapalıysa arayüze düz nil veriyoruz; tipli bir nil *aiclient.Client, == nil kontrolünü geçemezdi
 	var emb audit.Embedder
 	if cfg.AIServiceURL != "" {
 		c := aiclient.New(cfg.AIServiceURL, cfg.AIServiceToken, cfg.AIExtractTimeout)

@@ -3,7 +3,7 @@ include .env.example
 
 .PHONY: up down migrate run test test-integration
 
-# Env is passed per recipe only, so plain `make test` skips integration tests.
+# Ortam değişkenleri yalnızca ilgili hedefe veriliyor; böylece düz `make test` entegrasyon testlerini atlar.
 APP_ENV = DATABASE_URL='$(DATABASE_URL)' MIGRATE_DATABASE_URL='$(MIGRATE_DATABASE_URL)' JWT_SECRET='$(JWT_SECRET)' HTTP_ADDR='$(HTTP_ADDR)' STORAGE_DIR='$(STORAGE_DIR)'
 
 up:

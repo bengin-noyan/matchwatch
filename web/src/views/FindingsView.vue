@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// Findings across all invoices, for deciding many at once: tick the rows, write one note, decide.
-// Filters live in the URL like the invoice list; the selection is per page and clears when the list changes.
+// Bütün faturalardaki bulgular, çoğuna birden karar vermek için: satırları işaretle, tek bir not yaz, karar ver.
+// Filtreler fatura listesindeki gibi URL'de durur; seçim sayfaya özeldir ve liste değişince temizlenir.
 import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter, type LocationQueryValue } from 'vue-router'
 import { api, ApiError, type FindingList, type FindingListRow, type Resolution, type VendorRow } from '../api'
@@ -15,11 +15,11 @@ const list = ref<FindingList | null>(null)
 const vendors = ref<VendorRow[]>([])
 const loading = ref(true)
 const error = ref('')
-const selected = ref(new Set<string>()) // finding ids ticked on this page
-const done = ref('') // the last batch's confirmation
+const selected = ref(new Set<string>()) // bu sayfada işaretlenen bulguların id'leri
+const done = ref('') // son toplu kararın onay mesajı
 
-// --- URL <-> query ------------------------------------------------------------------------------------------
-// res: absent = waiting for a decision (the usual job), "all" = every finding
+// --- URL <-> sorgu -------------------------------------------------------------------------------------------
+// res: yoksa karar bekleyenler (her zamanki iş), "all" ise bütün bulgular
 const resolutions: Resolution[] = ['OPEN', 'DISPUTED', 'APPROVED_EXCEPTION']
 const one = (v: LocationQueryValue | LocationQueryValue[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? ''
 const isUUID = (v: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
@@ -44,7 +44,7 @@ function set(changes: Record<string, string | undefined>) {
   return router.push({ query: next })
 }
 
-// --- loading ------------------------------------------------------------------------------------------------
+// --- yükleme --------------------------------------------------------------------------------------------------
 let seq = 0
 async function load() {
   const my = ++seq
@@ -71,7 +71,7 @@ onMounted(async () => {
   try {
     vendors.value = (await api.vendors()).items
   } catch {
-    /* the vendor filter just stays empty */
+    /* tedarikçi filtresi boş kalır, o kadar */
   }
 })
 
@@ -98,7 +98,7 @@ const fmtCount = (n: number) => n.toLocaleString('tr-TR')
 const impact = (f: FindingListRow) =>
   f.financial_impact_minor > 0 ? formatMinor(f.financial_impact_minor, f.impact_currency ?? f.currency) : ''
 
-// --- selection and the decision -----------------------------------------------------------------------------
+// --- seçim ve karar -------------------------------------------------------------------------------------------
 const allChecked = computed(() => rows.value.length > 0 && rows.value.every((r) => selected.value.has(r.id)))
 const someChecked = computed(() => selected.value.size > 0 && !allChecked.value)
 function toggle(id: string) {
@@ -256,7 +256,7 @@ async function decide(status: Resolution) {
       </div>
     </nav>
 
-    <!-- the decision bar stays in reach while the person scrolls the list -->
+    <!-- kişi listeyi kaydırırken karar çubuğu elinin altında kalır -->
     <form
       v-if="selected.size"
       aria-label="Seçili bulgular için karar"

@@ -10,7 +10,7 @@ import { useSession } from './session'
 
 const app = createApp(App).use(createPinia()).use(router)
 
-// An expired session sends the user back to the login screen, keeping where they were.
+// Oturumun süresi dolarsa kullanıcı, kaldığı yer hatırlanarak giriş ekranına döner.
 setUnauthorizedHandler(() => {
   useSession().expired()
   const here = router.currentRoute.value

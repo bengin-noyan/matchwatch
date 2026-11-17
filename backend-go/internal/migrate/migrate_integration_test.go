@@ -30,7 +30,7 @@ func connect(t *testing.T, env string) *pgx.Conn {
 	return conn
 }
 
-// inTenant runs fn in a transaction with the tenant GUC set (tenant "" = set to empty).
+// inTenant, fn'i tenant ayarı yapılmış bir transaction'da çalıştırır (tenant "" ise ayar boş string olur).
 func inTenant(t *testing.T, conn *pgx.Conn, tenant string, fn func(tx pgx.Tx)) {
 	t.Helper()
 	ctx := context.Background()
@@ -57,7 +57,7 @@ func count(t *testing.T, tx pgx.Tx, q string) int {
 	return n
 }
 
-// setup migrates, creates tenants A and B (owner role) and a vendor for A.
+// setup, migration'ları uygular, A ve B tenant'larını (owner rolüyle) ve A için bir tedarikçi oluşturur.
 func setup(t *testing.T) (owner, app *pgx.Conn, a, b uuid.UUID) {
 	t.Helper()
 	owner = connect(t, "MATCHWATCH_TEST_MIGRATE_URL")
@@ -140,7 +140,7 @@ func TestRLSNoTenantSeesNothing(t *testing.T) {
 	if err := app.QueryRow(ctx, "SELECT count(*) FROM vendors").Scan(&n); err != nil || n != 0 {
 		t.Fatalf("unset GUC: n=%d err=%v", n, err)
 	}
-	// After a transaction-local set_config the GUC lingers as '' on the session.
+	// Transaction'a özel bir set_config'ten sonra ayar oturumda '' olarak kalır.
 	inTenant(t, app, "", func(tx pgx.Tx) {
 		if n := count(t, tx, "SELECT count(*) FROM vendors"); n != 0 {
 			t.Fatalf("empty GUC: n=%d", n)
@@ -236,7 +236,7 @@ func TestCompositeFKBlocksCrossTenantLinks(t *testing.T) {
 		VALUES ($1, $2, gen_random_uuid(), 'A1', '2026-01-01', 'TRY', 100)`, a, bVendor)
 	fkViolation(`INSERT INTO invoice_lines(tenant_id, invoice_id, line_id, qty, unit_price, line_extension_minor)
 		VALUES ($1, $2, '1', 1, 1, 100)`, a, bInvoice)
-	// Control: the same insert with A's own vendor is accepted.
+	// Karşılaştırma: aynı kayıt A'nın kendi tedarikçisiyle kabul edilir.
 	inTenant(t, app, a.String(), func(tx pgx.Tx) {
 		if _, err := tx.Exec(ctx, `INSERT INTO invoices(tenant_id, vendor_id, ettn, invoice_no, issue_date, currency, payable_minor)
 			VALUES ($1, $2, gen_random_uuid(), 'A1', '2026-01-01', 'TRY', 100)`, a, aVendor); err != nil {

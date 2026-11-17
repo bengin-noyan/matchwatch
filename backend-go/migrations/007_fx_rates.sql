@@ -1,5 +1,5 @@
--- Faz 2c (D17): TCMB daily bulletins, global (not tenant data, like withholding_codes).
--- fx_days also records days without a bulletin (weekends, holidays) so they are not fetched again.
+-- Faz 2c (D17): TCMB günlük bültenleri. Global tablolar, tenant verisi değil (withholding_codes gibi). fx_days bülten
+-- olmayan günleri de (hafta sonu, tatil) kaydeder ki tekrar çekilmesinler.
 CREATE TABLE fx_days (
   rate_date  DATE PRIMARY KEY,
   published  BOOLEAN NOT NULL,

@@ -36,7 +36,8 @@ func open(t *testing.T, path string) *os.File {
 	return f
 }
 
-// setup creates a fresh tenant (unique VKN per run) with the basic contract, despatch and receipt loaded.
+// setup, her çalıştırmada yeni bir tenant açar (benzersiz VKN ile) ve temel sözleşmeyi, irsaliyeyi ve irsaliye yanıtını
+// yükler.
 func setup(t *testing.T) *env {
 	t.Helper()
 	ownerURL, appURL := os.Getenv("MATCHWATCH_TEST_MIGRATE_URL"), os.Getenv("MATCHWATCH_TEST_DATABASE_URL")
@@ -110,7 +111,8 @@ func setup(t *testing.T) *env {
 	return e
 }
 
-// ingest stores invoice_basic.xml with a unique ETTN/number; qty900 shrinks line 1 to 900 units at 1.30.
+// ingest, invoice_basic.xml'i benzersiz bir ETTN ve numarayla kaydeder; qty900 verilirse 1. satır 1,30'dan 900 adede
+// düşer.
 func (e *env) ingest(t *testing.T, qty900 bool) uuid.UUID {
 	t.Helper()
 	inv, err := ubl.ParseInvoice(open(t, "../../testdata/invoice_basic.xml"))
@@ -123,7 +125,7 @@ func (e *env) ingest(t *testing.T, qty900 bool) uuid.UUID {
 		inv.Lines[0].Qty = decimal.NewFromInt(900)
 		inv.Lines[0].LineExtension = decimal.RequireFromString("1170.00")
 		inv.Lines[0].Allowance = decimal.Zero
-		inv.Payable = decimal.RequireFromString("1234.56") // differs from other invoices: no amount duplicate
+		inv.Payable = decimal.RequireFromString("1234.56") // diğer faturalardan farklı olsun ki tutar mükerrerliği çıkmasın
 	}
 	var id uuid.UUID
 	err = e.store.InTenant(context.Background(), e.tid, func(tx *repository.Tx) error {
@@ -139,7 +141,7 @@ func (e *env) ingest(t *testing.T, qty900 bool) uuid.UUID {
 
 type row struct {
 	rule     domain.RuleCode
-	lineID   string // invoice line_id, "" for header findings
+	lineID   string // faturanın line_id'si; fatura geneli bulgularda ""
 	impact   int64
 	status   string
 	evidence map[string]any
@@ -311,8 +313,8 @@ func TestAuditSecondInvoiceSameDespatch(t *testing.T) {
 	}
 }
 
-// TestAuditConcurrentSameDespatch: tx A holds the despatch-line lock with its allocations inserted but not yet
-// committed while audit B starts and blocks on the lock. After A commits, B must see A's allocations.
+// TestAuditConcurrentSameDespatch: A transaction'ı irsaliye satırının kilidini tutuyor, dağıtımlarını yazmış ama henüz
+// commit etmemiş. Bu sırada B denetimi başlıyor ve kilitte bekliyor. A commit edince B, A'nın dağıtımlarını görmeli.
 func TestAuditConcurrentSameDespatch(t *testing.T) {
 	e := setup(t)
 	a, b := e.ingest(t, true), e.ingest(t, true)
@@ -327,7 +329,7 @@ func TestAuditConcurrentSameDespatch(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		cands, err := tx.DespatchCandidates(ctx, inv) // takes the lock
+		cands, err := tx.DespatchCandidates(ctx, inv) // kilidi alır
 		if err != nil {
 			return err
 		}
@@ -344,7 +346,7 @@ func TestAuditConcurrentSameDespatch(t *testing.T) {
 			done <- err
 		}()
 		<-started
-		time.Sleep(500 * time.Millisecond) // let B reach the lock wait before A commits
+		time.Sleep(500 * time.Millisecond) // A commit etmeden B'nin kilide gelip beklemesine fırsat ver
 		return nil
 	})
 	if err != nil {
@@ -371,8 +373,8 @@ func TestAuditConcurrentSameDespatch(t *testing.T) {
 	}
 }
 
-// An invoice that references no despatch draws on the vendor's last 30 days of despatches (regression: the lock
-// statement left the invoice-id parameter untyped and the audit failed with SQLSTATE 42P18).
+// Hiçbir irsaliyeye atıf yapmayan bir fatura, tedarikçinin son 30 günlük irsaliyelerinden düşer. Eskiden burada bir
+// hata vardı: kilit sorgusu fatura id parametresinin tipini belirtmiyordu ve denetim SQLSTATE 42P18 ile düşüyordu.
 func TestAuditInvoiceWithoutDespatchRefs(t *testing.T) {
 	e := setup(t)
 	inv, err := ubl.ParseInvoice(open(t, "../../testdata/invoice_basic.xml"))

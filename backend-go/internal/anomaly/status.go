@@ -2,7 +2,8 @@ package anomaly
 
 import "github.com/bengin-noyan/matchwatch/backend-go/internal/domain"
 
-// Status: any CRITICAL -> RED, else any WARNING -> YELLOW, else GREEN (INFO ignored).
+// Status: bir tane bile CRITICAL varsa RED, yoksa WARNING varsa YELLOW, hiçbiri yoksa GREEN. INFO bulguları durumu
+// etkilemez.
 func Status(fs []domain.Finding) domain.AuditStatus {
 	st := domain.AuditGreen
 	for _, f := range fs {

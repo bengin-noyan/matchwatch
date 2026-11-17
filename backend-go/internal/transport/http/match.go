@@ -11,8 +11,8 @@ import (
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/repository"
 )
 
-// postLineMatch records a human-confirmed alias (D16): this line's item name means that contract item, for this
-// vendor from now on. The invoice is then re-audited.
+// postLineMatch, bir insanın onayladığı eşleşmeyi kaydeder (D16): bu satırdaki kalem adı, bu tedarikçi için bundan
+// sonra o sözleşme kalemi demektir. Ardından fatura yeniden denetlenir.
 func (s *server) postLineMatch(w http.ResponseWriter, r *http.Request) {
 	lineID, ok := pathID(r)
 	if !ok {
@@ -78,7 +78,7 @@ func (s *server) listAliases(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"items": items})
 }
 
-// deleteAlias undoes a wrong item match and re-audits every invoice that relied on it.
+// deleteAlias, yanlış bir kalem eşleşmesini geri alır ve ona dayanan her faturayı yeniden denetler.
 func (s *server) deleteAlias(w http.ResponseWriter, r *http.Request) {
 	id, ok := pathID(r)
 	if !ok {
@@ -95,8 +95,8 @@ func (s *server) deleteAlias(w http.ResponseWriter, r *http.Request) {
 		fail(w, err)
 		return
 	}
-	// shortcut: re-audits run after the delete commits, one by one; a failure leaves the rest as they were
-	// (recover with POST /invoices/{id}/audit), same as an ingest whose audit fails.
+	// shortcut: yeniden denetimler silme commit edildikten sonra tek tek çalışıyor; biri başarısız olursa kalanlar olduğu
+	// gibi kalır (POST /invoices/{id}/audit ile düzeltilir), tıpkı denetimi başarısız olan bir yükleme gibi.
 	reaudited := []uuid.UUID{}
 	for _, inv := range invoices {
 		if _, err := s.auditor.AuditInvoice(r.Context(), tid, inv); err != nil {

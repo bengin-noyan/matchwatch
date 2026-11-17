@@ -11,7 +11,8 @@ var (
 	creepThreshold = decimal.RequireFromString("1.10")
 )
 
-// priceCreep flags uncontracted lines priced >10% above the EMA of earlier prices (history is ascending).
+// priceCreep, sözleşmede olmayan bir kalemin fiyatı önceki fiyatların ortalamasını (EMA) %10'dan fazla aşmışsa bulgu
+// yazar. Geçmiş fiyatlar eskiden yeniye sıralı gelir.
 func priceCreep(in Input, lc LineContext) []domain.Finding {
 	h := lc.PriceHistory
 	if lc.ContractItem != nil || len(h) < 3 {

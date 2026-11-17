@@ -1,5 +1,4 @@
-// Package ubl parses UBL-TR 1.2 documents. Elements are matched by namespace
-// URI (the struct tags), never by prefix.
+// Package ubl, UBL-TR 1.2 belgelerini okur. Elemanlar ön ekle değil, namespace URI'siyle (struct etiketleri) eşleşir.
 package ubl
 
 import (
@@ -13,15 +12,15 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-// Namespace-qualified tag prefixes can't be constants in struct tags, so the
-// URIs are spelled out: cbc = ...CommonBasicComponents-2, cac = ...CommonAggregateComponents-2.
+// Namespace'li etiket ön ekleri struct etiketlerinde sabit olarak yazılamıyor, o yüzden URI'ler açık yazıldı: cbc =
+// ...CommonBasicComponents-2, cac = ...CommonAggregateComponents-2.
 
-// ValidationError reports a missing or invalid field in a UBL document.
+// ValidationError, bir UBL belgesinde eksik ya da geçersiz bir alanı bildirir.
 type ValidationError struct{ Field, Reason string }
 
 func (e *ValidationError) Error() string { return "ubl: " + e.Field + ": " + e.Reason }
 
-// Party is a trading party reduced to what matching needs.
+// Party, bir ticari tarafın eşleştirme için gereken kısmıdır.
 type Party struct{ VKN, Title string }
 
 type xmlParty struct {
@@ -42,7 +41,7 @@ type xmlParty struct {
 
 var vknRe = regexp.MustCompile(`^(\d{10}|\d{11})$`)
 
-// party converts and validates; field names the party in errors (e.g. "Supplier").
+// party çevirir ve doğrular; field, hata mesajlarında tarafın adıdır (ör. "Supplier").
 func (p xmlParty) party(field string) (Party, error) {
 	var out Party
 	for _, id := range p.IDs {
@@ -62,8 +61,8 @@ func (p xmlParty) party(field string) (Party, error) {
 }
 
 var (
-	maxAmount  = decimal.New(1, 15) // amounts and quantities: keeps kurus inside int64 and NUMERIC(19,4)
-	maxPrice   = decimal.New(1, 13) // NUMERIC(19,6) holds 13 integer digits
+	maxAmount  = decimal.New(1, 15) // tutarlar ve miktarlar: kuruşu int64 ve NUMERIC(19,4) içinde tutar
+	maxPrice   = decimal.New(1, 13) // NUMERIC(19,6) en fazla 13 tam hane alır
 	currencyRe = regexp.MustCompile(`^[A-Z]{3}$`)
 )
 
@@ -74,7 +73,7 @@ func checkCurrency(field, s string) error {
 	return nil
 }
 
-// parseDecimal returns zero for empty input (optional elements); |value| >= 1e15 is rejected.
+// parseDecimal boş girdi için sıfır döner (isteğe bağlı elemanlar); mutlak değeri 1e15 ya da üstü olan reddedilir.
 func parseDecimal(field, s string) (decimal.Decimal, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
@@ -84,7 +83,7 @@ func parseDecimal(field, s string) (decimal.Decimal, error) {
 	if err != nil {
 		return decimal.Zero, &ValidationError{field, fmt.Sprintf("invalid number %q", s)}
 	}
-	// exponent check first: comparing 1e999999999 would allocate gigabytes
+	// önce üsse bakıyoruz: 1e999999999 ile karşılaştırma gigabaytlarca bellek ayırırdı
 	if d.Exponent() < -12 || d.Exponent() > 12 || d.Abs().GreaterThanOrEqual(maxAmount) {
 		return decimal.Zero, &ValidationError{field, fmt.Sprintf("out of range %q", s)}
 	}
@@ -99,7 +98,7 @@ func parseDate(field, s string) (time.Time, error) {
 	return t, nil
 }
 
-// parseOptDate returns nil for empty input.
+// parseOptDate boş girdi için nil döner.
 func parseOptDate(field, s string) (*time.Time, error) {
 	if strings.TrimSpace(s) == "" {
 		return nil, nil
@@ -111,7 +110,7 @@ func parseOptDate(field, s string) (*time.Time, error) {
 	return &t, nil
 }
 
-// decodeRoot decodes the document into v if its root element is {ns}local, else returns notMatch.
+// decodeRoot, kök eleman {ns}local ise belgeyi v'ye çözer, değilse notMatch döner.
 func decodeRoot(r io.Reader, ns, local string, notMatch error, v any) error {
 	dec := xml.NewDecoder(r)
 	for {

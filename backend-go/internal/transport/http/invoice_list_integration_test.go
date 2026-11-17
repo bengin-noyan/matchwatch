@@ -8,7 +8,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// postInvoiceAs posts invoice_basic.xml as invoice no, issued on date, optionally by another vendor, and returns its id.
+// postInvoiceAs, invoice_basic.xml'i verilen fatura numarası ve tarihle, istenirse başka bir tedarikçi adına yükler ve
+// id'sini döner.
 func (e *env) postInvoiceAs(no, date string, otherVendor bool) string {
 	e.t.Helper()
 	repl := []string{invETTN, uuid.NewString(), "ABC2026000000001", no, "<cbc:IssueDate>2026-03-01</cbc:IssueDate>", "<cbc:IssueDate>" + date + "</cbc:IssueDate>"}
@@ -52,12 +53,12 @@ func TestInvoiceListSearchFiltersPaging(t *testing.T) {
 	check("sort=issue_date", a, b, c)
 	check("sort=issue_date&dir=desc", c, b, a)
 	check("sort=invoice_no&dir=desc", c, b, a)
-	// case-blind, Turkish i's folded, LIKE wildcards literal
+	// büyük-küçük harf ve Türkçe i'ler fark etmez, LIKE joker karakterleri harfi harfine aranır
 	check("sort=issue_date&q=%C4%B1%C5%9F%C4%B1k", b)     // ışık
 	check("sort=issue_date&q=I%C5%9EIK", b)               // IŞIK
 	check("sort=issue_date&q=BA%C4%9ELANTI", a, c)        // BAĞLANTI
-	check("sort=issue_date&q="+strings.ToLower(c[:4]), c) // invoice no
-	check("sort=issue_date&q=%25")                        // a literal %
+	check("sort=issue_date&q="+strings.ToLower(c[:4]), c) // fatura no
+	check("sort=issue_date&q=%25")                        // düz bir % işareti
 	check("sort=issue_date&from=2026-04-01", b, c)
 	check("sort=issue_date&from=2026-04-01&to=2026-04-15", b)
 
@@ -69,7 +70,7 @@ func TestInvoiceListSearchFiltersPaging(t *testing.T) {
 	for st, n := range obj(body["counts"]) {
 		k, _ := strconv.Atoi(num(n))
 		sum += k
-		// the status filter narrows items and total but not counts
+		// durum filtresi items ve total'ı daraltır ama counts'u değil
 		if _, sb := e.invoiceNos("status=" + st); num(sb["total"]) != num(n) || num(obj(sb["counts"])[st]) != num(n) {
 			t.Fatalf("status %s: %v vs counts %v", st, sb, body["counts"])
 		}

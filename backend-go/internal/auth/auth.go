@@ -1,4 +1,4 @@
-// Package auth issues and verifies the HS256 JWTs that carry the tenant id (spec D13).
+// Package auth, tenant id'sini taşıyan HS256 JWT'leri üretir ve doğrular (spec D13).
 package auth
 
 import (
@@ -21,10 +21,11 @@ type ctxKey struct{}
 
 type subKey struct{}
 
-// CookieName carries the session JWT for the web app (HttpOnly, SameSite=Strict); scripts keep using the header.
+// CookieName, web uygulamasının oturum JWT'sini taşıyan çerezin adı (HttpOnly, SameSite=Strict). Betikler header
+// kullanmaya devam eder.
 const CookieName = "mw_session"
 
-// Sign returns an HS256 token for tenantID that expires after ttl.
+// Sign, tenantID için ttl sonra süresi dolan bir HS256 token üretir.
 func Sign(secret []byte, tenantID uuid.UUID, sub string, ttl time.Duration) (string, error) {
 	now := time.Now()
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims{
@@ -35,25 +36,26 @@ func Sign(secret []byte, tenantID uuid.UUID, sub string, ttl time.Duration) (str
 	}).SignedString(secret)
 }
 
-// TenantID returns the tenant stored by Middleware (uuid.Nil outside it).
+// TenantID, Middleware'in kaydettiği tenant'ı döner (Middleware dışında uuid.Nil).
 func TenantID(ctx context.Context) uuid.UUID {
 	id, _ := ctx.Value(ctxKey{}).(uuid.UUID)
 	return id
 }
 
-// Subject returns the token's sub claim stored by Middleware (a user id for web logins, "devtoken" for dev tokens).
+// Subject, Middleware'in kaydettiği token'ın sub değerini döner: web girişlerinde kullanıcı id'si, dev token'larda
+// "devtoken".
 func Subject(ctx context.Context) string {
 	s, _ := ctx.Value(subKey{}).(string)
 	return s
 }
 
-// SessionCheck tells whether a user's session issued at iat is still good (the user exists and has not reset the
-// password since).
+// SessionCheck, bir kullanıcının iat anında açılmış oturumu hâlâ geçerli mi diye bakar: kullanıcı duruyor mu ve o
+// zamandan beri şifresini sıfırlamış mı.
 type SessionCheck func(ctx context.Context, userID, tenantID uuid.UUID, iat time.Time) (bool, error)
 
-// Middleware requires a valid token, from the Bearer header or else the session cookie:
-// HS256 only, exp required, tenant_id a UUID. A token whose sub is a user id must also pass check; dev tokens
-// (sub "devtoken") have no user behind them.
+// Middleware geçerli bir token ister: önce Bearer header'ına, yoksa oturum çerezine bakar. Yalnızca HS256 kabul edilir,
+// exp zorunludur, tenant_id bir UUID olmalıdır. sub bir kullanıcı id'siyse token check'ten de geçmelidir; dev
+// token'ların (sub "devtoken") arkasında kullanıcı yoktur.
 func Middleware(secret []byte, check SessionCheck) func(http.Handler) http.Handler {
 	parser := jwt.NewParser(jwt.WithValidMethods([]string{"HS256"}), jwt.WithExpirationRequired())
 	return func(next http.Handler) http.Handler {

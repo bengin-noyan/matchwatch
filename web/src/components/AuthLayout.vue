@@ -1,9 +1,9 @@
 <script setup lang="ts">
-// The frame shared by /giris and /kayit: a dark showcase of what matchwatch does, and the form on a sheet with
-// a "Giriş yap | Kaydol" switch on top.
+// /giris ve /kayit sayfalarının ortak çerçevesi: solda matchwatch'ın ne yaptığını gösteren koyu bir vitrin, sağda bir
+// kâğıdın üstünde form ve üstünde "Giriş yap | Kaydol" geçişi.
 defineProps<{ title: string; lead: string }>()
 
-// Every line here is a property of the product, not a claim.
+// Buradaki her satır ürünün bir özelliği, reklam cümlesi değil.
 const highlights = [
   { title: 'Üçlü eşleştirme', text: 'Sözleşme, e-İrsaliye ve e-Fatura satır satır karşılaştırılır.' },
   { title: 'Kuruşuna kadar kanıt', text: 'Her fark, sözleşmenin maddesi ve sayfasıyla birlikte gelir.' },
@@ -75,7 +75,7 @@ const highlights = [
 </template>
 
 <style scoped>
-/* faint ruled paper on the dark panel, and two soft glows: red pencil and blue ballpoint */
+/* koyu panelde çok silik çizgili kâğıt ve iki yumuşak parıltı: kırmızı kalem ve mavi tükenmez */
 .showcase {
   background-image: repeating-linear-gradient(to bottom, transparent 0 31px, rgb(239 243 236 / 0.05) 31px 32px);
 }

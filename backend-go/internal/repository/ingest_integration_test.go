@@ -18,7 +18,7 @@ import (
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/ubl"
 )
 
-// setup migrates (owner), returns a Store on the app role and a fresh tenant removed on cleanup.
+// setup, migration'ları uygular (owner), uygulama rolüyle bir Store ve test bitince silinen yeni bir tenant döner.
 func setup(t *testing.T) (*Store, uuid.UUID) {
 	t.Helper()
 	ownerURL, appURL := os.Getenv("MATCHWATCH_TEST_MIGRATE_URL"), os.Getenv("MATCHWATCH_TEST_DATABASE_URL")
@@ -72,7 +72,7 @@ func parseInvoice(t *testing.T) *ubl.Invoice {
 	if err != nil {
 		t.Fatal(err)
 	}
-	inv.ETTN = uuid.NewString() // fixture ETTN is fixed; keep runs independent
+	inv.ETTN = uuid.NewString() // fixture'daki ETTN sabit; her çalıştırma birbirinden bağımsız olsun
 	return inv
 }
 
@@ -213,7 +213,7 @@ func TestApplyReceipt(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// each failure aborts its tx, so each gets its own InTenant
+	// her hata kendi transaction'ını bozar, o yüzden her biri ayrı InTenant'ta
 	bad := *r
 	bad.Lines = []ubl.ReceiptLine{{DespatchLineID: "99", RejectedQty: decimal.NewFromInt(1)}}
 	err = s.InTenant(ctx, tid, func(tx *Tx) error { _, err := tx.ApplyReceipt(ctx, v, &bad); return err })
@@ -369,8 +369,8 @@ func TestPriceHistoryWindowCurrencyUOM(t *testing.T) {
 		for _, h := range []struct {
 			off      int
 			cur, uom string
-		}{{-10, "TRY", uom}, {-180, "TRY", uom}, // kept; -180 is the inclusive lower bound
-			{-10, "USD", uom}, {-181, "TRY", uom}, {0, "TRY", uom}, {-10, "TRY", "KGM"}} { // all excluded
+		}{{-10, "TRY", uom}, {-180, "TRY", uom}, // dahil; -180 alt sınıra dahil
+			{-10, "USD", uom}, {-181, "TRY", uom}, {0, "TRY", uom}, {-10, "TRY", "KGM"}} { // hepsi hariç
 			if err := add(h.off, h.cur, h.uom); err != nil {
 				return err
 			}

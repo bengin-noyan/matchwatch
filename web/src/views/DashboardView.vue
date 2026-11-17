@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// Masa: where the day starts. One headline figure (the difference found in the period), the trend behind it,
-// where it comes from (rule, vendor), and the decisions waiting, biggest first.
+// Masa: günün başladığı yer. Tek bir ana rakam (dönemde bulunan fark), arkasındaki eğilim, nereden geldiği (kural,
+// tedarikçi) ve bekleyen kararlar, en büyüğü önce.
 import { computed, ref, watch } from 'vue'
 import { api, ApiError, type Dashboard } from '../api'
 import { currencyLabel, formatDate, formatMinor } from '../money'
@@ -184,7 +184,7 @@ const vendorBars = computed<Bar[]>(() =>
 </template>
 
 <style scoped>
-/* The one hero figure: same sans as everything, proportional digits, underlined with the red pencil. */
+/* Tek ana rakam: her yerdeki aynı yazı tipi, orantılı rakamlar, altı kırmızı kalemle çizili. */
 .hero {
   display: inline-block;
   font-size: clamp(2.75rem, 6vw, 4rem);

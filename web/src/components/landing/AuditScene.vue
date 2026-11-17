@@ -1,11 +1,11 @@
 <script setup lang="ts">
-// The landing page's moving picture of what matchwatch does, in the app's own visual language: contract,
-// e-İrsaliye and e-Fatura on the desk; the quantity agrees with the despatch, the price does not, so the red
-// pencil circles it and notes the money in the margin; then a person decides in blue ballpoint.
-// One loop of phases; with reduced motion it shows the last phase and stays still.
+// Tanıtım sayfasındaki, matchwatch'ın ne yaptığını uygulamanın kendi görsel diliyle anlatan hareketli resim: masada
+// sözleşme, e-İrsaliye ve e-Fatura var. Miktar irsaliyeyle tutuyor, fiyat tutmuyor; kırmızı kalem fiyatı daire içine
+// alıyor ve parayı kenara not ediyor, sonra bir kişi mavi tükenmezle karar veriyor.
+// Aşamalar döngü halinde oynar; hareket azaltma açıksa son aşamayı gösterir ve durur.
 import { onMounted, onUnmounted, ref } from 'vue'
 
-const PHASES = 6 // 0 desk, 1 scan, 2 quantity agrees, 3 price circled, 4 decided, 5 hold
+const PHASES = 6 // 0 masa, 1 tarama, 2 miktar tutuyor, 3 fiyat daire içinde, 4 karar verildi, 5 bekleme
 const phase = ref(PHASES - 1)
 let timer: ReturnType<typeof setInterval> | undefined
 
@@ -36,7 +36,7 @@ const at = (p: number) => phase.value >= p
         <clipPath id="invoice-clip"><rect x="190" y="200" width="330" height="262" rx="10" /></clipPath>
       </defs>
 
-      <!-- contract, at the back -->
+      <!-- sözleşme, en arkada -->
       <g class="sheet float-a" filter="url(#sheet-shadow)">
         <g transform="rotate(-7 130 150)">
           <rect x="30" y="40" width="230" height="250" rx="10" fill="#fff" stroke="#C7D3C4" />
@@ -55,7 +55,7 @@ const at = (p: number) => phase.value >= p
         </g>
       </g>
 
-      <!-- e-İrsaliye, in the middle -->
+      <!-- e-İrsaliye, ortada -->
       <g class="sheet float-b" filter="url(#sheet-shadow)">
         <g transform="rotate(5 420 110)">
           <rect x="330" y="20" width="200" height="170" rx="10" fill="#fff" stroke="#C7D3C4" />
@@ -70,7 +70,7 @@ const at = (p: number) => phase.value >= p
         </g>
       </g>
 
-      <!-- e-Fatura, in front, below the values it is checked against -->
+      <!-- e-Fatura, önde, karşılaştırıldığı değerlerin altında -->
       <g class="sheet float-c" filter="url(#sheet-shadow)">
         <rect x="190" y="200" width="330" height="262" rx="10" fill="#fff" stroke="#C7D3C4" />
         <text x="214" y="234" class="t-label">e-FATURA · FTR2026000000026</text>
@@ -84,19 +84,19 @@ const at = (p: number) => phase.value >= p
         <rect x="214" y="382" width="110" height="7" rx="3" fill="#E4EBE2" />
         <text x="214" y="440" class="t-small">Ödenecek</text>
         <text x="392" y="440" class="t-value">7.614,00 TL</text>
-        <!-- the system reading the invoice -->
+        <!-- sistem faturayı okuyor -->
         <g clip-path="url(#invoice-clip)">
           <rect class="scanline" :class="{ run: phase === 1 }" x="190" y="140" width="330" height="60" fill="url(#scan)" />
         </g>
       </g>
 
-      <!-- the links the system draws between documents -->
+      <!-- sistemin belgeler arasında çizdiği bağlantılar -->
       <path class="link" :class="{ drawn: at(2) }" d="M418 148 C 410 220, 300 250, 262 304" pathLength="1" />
       <path class="link pencil" :class="{ drawn: at(3) }" d="M168 200 C 220 262, 330 296, 388 316" pathLength="1" />
-      <!-- quantity agrees: a quiet ink tick -->
+      <!-- miktar tutuyor: sessiz bir mürekkep tiki -->
       <path class="tick ink" :class="{ drawn: at(2) }" d="M326 314 l6 7 l12 -15" pathLength="1" />
 
-      <!-- price does not: red pencil loop and the margin note -->
+      <!-- fiyat tutmuyor: kırmızı kalem halkası ve kenar notu -->
       <path
         class="loop"
         :class="{ drawn: at(3) }"
@@ -105,7 +105,7 @@ const at = (p: number) => phase.value >= p
       />
       <text x="396" y="376" class="hand-note" :class="{ shown: at(3) }">+470,00 TL</text>
 
-      <!-- a person decides: blue ballpoint -->
+      <!-- bir kişi karar veriyor: mavi tükenmez -->
       <path class="tick ballpoint" :class="{ drawn: at(4) }" d="M480 302 l10 12 l22 -30" pathLength="1" />
       <text x="396" y="408" class="hand-note decided" :class="{ shown: at(4) }">itiraz edildi</text>
     </svg>
@@ -154,7 +154,7 @@ const at = (p: number) => phase.value >= p
   opacity: 1;
   transform: none;
 }
-/* drawn strokes: pathLength=1 makes the dash maths unit-free */
+/* çizilen çizgiler: pathLength=1 sayesinde kesik çizgi hesabı birimden bağımsız */
 .link,
 .loop,
 .tick {
@@ -162,7 +162,7 @@ const at = (p: number) => phase.value >= p
   stroke-linecap: round;
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
-  opacity: 0; /* a round cap would leave a dot while undrawn */
+  opacity: 0; /* yuvarlak uç, çizilmemişken bir nokta bırakırdı */
   transition: stroke-dashoffset 0.9s ease-in-out, opacity 0.2s;
 }
 .link {
@@ -206,7 +206,7 @@ const at = (p: number) => phase.value >= p
   90% { opacity: 1; }
   100% { opacity: 0; transform: translateY(320px); }
 }
-/* the desk breathes a little */
+/* masa hafifçe nefes alıyor */
 .float-a { animation: float 7s ease-in-out infinite; }
 .float-b { animation: float 6s ease-in-out -2s infinite; }
 .float-c { animation: float 8s ease-in-out -4s infinite; }

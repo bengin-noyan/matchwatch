@@ -40,7 +40,7 @@ describe('FindingPanel', () => {
     })
     expect(w.text()).toContain('Ayçiçek Yağı 5 L')
     expect(w.text()).toContain('benzerlik 0,8683')
-    expect(w.text()).not.toContain('İtiraz et') // the decision here is the match itself
+    expect(w.text()).not.toContain('İtiraz et') // burada karar, eşleşmenin kendisi
     await w.findAll('button').find((b) => b.text() === 'Bu kalemle eşleştir')!.trigger('click')
     await flushPromises()
     expect(match).toHaveBeenCalledWith('line-uuid', 'item-9')

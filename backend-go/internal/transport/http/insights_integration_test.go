@@ -22,7 +22,7 @@ func TestDashboardAndVendors(t *testing.T) {
 		t.Fatalf("by_currency %v", d["by_currency"])
 	}
 	if w := list(d["weekly"]); len(w) != 1 || str(obj(w[0])["week"]) != "2026-02-23" || num(obj(w[0])["caught_minor"]) != "14912" {
-		t.Fatalf("weekly %v", w) // invoice of Sunday 2026-03-01 belongs to the week starting Monday 2026-02-23
+		t.Fatalf("weekly %v", w) // 1 Mart 2026 Pazar tarihli fatura, 23 Şubat 2026 Pazartesi başlayan haftaya düşer
 	}
 	rules := list(d["by_rule"])
 	if len(rules) != 2 || str(obj(rules[0])["rule_code"]) != "MATURITY_VIOLATION" || num(obj(rules[0])["impact_minor"]) != "9912" {

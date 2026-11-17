@@ -27,7 +27,7 @@ describe('UsersView', () => {
     expect(w.find('[role=status]').text()).toContain('Davet yeni@firma.com.tr adresine gönderildi')
     expect(w.html()).not.toContain('#')
     expect(w.text()).toContain('Davet edildi')
-    expect(button(w, 'Şifre sıfırlama bağlantısı')).toBeUndefined() // nobody can reset a colleague's password
+    expect(button(w, 'Şifre sıfırlama bağlantısı')).toBeUndefined() // kimse bir iş arkadaşının şifresini sıfırlayamaz
   })
 
   it('revokes an invite', async () => {

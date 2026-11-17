@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// "Şifremi unuttum": the reset link goes only to the address by e-mail. The answer is the same whether or not an
-// account exists, so this page cannot be used to find out who has one.
+// "Şifremi unuttum": sıfırlama bağlantısı yalnızca o adrese e-postayla gider. Hesap olsun olmasın cevap aynıdır; yani
+// bu sayfa kimin hesabı olduğunu öğrenmek için kullanılamaz.
 import { ref } from 'vue'
 import { api, ApiError } from '../api'
 import AuthLayout from '../components/AuthLayout.vue'

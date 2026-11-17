@@ -44,7 +44,8 @@ type DraftSummary struct {
 	CreatedAt  time.Time  `json:"created_at"`
 }
 
-// ListDrafts returns the newest drafts first (at most 200), with the extracted contract number and vendor name.
+// ListDrafts, taslakları en yeniden başlayarak döner (en fazla 200); çıkarılan sözleşme numarası ve tedarikçi adıyla
+// birlikte.
 func (tx *Tx) ListDrafts(ctx context.Context) ([]DraftSummary, error) {
 	rows, err := tx.Query(ctx, `SELECT id, status, COALESCE(draft_json->>'contract_no',''), COALESCE(draft_json->>'vendor_name',''),
 		error_code, contract_id, created_at FROM contract_drafts WHERE tenant_id=$1 ORDER BY created_at DESC, id LIMIT 200`, tx.tenantID)
@@ -101,7 +102,7 @@ func (tx *Tx) updateDraft(ctx context.Context, id uuid.UUID, set string, args ..
 	return nil
 }
 
-// updateUnapproved changes extraction state; an APPROVED draft is frozen and yields ErrDraftApproved.
+// updateUnapproved, çıkarım durumunu değiştirir. APPROVED bir taslak donmuştur ve ErrDraftApproved döner.
 func (tx *Tx) updateUnapproved(ctx context.Context, id uuid.UUID, set string, args ...any) error {
 	tag, err := tx.Exec(ctx, `UPDATE contract_drafts SET `+set+`, updated_at=now() WHERE id=$1 AND status <> 'APPROVED'`, append([]any{id}, args...)...)
 	if err != nil {
@@ -111,7 +112,7 @@ func (tx *Tx) updateUnapproved(ctx context.Context, id uuid.UUID, set string, ar
 		return nil
 	}
 	if _, err := tx.GetDraft(ctx, id); err != nil {
-		return err // ErrNotFound when the draft does not exist (or belongs to another tenant)
+		return err // taslak yoksa (ya da başka bir tenant'ınsa) ErrNotFound
 	}
 	return ErrDraftApproved
 }

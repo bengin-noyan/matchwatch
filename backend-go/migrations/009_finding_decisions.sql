@@ -1,7 +1,8 @@
--- Faz 3f: every human decision on a finding (who, when, which note), append-only.
--- Keyed by the finding's identity (invoice, line, rule), not its id: a re-audit deletes and recreates OPEN
--- findings, so a reopened finding gets a new id, and its trail must survive that.
--- No backfill: rows written before this migration have no known decider; the finding still shows its current note.
+-- Faz 3f: bir bulgu üzerine verilen her insan kararı (kim, ne zaman, hangi notla); yalnızca eklenir, değiştirilmez.
+-- Satırlar bulgunun id'sine değil kimliğine (fatura, satır, kural) bağlı: yeniden denetim OPEN bulguları silip yeniden
+-- oluşturur, yani yeniden açılan bir bulgu yeni bir id alır ve geçmişi bunu atlatmalı.
+-- Geriye dönük doldurma yok: bu migration'dan önceki kararların kim tarafından verildiği bilinmiyor; bulgu yine de
+-- güncel notunu gösterir.
 CREATE TABLE finding_decisions (
   id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id         UUID NOT NULL REFERENCES tenants(id),
@@ -10,8 +11,8 @@ CREATE TABLE finding_decisions (
   rule_code         TEXT NOT NULL,
   resolution_status TEXT NOT NULL CHECK (resolution_status IN ('OPEN','DISPUTED','APPROVED_EXCEPTION')),
   note              TEXT,
-  -- users.id without an FK: the trail must outlive the user. The e-mail is a snapshot taken at decision time;
-  -- both are NULL for dev tokens.
+  -- users.id için FK yok: geçmiş, kullanıcı silinse de kalmalı. E-posta karar anında alınmış bir kopyadır; dev
+  -- token'larda ikisi de NULL.
   decided_by        UUID,
   decided_by_email  TEXT,
   decided_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -26,5 +27,5 @@ CREATE POLICY tenant_isolation ON finding_decisions
   USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid)
   WITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::uuid);
 
--- Append-only for the app: no UPDATE or DELETE.
+-- Uygulama için yalnızca ekleme: UPDATE ya da DELETE yok.
 GRANT SELECT, INSERT ON finding_decisions TO matchwatch_app;

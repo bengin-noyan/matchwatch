@@ -1,5 +1,6 @@
 <script setup lang="ts">
-// RED gets the red-pencil loop, YELLOW an amber one, GREEN stays unmarked: a clean sheet needs no ink.
+// RED kırmızı kalem halkası, YELLOW kehribar renkli bir halka alır, GREEN işaretsiz kalır: temiz bir sayfaya mürekkep
+// gerekmez.
 import type { AuditStatus } from '../api'
 import { statusLabel } from '../labels'
 import PencilCircle from './PencilCircle.vue'

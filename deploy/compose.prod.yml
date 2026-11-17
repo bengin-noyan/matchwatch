@@ -1,6 +1,6 @@
-# Production stack. Run from the repo root:
+# Canlı ortam. Repo kök dizininden çalıştır:
 #   docker compose -f deploy/compose.prod.yml --env-file deploy/.env up -d --build
-# Only Caddy publishes ports; the API trusts X-Forwarded-For because nothing else can reach it.
+# Port açan tek servis Caddy; API X-Forwarded-For'a güvenir, çünkü ona başka hiçbir şey ulaşamaz.
 x-logging: &logging
   logging:
     driver: json-file
@@ -39,7 +39,7 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgres://matchwatch_app:${MATCHWATCH_APP_PASSWORD}@postgres:5432/matchwatch?sslmode=disable
-      # cmd/onboard reads this: docker compose ... run --rm -T --entrypoint /app/onboard api -name ...
+      # cmd/onboard bunu okur: docker compose ... run --rm -T --entrypoint /app/onboard api -name ...
       MIGRATE_DATABASE_URL: postgres://matchwatch_owner:${MATCHWATCH_OWNER_PASSWORD}@postgres:5432/matchwatch?sslmode=disable
       JWT_SECRET: ${JWT_SECRET:?}
       AI_SERVICE_URL: ${AI_SERVICE_URL:-}
@@ -66,7 +66,7 @@ services:
     depends_on: [api]
     <<: *logging
 
-  # --profile ai: contract extraction and item suggestions, on this host (KVKK: no foreign LLM).
+  # --profile ai: sözleşme çıkarımı ve kalem önerileri bu sunucuda çalışır (KVKK: yabancı LLM yok).
   ollama:
     profiles: ["ai"]
     image: ollama/ollama:0.40.14

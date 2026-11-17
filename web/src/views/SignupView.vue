@@ -15,7 +15,7 @@ const showPassword = ref(false)
 const error = ref('')
 const busy = ref(false)
 
-// the server checks the VKN/TCKN check digits; here only the shape, so the field can say what it wants
+// VKN/TCKN kontrol hanelerini sunucu doğrular; burada yalnızca biçime bakıyoruz ki alan ne istediğini söyleyebilsin
 const vknShape = computed(() => vkn.value === '' || /^\d{10,11}$/.test(vkn.value))
 const pwLeft = computed(() => Math.max(0, 12 - [...password.value].length))
 

@@ -1,4 +1,4 @@
-"""Grounded contract extraction: the LLM only quotes; Python checks every quote is on its page and parses it."""
+"""Metne dayalı sözleşme çıkarımı: LLM yalnızca alıntı yapar; her alıntının gerçekten o sayfada geçtiğini Python kontrol eder ve değeri kendisi okur."""
 import re
 import time
 
@@ -9,7 +9,7 @@ from .pdftext import Page
 _HEADER = ["vendor_vkn", "vendor_name", "contract_no", "valid_from", "valid_until", "payment_term", "currency",
            "qty_tolerance"]
 _ITEM_Q = ["name", "item_code", "barcode", "unit_price", "uom", "withholding_code", "clause"]
-# warning field name = the draft field the quote fills
+# uyarı alanının adı = alıntının doldurduğu taslak alanı
 _FIELD = {"payment_term": "payment_term_days", "qty_tolerance": "qty_tolerance_pct"}
 
 _Q = {"anyOf": [{"type": "object", "properties": {"text": {"type": "string"}, "page": {"type": "integer"}},
@@ -53,15 +53,15 @@ def _starts(n: str, hay: str) -> list[int]:
 
 
 def _numeric_ok(n: str, hay: str, i: int) -> bool:
-    """False if the match at i is part of a longer number on the page ("85,50" inside "185,50").
-    A trailing/leading [.,] counts only when a digit follows/precedes it, so a sentence-final "%5." stays ok."""
+    """i'deki eşleşme sayfadaki daha uzun bir sayının parçasıysa False ("185,50" içindeki "85,50").
+    Baştaki ya da sondaki [.,] yalnızca yanında rakam varsa sayılır; böylece cümle sonundaki "%5." sorun olmaz."""
     pre, post = hay[:i], hay[i + len(n):]
     return not ((n[0] in "0123456789.," and re.search(r"\d[.,]?$", pre))
                 or (n[-1] in "0123456789.," and re.match(r"[.,]?\d", post)))
 
 
 def _negative(n: str, hay: str) -> bool:
-    """A minus sign in the quote, or touching the quoted number on the page ("- 185,50" is a separator)."""
+    """Alıntıda ya da sayfada alıntılanan sayıya bitişik bir eksi işareti ("- 185,50" ise ayraçtır)."""
     return bool(re.search(r"[-−]\s?\d", n)) or (n[0].isdigit() and any(
         re.search(r"[-−]$", hay[:i]) for i in _starts(n, hay)))
 
@@ -110,19 +110,19 @@ _DATE = re.compile(r"(?<!\d)\d{1,2}[./-]\d{1,2}[./-]\d{4}(?!\d)|\d{1,2}\s+[^\W\d
 
 
 def _dates(t: str) -> list[str]:
-    """All parseable dates in the quote, in order ("01.01.2026 – 31.12.2026" -> two)."""
+    """Alıntıdaki okunabilen bütün tarihler, sırasıyla ("01.01.2026 – 31.12.2026" -> iki tane)."""
     return [d for m in _DATE.finditer(t) if (d := parse_date(m.group()))]
 
 
 def _header_values(k: str, t: str, page: int) -> tuple[dict | None, str]:
-    """Parse a grounded header quote -> (draft values, "") or (None, warning code)."""
+    """Metinde doğrulanmış bir başlık alıntısını okur -> (taslak değerleri, "") ya da (None, uyarı kodu)."""
     if k == "vendor_vkn":
         v = re.sub(r"\D", "", t)
         return ({k: v}, "") if v else (None, "UNPARSEABLE")
     if k in ("vendor_name", "contract_no"):
         t = t.strip()
         c = t.find(":")
-        # drop a "Sözleşme No:" / "Satıcı:" label, but keep colons inside values like "SZL:2026/14"
+        # "Sözleşme No:" / "Satıcı:" gibi etiketi at, ama "SZL:2026/14" gibi değerlerin içindeki iki noktayı koru
         if 0 <= c < 40 and (re.search(r"\s", t[:c]) or t[c + 1:c + 2].isspace()):
             t = t[c + 1:].strip()
         return ({k: t}, "") if t else (None, "UNPARSEABLE")
@@ -139,7 +139,7 @@ def _header_values(k: str, t: str, page: int) -> tuple[dict | None, str]:
     if k == "currency":
         v = parse_currency(t)
         return ({k: v}, "") if v else (None, "UNKNOWN_CURRENCY")
-    v = parse_percent(t)  # qty_tolerance; never defaulted to 0
+    v = parse_percent(t)  # qty_tolerance; asla varsayılan olarak 0 yapılmaz
     return ({"qty_tolerance_pct": str(v)}, "") if v is not None else (None, "UNPARSEABLE")
 
 
@@ -156,8 +156,8 @@ def extract(pages: list[Page], llm: LLM, max_chars: int = 24000, deadline_s=270,
 
     def ground(q: dict | None, field: str, numeric: bool = False,
                message: str = "quote not found on the given page") -> str | None:
-        """Quote text if it occurs on its page, else None (+ UNGROUNDED unless the LLM gave null).
-        numeric: every occurrence must be a whole number on the page, never part of a longer one."""
+        """Alıntı kendi sayfasında geçiyorsa metnini döner, geçmiyorsa None (LLM null vermediyse bir de UNGROUNDED uyarısı).
+        numeric: her geçtiği yerde sayfada tam bir sayı olmalı, daha uzun bir sayının parçası değil."""
         if q is None:
             return None
         p = by_no.get(q["page"])
@@ -179,14 +179,14 @@ def extract(pages: list[Page], llm: LLM, max_chars: int = 24000, deadline_s=270,
                                "payment_term_days", "payment_term_source_page", "payment_term_clause_text",
                                "currency", "qty_tolerance_pct"]}
     filled: set[str] = set()
-    pending: dict[str, list[dict]] = {}  # header warnings, dropped if a later group fills the field
+    pending: dict[str, list[dict]] = {}  # başlık uyarıları; sonraki bir grup alanı doldurursa silinir
     items: list[dict] = []
     seen: set[tuple[str, str]] = set()
 
     for group in _groups(pages, max_chars):
         ans = _ask(llm, "\n\n".join(f"=== SAYFA {p.number} ===\n{p.text}" for p in group), end, clock)
 
-        rng = None  # first grounded date-range quote of this group
+        rng = None  # bu grubun metinde doğrulanmış ilk tarih aralığı alıntısı
         for k in _HEADER:
             q = ans.get(k)
             if q is None or k in filled:
@@ -208,7 +208,7 @@ def extract(pages: list[Page], llm: LLM, max_chars: int = 24000, deadline_s=270,
             draft.update(vals)
             if k == "vendor_vkn" and not vkn_valid(vals[k]):
                 warn("VKN_CHECKSUM", field, q["page"], "VKN checksum failed; value kept for review")
-        if rng:  # a range quote fills a missing start, and a missing or not-after-start end
+        if rng:  # aralık alıntısı eksik başlangıcı doldurur; bitiş eksikse ya da başlangıçtan sonra değilse onu da
             if "valid_from" not in filled:
                 filled.add("valid_from")
                 pending.pop("valid_from", None)
@@ -221,7 +221,7 @@ def extract(pages: list[Page], llm: LLM, max_chars: int = 24000, deadline_s=270,
         for j, it in enumerate(ans.get("items") or []):
             i = len(items)
             name_q, price_q = it.get("name"), it.get("unit_price")
-            # dropped items are reported by the LLM's own index in this chunk's answer
+            # atılan kalemler, LLM'in bu parçadaki cevabında kendi verdiği sıra numarasıyla bildirilir
             name = ground(name_q, f"items[{j}]", message="item dropped: name not found on the given page")
             if name is None:
                 if name_q is None:

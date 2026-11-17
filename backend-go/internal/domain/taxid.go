@@ -1,7 +1,7 @@
 package domain
 
-// ValidTaxID reports whether s is a 10-digit VKN or an 11-digit TCKN whose check digits are right
-// (GİB's VKN algorithm; the TCKN 10th/11th digit rule).
+// ValidTaxID, s'nin kontrol hanesi doğru, 10 haneli bir VKN ya da 11 haneli bir TCKN olup olmadığını söyler (VKN için
+// GİB'in algoritması, TCKN için 10. ve 11. hane kuralı).
 func ValidTaxID(s string) bool {
 	d := make([]int, len(s))
 	for i, c := range s {

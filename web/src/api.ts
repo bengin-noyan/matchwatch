@@ -1,4 +1,4 @@
-// Thin client for the Go API under /api/v1. The session is an HttpOnly cookie; this code never sees the token.
+// Go API'si (/api/v1) için ince bir istemci. Oturum HttpOnly bir çerezde duruyor; bu kod token'ı hiç görmez.
 
 export type AuditStatus = 'GREEN' | 'YELLOW' | 'RED' | 'PENDING'
 export type Resolution = 'OPEN' | 'DISPUTED' | 'APPROVED_EXCEPTION'
@@ -61,13 +61,13 @@ export interface Finding {
   evidence: Record<string, unknown> & { suggestions?: Suggestion[] }
   resolution_status: Resolution
   resolution_note: string | null
-  decisions: Decision[] // oldest first; survives re-audits
+  decisions: Decision[] // en eskiden başlayarak; yeniden denetimden sonra da kalır
 }
 
 export interface Decision {
   resolution_status: Resolution
   note: string | null
-  decided_by_email: string | null // null for dev tokens
+  decided_by_email: string | null // dev token'larda null
   decided_at: string
 }
 
@@ -103,14 +103,14 @@ export interface Dashboard {
   }[]
 }
 
-// GET /invoices parameters; the server searches, filters, sorts and pages.
+// GET /invoices parametreleri; arama, filtre, sıralama ve sayfalamayı sunucu yapar.
 export interface InvoiceQuery {
   q?: string
   status?: AuditStatus
   vendor_id?: string
-  from?: string // YYYY-MM-DD, inclusive
+  from?: string // YYYY-MM-DD, uçlar dahil
   to?: string
-  open?: boolean // only invoices with findings waiting for a decision
+  open?: boolean // yalnızca karar bekleyen bulgusu olan faturalar
   sort?: 'issue_date' | 'invoice_no' | 'vendor' | 'payable' | 'status' | 'open_findings'
   dir?: 'asc' | 'desc'
   limit?: number
@@ -120,7 +120,7 @@ export interface InvoiceQuery {
 export interface InvoiceList {
   items: InvoiceRow[]
   total: number
-  counts: Partial<Record<AuditStatus, number>> // matches per status, ignoring the status filter
+  counts: Partial<Record<AuditStatus, number>> // duruma göre eşleşme sayıları, durum filtresi dikkate alınmadan
 }
 
 export interface FindingListRow {
@@ -129,7 +129,7 @@ export interface FindingListRow {
   invoice_no: string
   vendor_name: string
   issue_date: string
-  currency: string // the invoice's
+  currency: string // faturanınki
   line_id: string | null
   item_name: string | null
   severity: Finding['severity']
@@ -151,16 +151,16 @@ export interface FindingQuery {
 }
 
 export interface FindingList {
-  items: FindingListRow[] // largest impact first
+  items: FindingListRow[] // etkisi en büyük olan önce
   total: number
-  counts: Record<string, number> // matches per rule code, ignoring the rule filter
+  counts: Record<string, number> // kural koduna göre eşleşme sayıları, kural filtresi dikkate alınmadan
 }
 
 export interface AliasRow {
   id: string
   vendor_id: string
   vendor_name: string
-  name_key: string // the invoice item name, normalized: lowercase, Turkish letters folded
+  name_key: string // faturadaki kalem adı, normalleştirilmiş: küçük harf, Türkçe harfler sadeleştirilmiş
   uom: string
   contract_item: ContractItemRow
   created_at: string
@@ -284,7 +284,7 @@ export function setUnauthorizedHandler(fn: () => void) {
   onUnauthorized = fn
 }
 
-// send answers with the response when it is ok and throws an ApiError otherwise.
+// send, yanıt başarılıysa onu döner, değilse ApiError fırlatır.
 async function send(method: string, path: string, body?: BodyInit, contentType?: string): Promise<Response> {
   const headers: Record<string, string> = { Accept: 'application/json' }
   if (contentType) headers['Content-Type'] = contentType
@@ -296,7 +296,8 @@ async function send(method: string, path: string, body?: BodyInit, contentType?:
   }
   if (!res.ok) {
     const data = await res.json().catch(() => ({}))
-    // /auth/me answers 401 for every guest: the router guard decides where they go, not the expiry handler
+    // /auth/me giriş yapmamış herkese 401 döner: nereye gideceklerine oturum süresi bitti işleyicisi değil, router
+    // karar verir
     if (res.status === 401 && path !== '/auth/login' && path !== '/auth/me') onUnauthorized()
     throw new ApiError(res.status, data.code ?? 'UNKNOWN', data.error ?? `HTTP ${res.status}`)
   }
@@ -324,7 +325,7 @@ export const api = {
   redeem: (token: string, password: string) =>
     request<Me>('POST', '/auth/redeem', json({ token, password }), 'application/json'),
   users: () => request<{ users: UserRow[]; invites: InviteRow[] }>('GET', '/users'),
-  // the link goes only to that address by e-mail; the response never carries it
+  // bağlantı yalnızca o adrese e-postayla gider; yanıtta asla yer almaz
   invite: (email: string) => request<InviteRow>('POST', '/invites', json({ email }), 'application/json'),
   revokeInvite: (inviteId: string) => request<void>('DELETE', `/invites/${id(inviteId)}`),
 

@@ -40,7 +40,7 @@ func writeErr(w http.ResponseWriter, status int, code, msg string) {
 	writeJSON(w, status, errorBody{Error: msg, Code: code})
 }
 
-// fail maps repository errors to HTTP; anything unknown is logged and answered with a generic 500.
+// fail, repository hatalarını HTTP cevaplarına çevirir; tanımadığı bir hatayı loglar ve genel bir 500 döner.
 func fail(w http.ResponseWriter, err error) {
 	var pgErr *pgconn.PgError
 	switch {
@@ -58,7 +58,7 @@ func fail(w http.ResponseWriter, err error) {
 		writeErr(w, 409, "DRAFT_APPROVED", "draft is already approved")
 	case errors.Is(err, repository.ErrNotFound):
 		writeErr(w, 404, "NOT_FOUND", "not found")
-	case errors.As(err, &pgErr) && pgErr.Code == "23514": // CHECK, e.g. rejected_qty > delivered_qty
+	case errors.As(err, &pgErr) && pgErr.Code == "23514": // CHECK ihlali, ör. rejected_qty > delivered_qty
 		writeErr(w, 422, "INVALID_DOCUMENT", "document violates a data constraint")
 	default:
 		log.Printf("internal error: %v", err)
@@ -66,7 +66,7 @@ func fail(w http.ResponseWriter, err error) {
 	}
 }
 
-// readXML reads the capped body; it answers 413/400 itself and reports ok=false.
+// readXML, boyutu sınırlı gövdeyi okur; 413/400 cevabını kendisi verir ve ok=false döner.
 func readXML(w http.ResponseWriter, r *http.Request) ([]byte, bool) {
 	b, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxXMLBytes))
 	var tooBig *http.MaxBytesError
@@ -90,8 +90,9 @@ func pathID(r *http.Request) (uuid.UUID, bool) {
 	return id, err == nil
 }
 
-// rawPath is built only from the tenant UUID, a fixed kind and the canonical ETTN, never from client text.
-// The kind keeps an invoice and a despatch that share an ETTN (unique only per table) apart.
+// rawPath yalnızca tenant UUID'sinden, sabit bir türden ve ETTN'nin standart halinden kurulur; istemciden gelen metin
+// asla kullanılmaz. Tür bilgisi, aynı ETTN'yi taşıyan bir fatura ile irsaliyeyi ayrı tutar (ETTN yalnızca kendi
+// tablosunda benzersiz).
 func (s *server) rawPath(tid uuid.UUID, kind, ettn string) string {
 	return filepath.Join(s.storageDir, tid.String(), kind, ettn+".xml")
 }
@@ -103,8 +104,8 @@ func writeRaw(path string, data []byte) error {
 	return os.WriteFile(path, data, 0o640)
 }
 
-// ingest runs fn in the tenant tx. fn calls write() only after the DB accepted the row (so duplicates and
-// mismatches never touch the disk); if the commit then fails, the file is removed again.
+// ingest, fn'i tenant transaction'ında çalıştırır. fn, write()'ı ancak veritabanı kaydı kabul ettikten sonra çağırır
+// (böylece mükerrer ya da hatalı belgeler diske hiç yazılmaz). Commit yine de başarısız olursa dosya geri silinir.
 func (s *server) ingest(ctx context.Context, tid uuid.UUID, path string, raw []byte, fn func(tx *repository.Tx, write func() error) error) error {
 	wrote := false
 	err := s.store.InTenant(ctx, tid, func(tx *repository.Tx) error {
@@ -187,7 +188,7 @@ func (s *server) postContract(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 201, idResp{ID: id})
 }
 
-// reaudit re-runs the audit of every invoice that references a newly ingested despatch.
+// reaudit, yeni yüklenen bir irsaliyeye atıf yapan her faturayı yeniden denetler.
 func (s *server) reaudit(ctx context.Context, tid uuid.UUID, ids []uuid.UUID) ([]uuid.UUID, error) {
 	if ids == nil {
 		ids = []uuid.UUID{}
@@ -257,7 +258,7 @@ func (s *server) postReceipt(w http.ResponseWriter, r *http.Request) {
 		if err := checkCustomer(ctx, tx, rc.Customer.VKN); err != nil {
 			return err
 		}
-		v, err := tx.UpsertVendor(ctx, rc.Supplier.VKN, rc.Supplier.Title) // rolled back if the despatch is unknown
+		v, err := tx.UpsertVendor(ctx, rc.Supplier.VKN, rc.Supplier.Title) // irsaliye bilinmiyorsa geri alınır
 		if err != nil {
 			return err
 		}
@@ -431,7 +432,7 @@ func (s *server) auditInvoice(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]string{"audit_status": string(st)})
 }
 
-// decisionErr validates a decision; "" means valid.
+// decisionErr bir kararı doğrular; "" geçerli demek.
 func decisionErr(status, note string) string {
 	switch domain.Resolution(status) {
 	case domain.ResolutionOpen, domain.ResolutionDisputed, domain.ResolutionApprovedException:
@@ -444,7 +445,7 @@ func decisionErr(status, note string) string {
 	return ""
 }
 
-// decider is the user behind the request: web logins carry the user id, dev tokens do not.
+// decider, isteği yapan kullanıcıdır: web girişleri kullanıcı id'sini taşır, dev token'lar taşımaz.
 func decider(r *http.Request) *uuid.UUID {
 	if u, err := uuid.Parse(auth.Subject(r.Context())); err == nil {
 		return &u
@@ -475,7 +476,7 @@ func (s *server) patchFinding(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, patchResp{ID: id, ResolutionStatus: req.ResolutionStatus})
 }
 
-// postDecisions applies one decision to up to maxLimit findings at once; any unknown id fails the whole batch.
+// postDecisions, tek bir kararı aynı anda en fazla maxLimit bulguya uygular; bilinmeyen tek bir id bütün grubu düşürür.
 func (s *server) postDecisions(w http.ResponseWriter, r *http.Request) {
 	var req bulkDecisionReq
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&req); err != nil {

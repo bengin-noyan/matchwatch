@@ -1,14 +1,14 @@
 <script setup lang="ts">
-// Ranked horizontal bars, largest first, one hue. Bars share one baseline so close values compare exactly;
-// the value rides at the tip, and hover or focus adds the count.
+// Büyükten küçüğe sıralı, tek renkli yatay çubuklar. Hepsi aynı taban çizgisinden başlar, böylece yakın değerler tam
+// karşılaştırılır. Değer çubuğun ucunda durur; üstüne gelince ya da odaklanınca adet de görünür.
 import { computed } from 'vue'
 
 export interface Bar {
   key: string
   label: string
-  value: number // geometry only
-  text: string // formatted amount
-  detail: string // e.g. "3 bulgu"
+  value: number // yalnızca çizim için
+  text: string // biçimlendirilmiş tutar
+  detail: string // ör. "3 bulgu"
   to?: string
 }
 
@@ -40,7 +40,7 @@ const pct = (v: number) => `${Math.max(1.5, (v / max.value) * 100)}%`
 <style scoped>
 .bar {
   background: var(--color-pencil);
-  border-radius: 0 4px 4px 0; /* square at the baseline, rounded data end */
+  border-radius: 0 4px 4px 0; /* taban çizgisi tarafı köşeli, veri ucu yuvarlak */
   transition: filter 120ms;
 }
 .group:hover .bar,

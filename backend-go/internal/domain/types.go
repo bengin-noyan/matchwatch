@@ -49,10 +49,10 @@ const (
 type ExchangeRate struct {
 	Source, Target string
 	Rate           decimal.Decimal
-	TCMBDate       time.Time // non-zero: derived from the TCMB bulletin of that day (D17), not from the invoice
+	TCMBDate       time.Time // sıfır değilse kur faturadan değil, o günün TCMB bülteninden geldi (D17)
 }
 
-// FXQuote is one TCMB bulletin line: Unit units of Currency cost ForexBuying TRY.
+// FXQuote, TCMB bülteninin bir satırıdır: Unit birim Currency, ForexBuying TRY eder.
 type FXQuote struct {
 	Currency    string
 	Unit        int64
@@ -79,7 +79,7 @@ type InvoiceLine struct {
 	WithholdingCode                                         string
 }
 
-// NetUnitPrice assumes Qty > 0 (guaranteed by the parser).
+// NetUnitPrice, Qty'nin sıfırdan büyük olduğunu varsayar (parser bunu garanti ediyor).
 func (l InvoiceLine) NetUnitPrice() decimal.Decimal { return l.LineExtension.Div(l.Qty) }
 
 type Contract struct {
@@ -88,7 +88,7 @@ type Contract struct {
 	PaymentTermDays int
 	Currency        string
 	QtyTolerancePct decimal.Decimal
-	// where the payment term is written in the contract; page 0 means unknown
+	// ödeme vadesinin sözleşmede yazdığı yer; sayfa 0 bilinmiyor demek
 	PaymentTermSourcePage int
 	PaymentTermClauseText string
 }

@@ -15,7 +15,8 @@ import (
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/ubl"
 )
 
-// fakeEmbedder maps "civata" names near one axis and "bakim" names near another; everything else far away.
+// fakeEmbedder, "civata" adlarını bir eksene, "bakim" adlarını başka bir eksene yakın koyar; geri kalan her şey uzak
+// düşer.
 type fakeEmbedder struct {
 	calls [][]string
 	err   error
@@ -51,7 +52,7 @@ func (f *fakeEmbedder) Embed(_ context.Context, texts []string) (string, []json.
 	return "fake-m", out, nil
 }
 
-// ingestCodeless stores invoice_basic.xml with line 1's item code and barcode removed.
+// ingestCodeless, invoice_basic.xml'i 1. satırın kalem kodu ve barkodu silinmiş haliyle kaydeder.
 func (e *env) ingestCodeless(t *testing.T) (invoiceID, line1 uuid.UUID) {
 	t.Helper()
 	inv, err := ubl.ParseInvoice(open(t, "../../testdata/invoice_basic.xml"))
@@ -101,12 +102,12 @@ func TestSemanticSuggestionThenAlias(t *testing.T) {
 	if top["item_name"] != "M8x20 paslanmaz civata" || top["similarity"] != "1.0000" {
 		t.Fatalf("top suggestion %+v", top)
 	}
-	// only the code-less line is embedded, then both contract items once
+	// önce yalnızca kodsuz satır, sonra iki sözleşme kalemi birer kez embed edilir
 	if len(emb.calls) != 2 || fmt.Sprint(emb.calls[0]) != "[m8 20mm inox civata]" || len(emb.calls[1]) != 2 {
 		t.Fatalf("calls %v", emb.calls)
 	}
 	e.audit(t, inv)
-	if len(emb.calls) != 3 { // item vectors are stored: the re-audit embeds the line only
+	if len(emb.calls) != 3 { // kalem vektörleri kaydedildi: yeniden denetimde yalnızca satır embed edilir
 		t.Fatalf("re-audit calls %v", emb.calls)
 	}
 
@@ -122,7 +123,7 @@ func TestSemanticSuggestionThenAlias(t *testing.T) {
 		t.Fatalf("status %s", st)
 	}
 	rows := e.findings(t, inv)
-	// same result as the coded invoice: the alias matches, and despatches are found by the contract item's code
+	// kodlu faturayla aynı sonuç: onaylı eşleşme çalışıyor ve irsaliyeler sözleşme kaleminin koduyla bulunuyor
 	if got := fmt.Sprint(sig(rows)); got != "[MATURITY_VIOLATION//9912 PRICE_MISMATCH/1/5000 QTY_EXCEEDS_DELIVERY/1/6500]" {
 		t.Fatalf("after alias: %s", got)
 	}

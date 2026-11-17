@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Proves a backup restores: checksums, the storage archive, and a pg_restore into a throwaway Postgres that is
-# set up exactly like production (same init script), then prints row counts to compare with the live system.
+# Bir yedeğin gerçekten geri yüklenebildiğini kanıtlar: checksum'lar, depo arşivi ve canlıdakiyle birebir aynı kurulmuş
+# (aynı init betiği) geçici bir Postgres'e pg_restore. Sonra canlı sistemle karşılaştırmak için satır sayılarını
+# yazdırır.
 #   bash scripts/restore-check.sh /srv/matchwatch/backups/20261110T020000Z
 set -euo pipefail
 dir=${1:?usage: restore-check.sh <backup folder>}
@@ -12,11 +13,11 @@ name=matchwatch-restore-check-$$
 files=$(tar -tz < "$dir/storage.tar.gz" | grep -c '\.\(xml\|pdf\)$' || true)
 
 trap 'docker rm -f "$name" >/dev/null 2>&1 || true' EXIT
-# MSYS_NO_PATHCONV: Git Bash on Windows would otherwise rewrite the container paths.
+# MSYS_NO_PATHCONV: yoksa Windows'taki Git Bash konteyner içindeki yolları değiştirir.
 MSYS_NO_PATHCONV=1 docker run -d --name "$name" -e POSTGRES_PASSWORD=check \
   -e MATCHWATCH_OWNER_PASSWORD=check -e MATCHWATCH_APP_PASSWORD=check \
   -v "$root/deploy/postgres:/docker-entrypoint-initdb.d:ro" pgvector/pgvector:pg16 >/dev/null
-# The entrypoint restarts Postgres after the init scripts; wait for the final server, not the temporary one.
+# Entrypoint, init betiklerinden sonra Postgres'i yeniden başlatır; geçici sunucuyu değil, son sunucuyu bekle.
 for _ in $(seq 60); do
   docker logs "$name" 2>&1 | grep -q 'PostgreSQL init process complete' &&
     docker exec "$name" pg_isready -q -h 127.0.0.1 -U postgres && break

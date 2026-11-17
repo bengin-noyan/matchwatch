@@ -1,6 +1,6 @@
 import type { AuditStatus, DraftStatus, Resolution } from './api'
 
-// Names users understand (what happened), not rule codes.
+// Kullanıcının anlayacağı adlar (ne olduğunu söyler), kural kodları değil.
 export const ruleLabel: Record<string, string> = {
   PRICE_MISMATCH: 'Sözleşmeden yüksek fiyat',
   QTY_EXCEEDS_DELIVERY: 'Teslim alınandan fazla miktar',

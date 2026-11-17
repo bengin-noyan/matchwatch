@@ -1,6 +1,6 @@
--- Faz 3k: self sign-up. The API opens a tenant itself (it may INSERT tenants under RLS) and adds that tenant's first
--- user through this function; the app role still has no privileges on users. A tenant that already has a user
--- gets no row back, so this cannot add a login to an existing company.
+-- Faz 3k: kendi kendine kayıt. API tenant'ı kendisi açar (RLS altında tenants'a INSERT yapabilir) ve o tenant'ın ilk
+-- kullanıcısını bu fonksiyonla ekler; uygulama rolünün users tablosunda hâlâ hiçbir yetkisi yok. Zaten kullanıcısı olan
+-- bir tenant için satır dönmez; yani bu fonksiyon var olan bir şirkete giriş ekleyemez.
 CREATE FUNCTION auth_signup(p_tenant UUID, p_email TEXT, p_hash TEXT) RETURNS TABLE (user_id UUID)
   LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, public AS
 $$ INSERT INTO public.users(tenant_id, email, password_hash)

@@ -22,10 +22,10 @@ import (
 
 const (
 	maxPDF     = 20 << 20
-	maxPDFBody = maxPDF + 1<<20 // 20 MiB PDF plus multipart overhead
+	maxPDFBody = maxPDF + 1<<20 // 20 MiB PDF ve multipart'ın ek baytları
 )
 
-// Extractor turns a contract PDF into a draft; *aiclient.Client implements it.
+// Extractor, bir sözleşme PDF'ini taslağa çevirir; *aiclient.Client bunu uygular.
 type Extractor interface {
 	Extract(ctx context.Context, pdf []byte) (aiclient.Result, error)
 }
@@ -42,7 +42,7 @@ func orJSON(v json.RawMessage, fallback string) json.RawMessage {
 	return v
 }
 
-// aiEnabled answers 503 itself when extraction is off.
+// aiEnabled, çıkarım kapalıysa 503 cevabını kendisi verir.
 func (s *server) aiEnabled(w http.ResponseWriter) bool {
 	if s.ai == nil {
 		writeErr(w, 503, "AI_DISABLED", "contract extraction is disabled")
@@ -51,12 +51,13 @@ func (s *server) aiEnabled(w http.ResponseWriter) bool {
 	return true
 }
 
-// extendWrite lets a slow extraction outlive the server's WriteTimeout; httptest recorders don't support it.
+// extendWrite, yavaş bir çıkarımın sunucunun WriteTimeout süresini aşabilmesini sağlar; httptest kaydedicileri bunu
+// desteklemiyor.
 func (s *server) extendWrite(w http.ResponseWriter) {
 	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(s.extractTimeout + 30*time.Second))
 }
 
-// readPDF reads the "file" part of a capped multipart body; it answers 413/400 itself and reports ok=false.
+// readPDF, boyutu sınırlı multipart gövdeden "file" parçasını okur; 413/400 cevabını kendisi verir ve ok=false döner.
 func readPDF(w http.ResponseWriter, r *http.Request) ([]byte, bool) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxPDFBody)
 	mr, err := r.MultipartReader()
@@ -90,7 +91,8 @@ func readPDF(w http.ResponseWriter, r *http.Request) ([]byte, bool) {
 	}
 }
 
-// extractInto runs the extraction and stores its outcome; both survive a client disconnect (design §6.4).
+// extractInto çıkarımı çalıştırır ve sonucunu kaydeder; ikisi de istemcinin bağlantıyı kesmesinden etkilenmez (tasarım
+// §6.4).
 func (s *server) extractInto(ctx context.Context, tid, id uuid.UUID, pdf []byte) (repository.Draft, error) {
 	wctx := context.WithoutCancel(ctx)
 	ectx, cancel := context.WithTimeout(wctx, s.extractTimeout)
@@ -122,7 +124,7 @@ func (s *server) postDraft(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.extendWrite(w)
-	// a slow 21 MiB upload must not be cut off by the server's ReadTimeout; httptest ignores this too
+	// yavaş yüklenen 21 MiB'lık bir dosya sunucunun ReadTimeout'una takılmamalı; httptest bunu da yok sayıyor
 	_ = http.NewResponseController(w).SetReadDeadline(time.Now().Add(s.extractTimeout))
 	ctx, tid := r.Context(), auth.TenantID(r.Context())
 	pdf, ok := readPDF(w, r)
@@ -130,7 +132,8 @@ func (s *server) postDraft(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := uuid.New()
-	// built only from the tenant UUID, a fixed kind and a server-made UUID, never from client text
+	// yalnızca tenant UUID'sinden, sabit bir türden ve sunucunun ürettiği bir UUID'den kurulur; istemciden gelen metin
+	// asla kullanılmaz
 	path := filepath.Join(s.storageDir, tid.String(), "contract", id.String()+".pdf")
 	if err := writeRaw(path, pdf); err != nil {
 		fail(w, err)
@@ -224,7 +227,7 @@ func (s *server) reextractDraft(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, toDraftResp(d))
 }
 
-// getContractPDF serves the PDF an approved contract was read from, so a finding can show its source page.
+// getContractPDF, onaylı bir sözleşmenin okunduğu PDF'i sunar; böylece bir bulgu kaynağındaki sayfayı gösterebilir.
 func (s *server) getContractPDF(w http.ResponseWriter, r *http.Request) {
 	no := r.URL.Query().Get("contract_no")
 	if no == "" {
@@ -253,7 +256,7 @@ func (s *server) getContractPDF(w http.ResponseWriter, r *http.Request) {
 	}
 	h := w.Header()
 	h.Set("Content-Type", "application/pdf")
-	h.Set("Content-Disposition", `attachment; filename="sozlesme.pdf"`) // fetched by the viewer, never rendered on our origin
+	h.Set("Content-Disposition", `attachment; filename="sozlesme.pdf"`) // tarayıcıdaki görüntüleyici çeker, bizim adresimizde asla sayfa olarak açılmaz
 	h.Set("Cache-Control", "private, no-cache")
 	http.ServeContent(w, r, "", st.ModTime(), f)
 }

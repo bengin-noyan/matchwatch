@@ -1,4 +1,4 @@
-// Command devtoken creates a tenant and prints a 24h JWT for it (development only).
+// Command devtoken, bir tenant açar ve onun için 24 saatlik bir JWT yazdırır. Yalnızca geliştirme içindir.
 package main
 
 import (

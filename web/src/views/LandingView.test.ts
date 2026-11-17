@@ -20,7 +20,7 @@ describe('LandingView', () => {
     expect(w.findAll('#nasil li')).toHaveLength(3)
     expect(w.findAll('#kurallar li')).toHaveLength(10)
     expect(w.text()).toContain('Sözleşmeden yüksek fiyat')
-    expect(w.text()).toContain('52 GİB tevkifat kodu') // jsdom has no IntersectionObserver: numbers show final values
+    expect(w.text()).toContain('52 GİB tevkifat kodu') // jsdom'da IntersectionObserver yok: sayılar son değerleriyle görünür
     expect(w.find('svg[role=img] title').text()).toContain('470,00 TL')
     expect(w.find('form').exists()).toBe(false)
     expect(w.findAll('a[href="/giris"]').length).toBeGreaterThan(0)

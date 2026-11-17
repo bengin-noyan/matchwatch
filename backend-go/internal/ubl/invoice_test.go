@@ -135,7 +135,7 @@ func TestParseInvoiceGarbage(t *testing.T) {
 	}
 }
 
-// Matching is by namespace URI, so arbitrary prefixes must parse identically.
+// Eşleşme namespace URI'siyle yapılıyor, o yüzden ön ek ne olursa olsun sonuç aynı çıkmalı.
 func TestParseInvoiceAlternatePrefixes(t *testing.T) {
 	b, err := os.ReadFile("../../testdata/invoice_basic.xml")
 	if err != nil {

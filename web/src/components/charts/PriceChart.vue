@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// Net unit price per invoice over time against the contract price, drawn in ink as the reference.
-// Points above the line are what the audit flags; they wear the red pencil, the rest stay ink-soft.
+// Faturaların net birim fiyatı zaman içinde, referans olarak mürekkeple çizilmiş sözleşme fiyatına karşı. Çizginin
+// üstündeki noktalar denetimin yakaladıklarıdır; onlar kırmızı kalemle, diğerleri soluk mürekkeple çizilir.
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { niceTicks, shortDate, tickLabel } from './scale'
 import { formatDate, formatDecimal } from '../../money'
@@ -9,7 +9,7 @@ export interface PricePoint {
   invoiceId: string
   invoiceNo: string
   date: string
-  price: number // geometry only
+  price: number // yalnızca çizim için
   priceText: string
 }
 
@@ -26,7 +26,7 @@ onBeforeUnmount(() => ro?.disconnect())
 
 const H = 180
 const pad = { top: 14, right: 20, bottom: 26, left: 56 }
-// zoom to the interesting band around the contract price instead of starting at zero
+// sıfırdan başlamak yerine sözleşme fiyatının etrafındaki ilginç aralığa yakınlaş
 const lo = computed(() => Math.min(props.contract, ...props.points.map((p) => p.price)) * 0.94)
 const hi = computed(() => Math.max(props.contract, ...props.points.map((p) => p.price)) * 1.04)
 const ticks = computed(() => {
@@ -37,7 +37,7 @@ const ticks = computed(() => {
 })
 const yMin = computed(() => Math.min(lo.value, ticks.value[0] ?? lo.value))
 const yMax = computed(() => Math.max(hi.value, ticks.value[ticks.value.length - 1] ?? hi.value))
-// a time scale: the gap between two invoices is as wide as the time between them
+// zaman ölçeği: iki fatura arasındaki boşluk, aralarındaki süre kadar geniş
 const day = (iso: string) => Date.parse(`${iso}T00:00:00Z`) / 86_400_000
 const t0 = computed(() => Math.min(...props.points.map((p) => day(p.date))))
 const t1 = computed(() => Math.max(...props.points.map((p) => day(p.date))))
@@ -46,7 +46,7 @@ const x = (i: number) => {
   const w = width.value - pad.left - pad.right
   return pad.left + (span ? ((day(props.points[i]!.date) - t0.value) / span) * w : w / 2)
 }
-// date labels: first, last and evenly spaced ones in between, never closer than ~70px
+// tarih etiketleri: ilk, son ve aradaki eşit aralıklı olanlar; hiçbiri 70 pikselden daha yakın değil
 const xLabels = computed(() => {
   const out: number[] = []
   props.points.forEach((_, i) => {
@@ -78,7 +78,7 @@ const hp = computed(() => (hover.value === null ? null : props.points[hover.valu
           </g>
           <text v-for="i in xLabels" :key="'xl' + i" :x="x(i)" :y="H - 6" text-anchor="middle" fill="currentColor">{{ shortDate(points[i]!.date) }}</text>
         </g>
-        <!-- the contract price: ink reference rule, labelled at its right end -->
+        <!-- sözleşme fiyatı: mürekkeple referans çizgisi, sağ ucunda etiketiyle -->
         <line :x1="pad.left" :x2="width - pad.right" :y1="y(contract)" :y2="y(contract)" stroke="var(--color-ink)" stroke-width="1.5" />
         <text :x="pad.left + 4" :y="y(contract) - 7" font-size="12" font-weight="600" fill="var(--color-ink)"
           stroke="var(--color-sheet)" stroke-width="4" stroke-linejoin="round" paint-order="stroke">Sözleşme {{ contractText }}</text>

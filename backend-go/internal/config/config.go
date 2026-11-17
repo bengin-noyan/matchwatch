@@ -1,4 +1,4 @@
-// Package config loads process configuration from environment variables.
+// Package config, uygulama ayarlarını ortam değişkenlerinden okur.
 package config
 
 import (
@@ -14,16 +14,16 @@ type Config struct {
 	HTTPAddr           string
 	StorageDir         string
 	JWTSecret          []byte
-	AIServiceURL       string // empty = extraction disabled
+	AIServiceURL       string // boşsa sözleşme çıkarımı kapalı
 	AIServiceToken     string
 	AIExtractTimeout   time.Duration
-	TCMBBaseURL        string // set but empty = TCMB rates disabled (D17)
-	CookieSecure       bool   // session cookie only over HTTPS; COOKIE_SECURE=false for local http
-	WebDir             string // built SPA (web/dist) served on the same origin; empty = API only
-	TrustProxy         bool   // TRUST_PROXY=true: client IP from X-Forwarded-For (only when reachable solely via Caddy)
-	MailURL            string // "" = no invites or "Şifremi unuttum"; "log" = dev; smtp://user:pass@host:587
+	TCMBBaseURL        string // tanımlı ama boşsa TCMB kurları kapalı (D17)
+	CookieSecure       bool   // oturum çerezi yalnızca HTTPS üzerinden gider; yerelde http için COOKIE_SECURE=false
+	WebDir             string // derlenmiş SPA (web/dist) aynı adresten sunulur; boşsa yalnızca API çalışır
+	TrustProxy         bool   // TRUST_PROXY=true: istemci IP'si X-Forwarded-For'dan alınır (yalnızca API'ye sadece Caddy üzerinden ulaşılabiliyorsa)
+	MailURL            string // "" ise davet ve "Şifremi unuttum" kapalı; "log" geliştirme içindir; gerçek kullanım smtp://user:pass@host:587
 	MailFrom           string
-	AppBaseURL         string // the links in mails; never taken from the request's Host header
+	AppBaseURL         string // e-postalardaki bağlantıların adresi; asla isteğin Host header'ından alınmaz
 }
 
 func Load() (Config, error) {

@@ -12,7 +12,7 @@ import (
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/domain"
 )
 
-// dec parses a numeric that was selected ::text, so no float is ever involved.
+// dec, ::text olarak seçilmiş bir NUMERIC değeri okur; böylece hiçbir yerde float kullanılmaz.
 func dec(s string) decimal.Decimal { return decimal.RequireFromString(s) }
 
 func (tx *Tx) LoadInvoice(ctx context.Context, id uuid.UUID) (domain.Invoice, error) {
@@ -58,7 +58,8 @@ func (tx *Tx) LoadInvoice(ctx context.Context, id uuid.UUID) (domain.Invoice, er
 	return inv, nil
 }
 
-// ActiveContract returns the ACTIVE contract covering `on` (latest valid_from wins), or nil when none.
+// ActiveContract, `on` tarihini kapsayan ACTIVE sözleşmeyi döner (birden çoksa valid_from'u en yeni olan). Yoksa nil
+// döner.
 func (tx *Tx) ActiveContract(ctx context.Context, vendorID uuid.UUID, on time.Time) (*domain.Contract, []domain.ContractItem, error) {
 	var c domain.Contract
 	var tol string
@@ -95,19 +96,19 @@ func (tx *Tx) ActiveContract(ctx context.Context, vendorID uuid.UUID, on time.Ti
 	return &c, items, rows.Err()
 }
 
-// DespatchCandidates lists despatch lines the invoice may draw on, locking them so concurrent audits serialize.
-// Available = delivered - rejected - allocations made by other invoices.
+// DespatchCandidates, faturanın kullanabileceği irsaliye satırlarını listeler ve aynı anda çalışan denetimler sıraya
+// girsin diye onları kilitler. Available = teslim edilen − reddedilen − diğer faturaların kullandığı miktar.
 func (tx *Tx) DespatchCandidates(ctx context.Context, inv domain.Invoice) ([]domain.DespatchCandidate, error) {
 	const from = ` FROM despatch_lines dl JOIN despatch_advices da ON da.tenant_id=dl.tenant_id AND da.id=dl.despatch_id
 		WHERE dl.tenant_id=$1 AND da.vendor_id=$2 AND `
 	where, args := `da.despatch_no IN (SELECT despatch_no FROM invoice_despatch_refs WHERE tenant_id=$1 AND invoice_id=$3)`,
 		[]any{tx.tenantID, inv.VendorID, inv.ID}
 	if !inv.HasDespatchRefs {
-		// $3 must still appear typed: the lock statement below uses only this where clause
+		// $3'ün tipi yine de belli olmalı: aşağıdaki kilit sorgusu yalnızca bu WHERE kısmını kullanıyor
 		where, args = `da.issue_date BETWEEN $4::date - 30 AND $4::date AND $3::uuid IS NOT NULL`, append(args, inv.IssueDate)
 	}
-	// Lock first, in its own statement: the Available query below must take a fresh READ COMMITTED snapshot
-	// after any competing audit has committed its allocations (the locked rows themselves are never updated).
+	// Önce ayrı bir sorguyla kilitliyoruz. Aşağıdaki Available sorgusu, rakip denetim dağıtımlarını commit ettikten sonra
+	// taze bir READ COMMITTED görüntüsü almalı (kilitli satırların kendisi hiç güncellenmiyor).
 	if _, err := tx.Exec(ctx, `SELECT dl.id`+from+where+` ORDER BY dl.id FOR UPDATE OF dl`, args...); err != nil {
 		return nil, wrap("lock despatch lines", err)
 	}
@@ -133,8 +134,8 @@ func (tx *Tx) DespatchCandidates(ctx context.Context, inv domain.Invoice) ([]dom
 	return out, rows.Err()
 }
 
-// PriceHistory returns the vendor's earlier net unit prices for the same item, oldest first,
-// excluding the invoice being audited. Same currency and uom, issued in [IssueDate-180d, IssueDate).
+// PriceHistory, tedarikçinin aynı kalem için önceki net birim fiyatlarını eskiden yeniye döner; denetlenen fatura
+// hariç. Aynı para birimi ve birimde, [IssueDate − 180 gün, IssueDate) aralığında kesilmiş faturalar.
 func (tx *Tx) PriceHistory(ctx context.Context, inv domain.Invoice, line domain.InvoiceLine) ([]domain.PricePoint, error) {
 	if line.ItemCode == "" && line.Barcode == "" {
 		return nil, nil
@@ -163,7 +164,7 @@ func (tx *Tx) PriceHistory(ctx context.Context, inv domain.Invoice, line domain.
 	return out, rows.Err()
 }
 
-// DuplicateCandidates lists the vendor's other invoices issued within 90 days of inv.
+// DuplicateCandidates, tedarikçinin bu faturadan 90 gün içinde kesilmiş diğer faturalarını listeler.
 func (tx *Tx) DuplicateCandidates(ctx context.Context, inv domain.Invoice) ([]domain.DuplicateCandidate, error) {
 	rows, err := tx.Query(ctx, `SELECT i.id, i.invoice_no, i.issue_date, i.payable_minor,
 		COALESCE(array_agg(l.item_name ORDER BY l.id) FILTER (WHERE l.id IS NOT NULL), '{}')
@@ -185,7 +186,7 @@ func (tx *Tx) DuplicateCandidates(ctx context.Context, inv domain.Invoice) ([]do
 	return out, rows.Err()
 }
 
-// WithholdingPercents maps code -> percent; codes with a NULL percent are skipped.
+// WithholdingPercents, tevkifat kodundan orana bir harita döner; oranı NULL olan kodlar atlanır.
 func (tx *Tx) WithholdingPercents(ctx context.Context) (map[string]decimal.Decimal, error) {
 	rows, err := tx.Query(ctx, `SELECT code, percent::text FROM withholding_codes WHERE percent IS NOT NULL`)
 	if err != nil {

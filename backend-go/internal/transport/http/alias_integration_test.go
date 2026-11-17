@@ -15,7 +15,7 @@ func TestAliasListAndDelete(t *testing.T) {
 	e.loadContract()
 	code, b := e.req("POST", "/api/v1/despatches", despatchXML(t))
 	e.mustStatus(201, code, b)
-	// invoices whose line carries no item code or barcode: only an alias can match it
+	// satırında kalem kodu ya da barkod olmayan faturalar: onları yalnızca onaylı bir eşleşme bulabilir
 	post := func() string {
 		code, b := e.req("POST", "/api/v1/invoices", fixture(t, "invoice_basic.xml", invETTN, uuid.NewString(),
 			"ABC2026000000001", "T"+uuid.NewString()[:12],
@@ -30,7 +30,7 @@ func TestAliasListAndDelete(t *testing.T) {
 		WHERE c.contract_no='S-2026-001' AND ci.item_code='CV-M8-20'`)
 	code, b = e.req("POST", "/api/v1/invoice-lines/"+line.String()+"/match", []byte(`{"contract_item_id":"`+item.String()+`"}`))
 	e.mustStatus(200, code, b)
-	inv2 := post() // matched through the alias at ingest
+	inv2 := post() // yükleme sırasında onaylı eşleşmeyle bulundu
 	aliasFindings := func(inv string) (alias, uncontracted int) {
 		t.Helper()
 		err := e.store.InTenant(context.Background(), e.tid, func(tx *repository.Tx) error {

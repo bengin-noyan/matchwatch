@@ -88,7 +88,7 @@ func TestTCMBBaseURL(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://x")
 	t.Setenv("JWT_SECRET", strings.Repeat("a", 32))
 	t.Setenv("TCMB_BASE_URL", "")
-	os.Unsetenv("TCMB_BASE_URL") // t.Setenv restores it afterwards
+	os.Unsetenv("TCMB_BASE_URL") // t.Setenv test bitince eski değeri geri koyar
 	if c, err := Load(); err != nil || c.TCMBBaseURL != "https://www.tcmb.gov.tr/kurlar" {
 		t.Fatalf("unset: %q %v", c.TCMBBaseURL, err)
 	}

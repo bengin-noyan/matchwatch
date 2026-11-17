@@ -18,7 +18,7 @@ import (
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/repository"
 )
 
-// addUser creates a login for e's tenant with the owner role, as cmd/onboard does, and returns its id.
+// addUser, cmd/onboard'un yaptığı gibi owner rolüyle e'nin tenant'ına bir giriş açar ve id'sini döner.
 func (e *env) addUser(email, password string) uuid.UUID {
 	e.t.Helper()
 	ctx := context.Background()
@@ -113,7 +113,7 @@ func TestLoginLockout(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		e.raw("POST", "/api/v1/auth/login", `{"email":"`+email+`","password":"x"}`, nil)
 	}
-	// even the right password is refused while locked out
+	// kilitliyken doğru şifre bile reddedilir
 	if rec := e.raw("POST", "/api/v1/auth/login", `{"email":"`+email+`","password":"dogru-sifre-123"}`, nil); rec.Code != 429 {
 		t.Fatalf("want 429, got %d", rec.Code)
 	}
@@ -166,7 +166,7 @@ func TestSignup(t *testing.T) {
 	if rec := e.raw("GET", "/api/v1/auth/me", "", session); rec.Code != 200 || !strings.Contains(rec.Body.String(), lower) || !strings.Contains(rec.Body.String(), "Yeni Firma A.Ş.") {
 		t.Fatalf("me after signup: %d %s", rec.Code, rec.Body)
 	}
-	// a new, empty company: none of the setup tenant's data
+	// yeni ve boş bir şirket: setup tenant'ının verilerinden hiçbiri görünmez
 	if rec := e.raw("GET", "/api/v1/invoices", "", session); rec.Code != 200 || !strings.Contains(rec.Body.String(), `"total":0`) {
 		t.Fatalf("new tenant invoices: %d %s", rec.Code, rec.Body)
 	}
@@ -177,7 +177,7 @@ func TestSignup(t *testing.T) {
 	if rec := e.raw("POST", "/api/v1/auth/signup", body("1234567808", " "+lower+" ", "baska-bir-sifre-2"), nil); rec.Code != 409 || !strings.Contains(rec.Body.String(), "EMAIL_TAKEN") {
 		t.Fatalf("duplicate e-mail: %d %s", rec.Code, rec.Body)
 	}
-	// two attempts so far from this address; the limit is five an hour
+	// bu adresten şimdiye kadar iki deneme; sınır saatte beş
 	for i := 0; i < 3; i++ {
 		e.raw("POST", "/api/v1/auth/signup", body("1234567808", lower, "baska-bir-sifre-2"), nil)
 	}

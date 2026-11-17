@@ -8,14 +8,15 @@ import (
 
 var (
 	hundred   = decimal.NewFromInt(100)
-	halfKurus = decimal.New(5, -3) // impacts up to 0.005 are rounding noise
+	halfKurus = decimal.New(5, -3) // 0,005'e kadar olan etkiler yuvarlamadan gelir
 )
 
-// qtyExceeds compares invoiced qty with despatched qty (D14: service lines are exempt).
+// qtyExceeds, faturalanan miktarı irsaliyeyle teslim alınan miktarla karşılaştırır. Hizmet kalemleri bu kurala girmez
+// (D14).
 func qtyExceeds(in Input, lc LineContext) []domain.Finding {
 	ci, line := lc.ContractItem, lc.Line
 	if ci != nil && ci.UOM != line.UOM {
-		return nil // uom mismatch: qty rule skipped (D5)
+		return nil // birim tutmuyorsa miktar kuralını atlıyoruz (D5)
 	}
 	if !((ci != nil && ci.RequiresDelivery) || (ci == nil && in.Invoice.HasDespatchRefs)) {
 		return nil
@@ -30,7 +31,7 @@ func qtyExceeds(in Input, lc LineContext) []domain.Finding {
 	}
 	exact := line.Qty.Sub(lc.Delivery.AvailableTotal).Mul(line.NetUnitPrice())
 	if !exact.GreaterThan(halfKurus) {
-		return nil // at most half a kurus: rounding noise
+		return nil // en fazla yarım kuruşluk fark yuvarlamadan gelir
 	}
 	impact := domain.ToMinor(exact)
 	allocs := make([]string, 0, len(lc.Delivery.Allocations))

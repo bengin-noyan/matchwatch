@@ -6,12 +6,14 @@ import (
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/domain"
 )
 
-// fxTolerancePct: TCMB forex selling sits ~0.2% above buying and a vendor may quote a neighbouring bulletin;
-// beyond 1% the invoice's own rate is no TCMB rate of that day (D18).
+// fxTolerancePct: TCMB'nin satış kuru alış kurundan yaklaşık %0,2 yüksek. Tedarikçi bir önceki ya da sonraki günün
+// kurunu da kullanmış olabilir. Bu yüzden %1'e kadar farkı normal sayıyoruz; daha fazlası o günün TCMB kuru olamaz
+// (D18).
 var fxTolerancePct = decimal.NewFromInt(1)
 
-// rateDeviation compares the invoice's PricingExchangeRate with TCMB forex buying of the same pair (D18).
-// ok=false: no invoice rate from the invoice currency, or no TCMB rate to compare with.
+// rateDeviation, faturanın kendi kurunu (PricingExchangeRate) aynı döviz çifti için TCMB döviz alış kuruyla
+// karşılaştırır (D18). Faturada fatura para biriminden çıkan bir kur yoksa ya da karşılaştıracak TCMB kuru yoksa
+// ok=false döner.
 func rateDeviation(in Input) (ref domain.ExchangeRate, pct decimal.Decimal, ok bool) {
 	r := in.Invoice.ExchangeRate
 	if r == nil || r.Source != in.Invoice.Currency {
@@ -24,14 +26,15 @@ func rateDeviation(in Input) (ref domain.ExchangeRate, pct decimal.Decimal, ok b
 	return ref, r.Rate.Sub(ref.Rate).Div(ref.Rate).Mul(hundred), true
 }
 
-// invoiceRateTrusted: the price rule may convert with the invoice's own rate (D4) only within the tolerance (D18).
+// invoiceRateTrusted: fiyat kuralı faturanın kendi kurunu (D4) ancak fark tolerans içindeyse kullanabilir (D18).
 func invoiceRateTrusted(in Input) bool {
 	_, pct, ok := rateDeviation(in)
 	return !ok || pct.Abs().LessThanOrEqual(fxTolerancePct)
 }
 
-// fxRateDeviation flags an invoice rate more than 1% off TCMB. Impact: the payable converted at the invoice rate
-// minus at TCMB, in the target currency, only when the invoice rate makes the buyer pay more.
+// fxRateDeviation, faturanın kuru TCMB'den %1'den fazla saparsa bulgu yazar. Etki: ödenecek tutarın fatura kuruyla
+// çevrilmiş hali eksi TCMB kuruyla çevrilmiş hali, hedef para biriminde. Fark yalnızca alıcı fazla ödüyorsa etki
+// sayılır.
 func fxRateDeviation(in Input) []domain.Finding {
 	ref, pct, ok := rateDeviation(in)
 	if !ok || pct.Abs().LessThanOrEqual(fxTolerancePct) {

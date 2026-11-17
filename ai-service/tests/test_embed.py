@@ -85,13 +85,13 @@ def test_embedder_request_and_index_order():
 @pytest.mark.parametrize("resp,code", [
     (httpx.Response(500), "LLM_UNAVAILABLE"),
     (httpx.Response(200, content=b"x"), "LLM_BAD_OUTPUT"),
-    (httpx.Response(200, json={"data": [{"index": 0, "embedding": [1]}]}), "LLM_BAD_OUTPUT"),  # count
+    (httpx.Response(200, json={"data": [{"index": 0, "embedding": [1]}]}), "LLM_BAD_OUTPUT"),  # sayı
     (httpx.Response(200, json={"data": [{"index": 0, "embedding": [1]}, {"index": 1, "embedding": [1, 2]}]}),
-     "LLM_BAD_OUTPUT"),  # ragged
+     "LLM_BAD_OUTPUT"),  # boyları farklı
     (httpx.Response(200, json={"data": [{"index": 0, "embedding": ["1"]}, {"index": 1, "embedding": [1]}]}),
-     "LLM_BAD_OUTPUT"),  # not numbers
+     "LLM_BAD_OUTPUT"),  # sayı değil
     (httpx.Response(200, json={"data": [{"index": 0, "embedding": []}, {"index": 1, "embedding": []}]}),
-     "LLM_BAD_OUTPUT"),  # empty
+     "LLM_BAD_OUTPUT"),  # boş
 ])
 def test_embedder_errors(resp, code):
     with pytest.raises(LLMError) as e:

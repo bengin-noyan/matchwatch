@@ -1,7 +1,6 @@
 <script setup lang="ts">
-// One finding as evidence side by side: the contract (what was agreed) on the left, the invoice (what was billed)
-// on the right, the differing value circled in red pencil and its money impact noted in the margin.
-// The decision row below writes in ballpoint blue.
+// Bir bulgu, kanıtlarıyla yan yana: solda sözleşme (ne anlaşıldı), sağda fatura (ne faturalandı). Farklı olan değer
+// kırmızı kalemle daire içine alınır, parasal etkisi kenara not edilir. Alttaki karar satırı mavi tükenmezle yazar.
 import { computed, ref } from 'vue'
 import { api, ApiError, type DetailLine, type Finding, type Resolution } from '../api'
 import { currencyLabel, formatDate, formatDateTime, formatDecimal, formatMinor, formatValue } from '../money'
@@ -20,7 +19,7 @@ const contractNo = computed(() => str('contract_no'))
 const decided = computed(() => props.finding.resolution_status !== 'OPEN')
 const rule = computed(() => props.finding.rule_code)
 
-// What each side of the comparison is called, per rule.
+// Her kural için karşılaştırmanın iki tarafının adı.
 const sides = computed<[string, string]>(() => {
   switch (rule.value) {
     case 'PRICE_MISMATCH':
@@ -61,7 +60,7 @@ const suggestions = computed(() => ev.value.suggestions ?? [])
 
 const showPage = ref(false)
 
-// What the person did, for the trail (resolutionLabel names the state instead).
+// Kişinin ne yaptığı, karar geçmişi için (durumun adını resolutionLabel verir).
 const decisionVerb: Record<Resolution, string> = {
   OPEN: 'kararı geri aldı',
   DISPUTED: 'itiraz etti',
@@ -110,7 +109,7 @@ async function match(contractItemId: string) {
     </header>
 
     <div class="grid gap-3 md:grid-cols-[1fr_1fr_9rem] md:items-start">
-      <!-- the contract side -->
+      <!-- sözleşme tarafı -->
       <section class="bg-paper/70 rounded-field border-rule border p-4" aria-label="Sözleşme">
         <template v-if="rule === 'UNCONTRACTED_ITEM'">
           <p class="text-ink-soft mb-2 text-sm">
@@ -151,7 +150,7 @@ async function match(contractItemId: string) {
         </template>
       </section>
 
-      <!-- the invoice side -->
+      <!-- fatura tarafı -->
       <section class="bg-sheet rounded-field border-rule border p-4" aria-label="Fatura">
         <p class="text-ink-soft mb-2 text-sm">
           <template v-if="line">Fatura satırı {{ line.line_id }}: {{ line.name }}</template>
@@ -173,7 +172,7 @@ async function match(contractItemId: string) {
         <p v-if="ev.match_method === 'ALIAS'" class="text-ballpoint mt-2 text-sm">Bu satır, onaylanmış bir kalem eşleşmesiyle sözleşmeye bağlandı.</p>
       </section>
 
-      <!-- margin note -->
+      <!-- kenar notu -->
       <p v-if="impact" class="hand text-pencil text-2xl md:pt-8" :aria-label="`Finansal etki ${impact}`">+{{ impact }}</p>
     </div>
 

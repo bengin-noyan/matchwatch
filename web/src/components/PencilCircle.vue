@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// A red-pencil loop drawn around a value the system flagged. When a person decides (resolved), a blue ballpoint
-// tick is drawn over it: the app's single motion moment, and it only plays in answer to that action.
+// Sistemin işaretlediği bir değerin etrafına çizilen kırmızı kalem halkası. Bir kişi karar verince (resolved) üstüne
+// mavi tükenmezle bir tik atılır. Uygulamadaki tek animasyon bu ve yalnızca o işleme cevap olarak oynar.
 import { onMounted, ref, watch } from 'vue'
 
 const props = withDefaults(defineProps<{ resolved?: boolean; tone?: 'pencil' | 'amber' }>(), {

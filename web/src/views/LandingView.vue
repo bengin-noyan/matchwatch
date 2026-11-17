@@ -1,17 +1,18 @@
 <script setup lang="ts">
-// The public front door: what matchwatch does, told with a moving desk scene. Login lives on its own page (/giris).
+// Herkese açık ön kapı: matchwatch'ın ne yaptığı, hareketli bir masa sahnesiyle anlatılıyor. Giriş kendi sayfasında
+// (/giris).
 import { onMounted, onUnmounted, ref, type Directive } from 'vue'
 import { ruleLabel } from '../labels'
 import AuditScene from '../components/landing/AuditScene.vue'
 import ProductTour from '../components/landing/ProductTour.vue'
 
-// In-page links scroll instead of changing the URL hash (the router would scroll to the top).
+// Sayfa içi bağlantılar URL'deki # kısmını değiştirmek yerine kaydırır (yoksa router sayfanın başına atlardı).
 const reduced = () => !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 function go(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'start' })
 }
 
-// v-reveal: sections rise into place the first time they scroll into view.
+// v-reveal: bölümler ilk kez görünür alana girdiklerinde yukarı kayarak yerine oturur.
 let observer: IntersectionObserver | undefined
 const vReveal: Directive<HTMLElement> = {
   mounted(el) {
@@ -34,7 +35,7 @@ if (typeof IntersectionObserver !== 'undefined') {
   )
 }
 
-// Facts, counted up when they come into view. Every number here is a property of the product, not a claim.
+// Rakamlar, görünür alana girince sayarak yükselir. Buradaki her sayı ürünün bir özelliği, reklam iddiası değil.
 const facts = [
   { n: 10, label: 'denetim kuralı', note: 'fiyat, miktar, vade, tevkifat, kur, mükerrerlik…' },
   { n: 3, label: 'belge, tek bakışta', note: 'sözleşme, e-İrsaliye ve e-Fatura' },
@@ -118,7 +119,7 @@ onUnmounted(() => {
 
 <template>
   <div class="landing relative min-h-dvh overflow-x-clip">
-    <!-- the desk: ruled paper and drifting sheets behind everything -->
+    <!-- masa: her şeyin arkasında çizgili kâğıt ve süzülen sayfalar -->
     <div class="backdrop" aria-hidden="true">
       <span class="drift d1" />
       <span class="drift d2" />
@@ -148,7 +149,7 @@ onUnmounted(() => {
     </header>
 
     <main class="relative z-10">
-      <!-- hero -->
+      <!-- giriş bölümü -->
       <section class="mx-auto grid max-w-6xl gap-10 px-4 pt-6 pb-16 sm:px-6 lg:grid-cols-2 lg:items-center lg:pt-12">
         <div class="min-w-0">
           <p class="hero-in text-ballpoint mb-3 text-sm font-semibold tracking-wide uppercase">Satın alma için iç denetim</p>
@@ -175,7 +176,7 @@ onUnmounted(() => {
         </div>
       </section>
 
-      <!-- facts -->
+      <!-- rakamlar -->
       <section v-reveal aria-label="Rakamlarla" class="mx-auto max-w-6xl px-4 pb-16 sm:px-6" @revealed="countUp">
         <dl class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div v-for="(f, i) in facts" :key="f.label" class="bg-sheet/80 border-rule rounded-sheet border p-5 backdrop-blur-sm">
@@ -188,7 +189,7 @@ onUnmounted(() => {
         </dl>
       </section>
 
-      <!-- how it works -->
+      <!-- nasıl çalışır -->
       <section id="nasil" class="scroll-mt-20 py-16">
         <div class="mx-auto max-w-6xl px-4 sm:px-6">
           <h2 v-reveal class="text-3xl font-semibold tracking-tight">Nasıl çalışır</h2>
@@ -202,7 +203,7 @@ onUnmounted(() => {
         </div>
       </section>
 
-      <!-- the screens -->
+      <!-- ekranlar -->
       <section id="ekranlar" class="scroll-mt-20 py-16">
         <div class="mx-auto max-w-6xl px-4 sm:px-6">
           <h2 v-reveal class="text-3xl font-semibold tracking-tight">Ekranlar</h2>
@@ -211,7 +212,7 @@ onUnmounted(() => {
         </div>
       </section>
 
-      <!-- what it catches -->
+      <!-- neleri yakalar -->
       <section id="kurallar" class="scroll-mt-20 py-16">
         <div class="mx-auto max-w-6xl px-4 sm:px-6">
           <h2 v-reveal class="text-3xl font-semibold tracking-tight">Neleri yakalar</h2>
@@ -239,7 +240,7 @@ onUnmounted(() => {
         </div>
       </section>
 
-      <!-- trust -->
+      <!-- güven -->
       <section id="guven" class="scroll-mt-20 py-16">
         <div class="mx-auto max-w-6xl px-4 sm:px-6">
           <div v-reveal class="bg-ink text-paper rounded-sheet grid gap-8 p-8 md:grid-cols-3 md:p-10">
@@ -268,7 +269,7 @@ onUnmounted(() => {
         </div>
       </section>
 
-      <!-- questions -->
+      <!-- sorular -->
       <section id="sss" class="scroll-mt-20 py-16">
         <div class="mx-auto grid max-w-6xl gap-8 px-4 sm:px-6 lg:grid-cols-[1fr_2fr]">
           <div v-reveal>
@@ -287,7 +288,7 @@ onUnmounted(() => {
         </div>
       </section>
 
-      <!-- last call -->
+      <!-- son çağrı -->
       <section v-reveal class="mx-auto max-w-6xl px-4 pt-4 pb-20 sm:px-6">
         <div class="cta-band rounded-sheet bg-ballpoint text-paper relative overflow-hidden px-6 py-12 text-center sm:px-12">
           <p class="hand relative text-4xl">Ödemeden önce bir bak.</p>
@@ -339,7 +340,7 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* ruled paper, very faint, and three large sheets drifting slowly behind the page */
+/* çok silik çizgili kâğıt ve sayfanın arkasında yavaşça süzülen üç büyük sayfa */
 .backdrop {
   position: absolute;
   inset: 0;
@@ -366,7 +367,7 @@ onUnmounted(() => {
   50% { translate: 1.5rem -2rem; }
 }
 
-/* the hand-drawn underline on the headline */
+/* başlığın altındaki elle çizilmiş çizgi */
 .underline-pencil {
   background: linear-gradient(var(--color-pencil), var(--color-pencil)) 0 92% / 0 3px no-repeat;
   animation: underline 0.9s 0.7s ease-out forwards;
@@ -375,7 +376,7 @@ onUnmounted(() => {
   to { background-size: 100% 3px; }
 }
 
-/* first paint: the hero settles in */
+/* ilk açılış: giriş bölümü yerine oturur */
 .hero-in { animation: rise 0.7s ease-out both; }
 .hero-d1 { animation-delay: 0.08s; }
 .hero-d2 { animation-delay: 0.16s; }
@@ -384,7 +385,7 @@ onUnmounted(() => {
   from { opacity: 0; transform: translateY(14px); }
 }
 
-/* scroll reveal (v-reveal adds .reveal, then .is-in) */
+/* kaydırınca görünme (v-reveal önce .reveal, sonra .is-in ekler) */
 .reveal {
   opacity: 0;
   transform: translateY(18px);
@@ -415,11 +416,11 @@ onUnmounted(() => {
   from { stroke-dashoffset: 1; }
 }
 
-/* header links underline from the left */
+/* üstteki bağlantıların alt çizgisi soldan gelir */
 .nav-a { background: linear-gradient(currentColor, currentColor) 0 100% / 0 1px no-repeat; transition: background-size 0.25s, color 0.2s; }
 .nav-a:hover { background-size: 100% 1px; }
 
-/* the main call to action lifts a little */
+/* ana çağrı butonu biraz yukarı kalkar */
 .cta { box-shadow: 0 10px 30px -12px rgb(36 69 160 / 0.6); transition: transform 0.2s, box-shadow 0.2s; }
 .cta:hover { transform: translateY(-2px); box-shadow: 0 16px 36px -12px rgb(36 69 160 / 0.7); }
 
@@ -427,7 +428,7 @@ onUnmounted(() => {
 .faq[open] .plus { transform: rotate(45deg); }
 .faq summary::-webkit-details-marker { display: none; }
 
-/* ruled lines and a red-pencil glow drifting across the closing band */
+/* kapanış bandında süzülen çizgiler ve kırmızı kalem parıltısı */
 .cta-band {
   background-image: repeating-linear-gradient(to bottom, transparent 0 31px, rgb(255 255 255 / 0.07) 31px 32px);
 }

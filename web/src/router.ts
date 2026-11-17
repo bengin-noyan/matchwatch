@@ -7,7 +7,7 @@ export const router = createRouter({
     { path: '/tanitim', name: 'landing', component: () => import('./views/LandingView.vue'), meta: { public: true } },
     { path: '/giris', name: 'login', component: () => import('./views/LoginView.vue'), meta: { public: true } },
     { path: '/kayit', name: 'signup', component: () => import('./views/SignupView.vue'), meta: { public: true } },
-    // invite and reset links carry their token in the fragment, which never reaches a server log
+    // davet ve sıfırlama bağlantıları token'ı URL'nin # kısmında taşır; o kısım hiçbir sunucu loguna düşmez
     { path: '/davet', name: 'invite', component: () => import('./views/PasswordLinkView.vue'), meta: { public: true } },
     { path: '/sifremi-unuttum', name: 'forgot', component: () => import('./views/ForgotView.vue'), meta: { public: true } },
     { path: '/sifre', name: 'reset', component: () => import('./views/PasswordLinkView.vue'), meta: { public: true } },
@@ -31,7 +31,7 @@ export const router = createRouter({
 router.beforeEach(async (to) => {
   const session = useSession()
   if (!session.checked) await session.load()
-  // a first visit to the front door shows the product; a deep link goes straight to the login form
+  // ön kapıya ilk gelen ürünü görür; doğrudan bir sayfaya gelen bağlantı ise giriş formuna gider
   if (!to.meta.public && !session.me) return to.fullPath === '/' ? { name: 'landing' } : { name: 'login', query: { next: to.fullPath } }
   if ((to.name === 'login' || to.name === 'signup') && session.me) return { name: 'dashboard' }
 })

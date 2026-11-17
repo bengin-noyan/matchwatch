@@ -1,5 +1,5 @@
-// Money is never computed in the browser (spec rule 1): the API sends kuruş as integers and decimals as strings,
-// and these helpers only re-format digits. No Number arithmetic on amounts.
+// Tarayıcıda asla para hesaplanmaz (spec kural 1): API kuruşu tam sayı, ondalıkları string olarak gönderir; bu
+// yardımcılar yalnızca rakamları yeniden biçimlendirir. Tutarlarla Number aritmetiği yapılmaz.
 
 function groupThousands(int: string): string {
   return int.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
@@ -17,7 +17,7 @@ export function formatMinor(minor: number, currency: string): string {
   return `${neg ? '-' : ''}${int},${digits.slice(-2)} ${currencyLabel(currency)}`
 }
 
-/** "1.250000" -> "1,25"; "1000.000000" -> "1.000"; "0.037500" -> "0,0375"; keeps significant decimals only. */
+/** "1.250000" -> "1,25"; "1000.000000" -> "1.000"; "0.037500" -> "0,0375"; yalnızca anlamlı ondalıklar kalır. */
 export function formatDecimal(s: string, minDecimals = 0): string {
   const m = /^(-?)(\d+)(?:\.(\d+))?$/.exec(s.trim())
   if (!m) return s
@@ -27,7 +27,7 @@ export function formatDecimal(s: string, minDecimals = 0): string {
   return `${sign}${groupThousands(int)}${frac ? ',' + frac : ''}`
 }
 
-/** "0.0325 USD" style API values ("<decimal> <CUR>") -> "0,0325 USD"; anything else is returned as is. */
+/** API'nin "0.0325 USD" biçimindeki değerleri ("<ondalık> <PARA BİRİMİ>") -> "0,0325 USD"; başka her şey olduğu gibi döner. */
 export function formatAmountText(s: string): string {
   const m = /^(-?\d+(?:\.\d+)?) ([A-Z]{3})$/.exec(s.trim())
   if (!m) return s
@@ -44,12 +44,12 @@ export function formatDate(iso: string | null | undefined): string {
 const dateTime = new Intl.DateTimeFormat('tr-TR', {
   timeZone: 'Europe/Istanbul', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
 })
-/** "2026-11-05T11:09:27Z" -> "05.11.2026 14:09", in Turkish time whatever the browser's zone. */
+/** "2026-11-05T11:09:27Z" -> "05.11.2026 14:09"; tarayıcının saat dilimi ne olursa olsun Türkiye saatiyle. */
 export function formatDateTime(iso: string): string {
   return dateTime.format(new Date(iso))
 }
 
-/** Human form of a finding's expected/actual text: "60 days", "1.300000 TRY", "1000 ADET", "1.25" or a code. */
+/** Bir bulgunun beklenen/gerçek metninin okunur hali: "60 days", "1.300000 TRY", "1000 ADET", "1.25" ya da bir kod. */
 export function formatValue(s: string): string {
   const t = s.trim()
   const days = /^(\d+) days$/.exec(t)

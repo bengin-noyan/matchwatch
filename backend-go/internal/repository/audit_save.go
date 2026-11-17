@@ -11,7 +11,7 @@ import (
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/domain"
 )
 
-// KeptFinding is a finding that survived ResetAudit because a human already acted on it.
+// KeptFinding, bir insan zaten karar verdiği için ResetAudit'ten sonra silinmeyen bulgudur.
 type KeptFinding struct {
 	RuleCode      domain.RuleCode
 	InvoiceLineID *uuid.UUID
@@ -19,8 +19,8 @@ type KeptFinding struct {
 	Resolution    domain.Resolution
 }
 
-// ResetAudit locks the invoice (serializing concurrent audits), deletes its OPEN findings and its allocations,
-// and returns the findings that remain (DISPUTED / APPROVED_EXCEPTION).
+// ResetAudit faturayı kilitler (aynı anda iki denetim olmasın diye), OPEN bulgularını ve dağıtımlarını siler, kalan
+// bulguları (DISPUTED / APPROVED_EXCEPTION) döner.
 func (tx *Tx) ResetAudit(ctx context.Context, invoiceID uuid.UUID) ([]KeptFinding, error) {
 	var locked uuid.UUID
 	err := tx.QueryRow(ctx, `SELECT id FROM invoices WHERE tenant_id=$1 AND id=$2 FOR UPDATE`, tx.tenantID, invoiceID).Scan(&locked)
@@ -55,7 +55,8 @@ func (tx *Tx) ResetAudit(ctx context.Context, invoiceID uuid.UUID) ([]KeptFindin
 	return kept, rows.Err()
 }
 
-// SaveAudit writes findings and allocations, records the matched contract item per invoice line and the status.
+// SaveAudit, bulguları ve dağıtımları yazar; her fatura satırının eşleştiği sözleşme kalemini ve fatura durumunu
+// kaydeder.
 func (tx *Tx) SaveAudit(ctx context.Context, invoiceID uuid.UUID, fs []domain.Finding, allocs []domain.Allocation,
 	matched map[uuid.UUID]uuid.UUID, status domain.AuditStatus) error {
 	for _, f := range fs {

@@ -1,4 +1,4 @@
-# Automatic TLS (Let's Encrypt) for $DOMAIN; port 80 only redirects to HTTPS.
+# $DOMAIN için otomatik TLS (Let's Encrypt); 80 portu yalnızca HTTPS'e yönlendirir.
 {$DOMAIN} {
 	encode zstd gzip
 	header Strict-Transport-Security "max-age=31536000"

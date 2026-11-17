@@ -32,7 +32,7 @@ describe('AliasesView', () => {
     expect(w.text()).toContain('Sözleşme S-2026-001, kod CV-M8-20, 1,25 TL / ADET')
 
     await button(w, 'Kaldır')!.trigger('click')
-    expect(del).not.toHaveBeenCalled() // one click only asks
+    expect(del).not.toHaveBeenCalled() // ilk tıklama yalnızca sorar
     await button(w, 'Vazgeç')!.trigger('click')
     expect(button(w, 'Evet, kaldır')).toBeUndefined()
 

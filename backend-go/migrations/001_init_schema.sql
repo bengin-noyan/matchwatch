@@ -1,4 +1,4 @@
--- matchwatch schema (spec section 4, D1-D15). Embedding columns deferred to Phase 2 (D8).
+-- matchwatch şeması (spec bölüm 4, D1–D15). Embedding sütunları Faz 2'ye bırakıldı (D8).
 
 CREATE TABLE tenants (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -129,7 +129,7 @@ CREATE TABLE invoice_lines (
   matched_contract_item_id UUID,
   UNIQUE (tenant_id, id),
   FOREIGN KEY (tenant_id, invoice_id) REFERENCES invoices(tenant_id, id) ON DELETE CASCADE,
-  -- MATCH SIMPLE: a NULL matched_contract_item_id skips the check
+  -- MATCH SIMPLE: matched_contract_item_id NULL ise kontrol atlanır
   FOREIGN KEY (tenant_id, matched_contract_item_id) REFERENCES contract_items(tenant_id, id)
 );
 CREATE INDEX invoice_lines_invoice_idx ON invoice_lines (tenant_id, invoice_id);
@@ -174,12 +174,13 @@ CREATE TABLE audit_findings (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   FOREIGN KEY (tenant_id, invoice_id) REFERENCES invoices(tenant_id, id) ON DELETE CASCADE,
-  -- MATCH SIMPLE: a NULL invoice_line_id skips the check
+  -- MATCH SIMPLE: invoice_line_id NULL ise kontrol atlanır
   FOREIGN KEY (tenant_id, invoice_line_id) REFERENCES invoice_lines(tenant_id, id) ON DELETE CASCADE
 );
 CREATE INDEX audit_findings_invoice_idx ON audit_findings (tenant_id, invoice_id);
 
--- D9: forced RLS. NULLIF handles the '' GUC left on pooled sessions after a transaction-local set_config.
+-- D9: zorunlu RLS. NULLIF, transaction'a özel bir set_config'ten sonra havuzdaki oturumlarda kalan '' değerini
+-- karşılar.
 ALTER TABLE tenants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenants FORCE ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON tenants

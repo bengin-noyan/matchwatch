@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// Item matches a person confirmed ("this invoice name means that contract item"). A wrong one is removed here;
-// the invoices that relied on it are re-audited and the line asks for a match again.
+// Bir kişinin onayladığı kalem eşleşmeleri ("faturadaki bu ad, sözleşmedeki şu kalem demek"). Yanlış olan buradan
+// kaldırılır; ona dayanan faturalar yeniden denetlenir ve satır yeniden eşleşme ister.
 import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { api, ApiError, type AliasRow, type VendorRow } from '../api'
@@ -15,7 +15,7 @@ const items = ref<AliasRow[] | null>(null)
 const vendors = ref<VendorRow[]>([])
 const error = ref('')
 const done = ref('')
-const confirming = ref('') // alias id waiting for "Evet, kaldır"
+const confirming = ref('') // "Evet, kaldır" onayını bekleyen eşleşmenin id'si
 const busy = ref(false)
 
 async function load() {
@@ -35,7 +35,7 @@ onMounted(async () => {
   try {
     vendors.value = (await api.vendors()).items
   } catch {
-    /* the vendor filter just stays empty */
+    /* tedarikçi filtresi boş kalır, o kadar */
   }
 })
 
