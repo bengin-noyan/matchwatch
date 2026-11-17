@@ -3,6 +3,7 @@ package auth
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -46,9 +47,14 @@ func Subject(ctx context.Context) string {
 	return s
 }
 
+// SessionCheck tells whether a user's session issued at iat is still good (the user exists and has not reset the
+// password since).
+type SessionCheck func(ctx context.Context, userID, tenantID uuid.UUID, iat time.Time) (bool, error)
+
 // Middleware requires a valid token, from the Bearer header or else the session cookie:
-// HS256 only, exp required, tenant_id a UUID.
-func Middleware(secret []byte) func(http.Handler) http.Handler {
+// HS256 only, exp required, tenant_id a UUID. A token whose sub is a user id must also pass check; dev tokens
+// (sub "devtoken") have no user behind them.
+func Middleware(secret []byte, check SessionCheck) func(http.Handler) http.Handler {
 	parser := jwt.NewParser(jwt.WithValidMethods([]string{"HS256"}), jwt.WithExpirationRequired())
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -71,6 +77,24 @@ func Middleware(secret []byte) func(http.Handler) http.Handler {
 			if err != nil || tid == uuid.Nil {
 				unauthorized(w)
 				return
+			}
+			if uid, err := uuid.Parse(c.Subject); err == nil {
+				if c.IssuedAt == nil {
+					unauthorized(w)
+					return
+				}
+				ok, err := check(r.Context(), uid, tid, c.IssuedAt.Time)
+				if err != nil {
+					log.Printf("session check: %v", err)
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusInternalServerError)
+					w.Write([]byte(`{"error":"internal error","code":"INTERNAL"}`))
+					return
+				}
+				if !ok {
+					unauthorized(w)
+					return
+				}
 			}
 			ctx := context.WithValue(context.WithValue(r.Context(), ctxKey{}, tid), subKey{}, c.Subject)
 			next.ServeHTTP(w, r.WithContext(ctx))

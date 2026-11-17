@@ -46,6 +46,9 @@ async function submit() {
       </label>
       <p v-if="error" role="alert" class="text-pencil mb-4 text-sm">{{ error }}</p>
       <button type="submit" :disabled="busy" class="btn-primary w-full">{{ busy ? 'Giriş yapılıyor…' : 'Giriş yap' }}</button>
+      <p class="mt-4 text-center text-sm">
+        <RouterLink to="/sifremi-unuttum" class="text-ballpoint font-semibold hover:underline">Şifremi unuttum</RouterLink>
+      </p>
       <p class="text-ink-soft border-rule mt-6 border-t pt-4 text-sm">
         Hesabın yok mu? <RouterLink to="/kayit" class="text-ballpoint font-semibold hover:underline">Firman için hesap oluştur</RouterLink>
       </p>

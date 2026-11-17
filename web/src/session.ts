@@ -20,6 +20,10 @@ export const useSession = defineStore('session', {
       this.me = await api.signup(b)
       this.checked = true
     },
+    async redeem(token: string, password: string) {
+      this.me = await api.redeem(token, password)
+      this.checked = true
+    },
     async logout() {
       await api.logout().catch(() => {})
       this.me = null

@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -17,7 +18,7 @@ var secret = []byte(strings.Repeat("s", 32))
 func call(t *testing.T, header string) (int, uuid.UUID) {
 	t.Helper()
 	var seen uuid.UUID
-	h := Middleware(secret)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := Middleware(secret, revoked)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		seen = TenantID(r.Context())
 	}))
 	req := httptest.NewRequest("GET", "/", nil)
@@ -27,6 +28,25 @@ func call(t *testing.T, header string) (int, uuid.UUID) {
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 	return rec.Code, seen
+}
+
+// revokedUser's sessions were ended (a password reset); every other user's are good.
+var revokedUser = uuid.New()
+
+func revoked(_ context.Context, uid, _ uuid.UUID, _ time.Time) (bool, error) {
+	return uid != revokedUser, nil
+}
+
+func TestSessionCheck(t *testing.T) {
+	tid := uuid.New()
+	live, _ := Sign(secret, tid, uuid.NewString(), time.Hour)
+	ended, _ := Sign(secret, tid, revokedUser.String(), time.Hour)
+	if code, _ := call(t, "Bearer "+live); code != 200 {
+		t.Errorf("live user: %d", code)
+	}
+	if code, _ := call(t, "Bearer "+ended); code != 401 {
+		t.Errorf("ended session: %d", code)
+	}
 }
 
 func TestValidToken(t *testing.T) {

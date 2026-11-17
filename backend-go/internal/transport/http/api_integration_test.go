@@ -32,6 +32,7 @@ type env struct {
 	tid     uuid.UUID
 	token   string
 	storage string
+	mails   *mailbox
 }
 
 func setup(t *testing.T, tenantVKN string) *env {
@@ -55,7 +56,7 @@ func setup(t *testing.T, tenantVKN string) *env {
 	}
 	t.Cleanup(pool.Close)
 	s := repository.NewStore(pool)
-	e := &env{t: t, store: s, storage: t.TempDir()}
+	e := &env{t: t, store: s, storage: t.TempDir(), mails: &mailbox{}}
 	if e.tid, err = s.CreateTenant(ctx, "api-"+uuid.NewString(), tenantVKN, decimal.RequireFromString("0.4500")); err != nil {
 		t.Fatal(err)
 	}
@@ -66,13 +67,13 @@ func setup(t *testing.T, tenantVKN string) *env {
 		}
 		defer tx.Rollback(ctx)
 		tx.Exec(ctx, "SELECT set_config('app.current_tenant_id', $1, true)", e.tid.String())
-		for _, tbl := range []string{"users", "invoices", "despatch_advices", "contract_drafts", "contracts", "vendors"} {
+		for _, tbl := range []string{"auth_tokens", "users", "invoices", "despatch_advices", "contract_drafts", "contracts", "vendors"} {
 			tx.Exec(ctx, "DELETE FROM "+tbl+" WHERE tenant_id=$1", e.tid)
 		}
 		tx.Exec(ctx, "DELETE FROM tenants WHERE id=$1", e.tid)
 		tx.Commit(ctx)
 	})
-	e.srv = NewRouter(s, audit.New(s, nil, nil), e.storage, secret, nil, 0, false)
+	e.srv = NewRouter(s, audit.New(s, nil, nil), e.storage, secret, nil, 0, false, e.mails, "https://mw.test")
 	tok, err := auth.Sign(secret, e.tid, "test", time.Hour)
 	if err != nil {
 		t.Fatal(err)

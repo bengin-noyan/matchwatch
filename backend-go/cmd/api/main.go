@@ -16,6 +16,7 @@ import (
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/aiclient"
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/audit"
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/config"
+	"github.com/bengin-noyan/matchwatch/backend-go/internal/mail"
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/repository"
 	"github.com/bengin-noyan/matchwatch/backend-go/internal/tcmb"
 	transporthttp "github.com/bengin-noyan/matchwatch/backend-go/internal/transport/http"
@@ -46,7 +47,11 @@ func main() {
 		fx = tcmb.New(cfg.TCMBBaseURL)
 	}
 
-	handler := transporthttp.NewRouter(store, audit.New(store, emb, fx), cfg.StorageDir, cfg.JWTSecret, ai, cfg.AIExtractTimeout, cfg.CookieSecure)
+	mailer, err := mail.New(cfg.MailURL, cfg.MailFrom)
+	if err != nil {
+		log.Fatal(err)
+	}
+	handler := transporthttp.NewRouter(store, audit.New(store, emb, fx), cfg.StorageDir, cfg.JWTSecret, ai, cfg.AIExtractTimeout, cfg.CookieSecure, mailer, cfg.AppBaseURL)
 	if cfg.WebDir != "" {
 		handler = transporthttp.WithWeb(handler, cfg.WebDir)
 	}

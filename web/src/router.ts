@@ -7,6 +7,10 @@ export const router = createRouter({
     { path: '/tanitim', name: 'landing', component: () => import('./views/LandingView.vue'), meta: { public: true } },
     { path: '/giris', name: 'login', component: () => import('./views/LoginView.vue'), meta: { public: true } },
     { path: '/kayit', name: 'signup', component: () => import('./views/SignupView.vue'), meta: { public: true } },
+    // invite and reset links carry their token in the fragment, which never reaches a server log
+    { path: '/davet', name: 'invite', component: () => import('./views/PasswordLinkView.vue'), meta: { public: true } },
+    { path: '/sifremi-unuttum', name: 'forgot', component: () => import('./views/ForgotView.vue'), meta: { public: true } },
+    { path: '/sifre', name: 'reset', component: () => import('./views/PasswordLinkView.vue'), meta: { public: true } },
     { path: '/', name: 'dashboard', component: () => import('./views/DashboardView.vue') },
     { path: '/faturalar', name: 'invoices', component: () => import('./views/InvoicesView.vue') },
     { path: '/bulgular', name: 'findings', component: () => import('./views/FindingsView.vue') },
@@ -15,6 +19,7 @@ export const router = createRouter({
     { path: '/taslaklar', name: 'drafts', component: () => import('./views/DraftsView.vue') },
     { path: '/taslaklar/:id', name: 'draft', component: () => import('./views/DraftView.vue'), props: true },
     { path: '/eslesmeler', name: 'aliases', component: () => import('./views/AliasesView.vue') },
+    { path: '/kullanicilar', name: 'users', component: () => import('./views/UsersView.vue') },
     { path: '/tedarikciler', name: 'vendors', component: () => import('./views/VendorsView.vue') },
     { path: '/tedarikciler/:id', name: 'vendor', component: () => import('./views/VendorView.vue'), props: true },
     { path: '/ozet', redirect: '/' },

@@ -78,10 +78,10 @@ func (s *server) signup(w http.ResponseWriter, r *http.Request) {
 	case !domain.ValidTaxID(vkn):
 		writeErr(w, 422, "INVALID_VKN", "vkn must be a valid 10-digit VKN or 11-digit TCKN")
 		return
-	case len(email) > 254 || strings.Count(email, "@") != 1 || strings.HasPrefix(email, "@") || strings.HasSuffix(email, "@"):
+	case !validEmail(email):
 		writeErr(w, 422, "INVALID_EMAIL", "email is not a valid address")
 		return
-	case utf8.RuneCountInString(req.Password) < 12 || len(req.Password) > 72: // bcrypt reads at most 72 bytes
+	case !validPassword(req.Password):
 		writeErr(w, 422, "WEAK_PASSWORD", "password must be 12 characters to 72 bytes")
 		return
 	}
@@ -124,6 +124,15 @@ func (s *server) signup(w http.ResponseWriter, r *http.Request) {
 		Email      string `json:"email"`
 		TenantName string `json:"tenant_name"`
 	}{email, company})
+}
+
+// validEmail is a shape check; it also keeps the address safe for a mail header (no spaces, controls or brackets).
+func validEmail(email string) bool {
+	return len(email) <= 254 && !strings.ContainsFunc(email, func(r rune) bool { return r <= ' ' || strings.ContainsRune("<>,;\"()[]\\", r) }) && strings.Count(email, "@") == 1 && !strings.HasPrefix(email, "@") && !strings.HasSuffix(email, "@")
+}
+
+func validPassword(pw string) bool {
+	return utf8.RuneCountInString(pw) >= 12 && len(pw) <= 72 // bcrypt reads at most 72 bytes
 }
 
 func (s *server) logout(w http.ResponseWriter, r *http.Request) {

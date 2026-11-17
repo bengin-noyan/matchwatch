@@ -4,6 +4,7 @@ package config
 import (
 	"errors"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -20,6 +21,9 @@ type Config struct {
 	CookieSecure       bool   // session cookie only over HTTPS; COOKIE_SECURE=false for local http
 	WebDir             string // built SPA (web/dist) served on the same origin; empty = API only
 	TrustProxy         bool   // TRUST_PROXY=true: client IP from X-Forwarded-For (only when reachable solely via Caddy)
+	MailURL            string // "" = no invites or "Şifremi unuttum"; "log" = dev; smtp://user:pass@host:587
+	MailFrom           string
+	AppBaseURL         string // the links in mails; never taken from the request's Host header
 }
 
 func Load() (Config, error) {
@@ -49,6 +53,11 @@ func Load() (Config, error) {
 	c.CookieSecure = os.Getenv("COOKIE_SECURE") != "false"
 	c.WebDir = os.Getenv("WEB_DIR")
 	c.TrustProxy = os.Getenv("TRUST_PROXY") == "true"
+	c.MailURL, c.MailFrom = os.Getenv("MAIL_URL"), os.Getenv("MAIL_FROM")
+	c.AppBaseURL = strings.TrimRight(os.Getenv("APP_BASE_URL"), "/")
+	if c.MailURL != "" && !strings.HasPrefix(c.AppBaseURL, "http") {
+		return Config{}, errors.New("config: APP_BASE_URL (e.g. https://matchwatch.example.com.tr) is required when MAIL_URL is set")
+	}
 	c.TCMBBaseURL = "https://www.tcmb.gov.tr/kurlar"
 	if v, ok := os.LookupEnv("TCMB_BASE_URL"); ok {
 		c.TCMBBaseURL = v
