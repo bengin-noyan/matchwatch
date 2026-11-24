@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 matchwatch is an internal-audit engine for Turkish companies. It cross-checks purchase contracts, e-İrsaliye (`DespatchAdvice`) and e-Fatura (`Invoice`) documents in GİB UBL-TR 1.2 format, a "3-way match", and stores anomaly findings together with their evidence.
 
 - **Spec:** `docs/spec.md` is the authority. Its §4 "Kararlar" (D1–D15) deliberately deviate from the original "LeakZero" spec, and the D-decisions win where they conflict.
-- **Phases:** Faz 1 is the Go core and is done (merged to `main`). Faz 2a (PDF contract extraction via `ai-service/`) is merged to `main` (PR #2). Faz 2b (semantic item suggestions + human-confirmed aliases, D16) is merged (PR #3). Faz 2c (TCMB rates, D17) is merged (PR #4). Faz 3 (login, the Vue 3 web app in `web/`, dashboard, vendor pages, contract PDF viewer) is merged (PR #5). Faz 3e (invoice search, filters, paging) is merged (PR #6). Faz 3f (decision history) is merged (PR #7). Faz 3g (bulk decisions) is merged (PR #8). Faz 3h (alias management) is merged (PR #9). Faz 3i (public landing page on the login screen) is merged (PR #10). Faz 3j/3k (landing split from login, self sign-up) are merged (PR #12). The planned web work is complete. Faz 4 prep (the provider-agnostic production setup) is merged (PR #13). Faz 5a (user invites and password reset by one-time link) is merged (PR #14). The `FX_RATE_DEVIATION` rule (D18) is merged (PR #15), and the code comments were rewritten in plain Turkish (PR #16).
+- **Phases:** Faz 1 is the Go core and is done (merged to `main`). Faz 2a (PDF contract extraction via `ai-service/`) is merged to `main` (PR #2). Faz 2b (semantic item suggestions + human-confirmed aliases, D16) is merged (PR #3). Faz 2c (TCMB rates, D17) is merged (PR #4). Faz 3 (login, the Vue 3 web app in `web/`, dashboard, vendor pages, contract PDF viewer) is merged (PR #5). Faz 3e (invoice search, filters, paging) is merged (PR #6). Faz 3f (decision history) is merged (PR #7). Faz 3g (bulk decisions) is merged (PR #8). Faz 3h (alias management) is merged (PR #9). Faz 3i (public landing page on the login screen) is merged (PR #10). Faz 3j/3k (landing split from login, self sign-up) are merged (PR #12). The planned web work is complete. Faz 4 prep (the provider-agnostic production setup) is merged (PR #13). Faz 5a (user invites and password reset by one-time link) is merged (PR #14). The `FX_RATE_DEVIATION` rule (D18) is merged (PR #15), and the code comments were rewritten in plain Turkish (PR #16). CI is merged (PR #17). The alias log is merged (PR #18), and so is the phone menu (PR #19).
 - **Faz 1 plan:** `docs/superpowers/plans/2026-11-02-faz1-go-core.md` lists tasks, interfaces and the exact expected test values.
 
 ## Commands
@@ -127,13 +127,18 @@ The data flow is: parse XML → persist → load audit input → match → run r
   - Faz 5a, user invites and password reset: PR #14, merge commit `1cb87c5`.
   - `FX_RATE_DEVIATION` rule (D18): PR #15, merge commit `764d3ae`.
   - Code comments rewritten in plain Turkish: PR #16, merge commit `4e85f47`.
+  - CI workflow: PR #17, merge commit `76cbf17`.
+  - Alias log, who confirmed and who removed each alias (migration `014`): PR #18, merge commit `1e97462`.
+  - Phone menu behind a "Menü" button (`components/AppShell.vue`): PR #19, merge commit `4f7cccd`.
 - **CI:** `.github/workflows/ci.yml` runs on every PR and on `main`: Go (gofmt, vet, tests with the integration tests against a compose Postgres), web (Vitest + build) and ai-service (pytest; the OCR test skips without tesseract).
 - **Next steps, in order:**
   1. Finish Faz 4 once the user picks the provider, the domain and the off-host backup target (TR region, encrypted at rest): provision the host, DNS, the first deploy following the runbook, the backup cron and the off-host sync.
   - Faz 4 also picks the SMTP provider (TR region, KVKK) for `MAIL_URL`; until then production has no invites or "Şifremi unuttum".
-  - Optional, not requested yet: a compact mobile nav (7 menu items overflow on phones), a log of who removed an alias, a contact/pricing section on the landing page.
+  2. Recommended next, needs no outside decision: retry the audit of invoices left PENDING after a post-commit audit failure (today only `POST /invoices/{id}/audit` recovers them, so a finding can stay hidden).
+  - Optional, not requested yet: a bound on summed allowance and tax totals; a contact/pricing section on the landing page (needs the user's pricing).
   - KVKK applies throughout (see the rulings below), and an LLM never computes amounts.
 - **Merging** is the user's call (`gh pr merge N --merge --delete-branch`). Claude merges only when the user explicitly asks (as with #11/#12 on 2026-11-10).
+- **Repo and `main` protection (2026-11-17):** the repo is public. `main` requires a PR and the `go`, `web` and `ai-service` checks; force-push and deletion are off. Admins may bypass (`gh pr merge N --admin`), so wait for green checks.
 - **Local demo:** run `cmd/onboard` once, then `scripts/seed-demo.py`, and serve with `WEB_DIR=../web/dist COOKIE_SECURE=false go run ./cmd/api`.
 - **Working mode:** Claude acts as Staff Architect / Principal Engineer. It decides technical and domain questions itself, records them as rulings and reports in Turkish. It does not hand these questions back to the user.
 - **Housekeeping:** delete each feature branch, locally and on GitHub, after its PR merges (all earlier ones are gone as of 2026-11-17).
