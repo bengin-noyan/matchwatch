@@ -115,7 +115,7 @@ const sortKey: Record<string, Sort> = {
   status: 'status', invoice_no: 'invoice_no', vendor_name: 'vendor', issue_date: 'issue_date', payable_minor: 'payable', open_findings: 'open_findings',
 }
 const columns = col.columns([
-  col.accessor('audit_status', { id: 'status', header: 'Durum', cell: ({ row }) => h(StatusMark, { status: row.original.audit_status }) }),
+  col.accessor('audit_status', { id: 'status', header: 'Durum', cell: ({ row }) => h(StatusMark, { status: row.original.audit_status, reaudit: row.original.reaudit_pending }) }),
   col.accessor('invoice_no', {
     header: 'Fatura no',
     cell: ({ row }) =>

@@ -176,7 +176,15 @@ func (s *server) postContract(w http.ResponseWriter, r *http.Request) {
 		if doc.VendorID, err = tx.UpsertVendor(r.Context(), doc.VendorVKN, name); err != nil {
 			return err
 		}
-		if id, err = tx.InsertContract(r.Context(), doc.ContractInput); err != nil || doc.DraftID == nil {
+		if id, err = tx.InsertContract(r.Context(), doc.ContractInput); err != nil {
+			return err
+		}
+		// faturalar çok olabilir; istek içinde denetlemiyoruz, RetryPending toparlar
+		ids, err := tx.VendorInvoicesBetween(r.Context(), doc.VendorID, doc.ValidFrom, doc.ValidUntil)
+		if err != nil {
+			return err
+		}
+		if err := tx.MarkReaudit(r.Context(), ids); err != nil || doc.DraftID == nil {
 			return err
 		}
 		return tx.ApproveDraft(r.Context(), *doc.DraftID, id)
@@ -228,6 +236,9 @@ func (s *server) postDespatch(w http.ResponseWriter, r *http.Request) {
 		if refs, err = tx.InvoicesReferencingDespatch(ctx, v, d.Number); err != nil {
 			return err
 		}
+		if err = tx.MarkReaudit(ctx, refs); err != nil {
+			return err
+		}
 		return write()
 	})
 	if err != nil {
@@ -262,10 +273,14 @@ func (s *server) postReceipt(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return err
 		}
-		if no, err = tx.ApplyReceipt(ctx, v, rc); err != nil {
+		if refs, err = tx.InvoicesReferencingDespatch(ctx, v, rc.DespatchNumber); err != nil {
 			return err
 		}
-		refs, err = tx.InvoicesReferencingDespatch(ctx, v, no)
+		// ApplyReceipt'ten önce: denetim de önce faturayı, sonra irsaliye satırlarını kilitler (deadlock olmasın)
+		if err = tx.MarkReaudit(ctx, refs); err != nil {
+			return err
+		}
+		no, err = tx.ApplyReceipt(ctx, v, rc)
 		return err
 	})
 	if err != nil {

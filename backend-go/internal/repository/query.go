@@ -33,23 +33,24 @@ type InvoiceFilter struct {
 type InvoiceCounts map[string]int
 
 type InvoiceRow struct {
-	ID           uuid.UUID `json:"id"`
-	VendorID     uuid.UUID `json:"vendor_id"`
-	VendorName   string    `json:"vendor_name"`
-	ETTN         uuid.UUID `json:"ettn"`
-	InvoiceNo    string    `json:"invoice_no"`
-	IssueDate    string    `json:"issue_date"`
-	DueDate      *string   `json:"due_date"`
-	Currency     string    `json:"currency"`
-	PayableMinor int64     `json:"payable_minor"`
-	AuditStatus  string    `json:"audit_status"`
-	OpenFindings int       `json:"open_findings"` // hâlâ bir insan kararı bekleyen OPEN bulgular
+	ID             uuid.UUID `json:"id"`
+	VendorID       uuid.UUID `json:"vendor_id"`
+	VendorName     string    `json:"vendor_name"`
+	ETTN           uuid.UUID `json:"ettn"`
+	InvoiceNo      string    `json:"invoice_no"`
+	IssueDate      string    `json:"issue_date"`
+	DueDate        *string   `json:"due_date"`
+	Currency       string    `json:"currency"`
+	PayableMinor   int64     `json:"payable_minor"`
+	AuditStatus    string    `json:"audit_status"`
+	ReauditPending bool      `json:"reaudit_pending"` // reaudit_since dolu: durum henüz güncel olmayabilir
+	OpenFindings   int       `json:"open_findings"`   // hâlâ bir insan kararı bekleyen OPEN bulgular
 }
 
 const openFindings = `(SELECT count(*) FROM audit_findings f
 		WHERE f.tenant_id=i.tenant_id AND f.invoice_id=i.id AND f.resolution_status='OPEN')`
 const invoiceCols = `i.id, i.vendor_id, v.name, i.ettn, i.invoice_no, i.issue_date::text, i.due_date::text, i.currency,
-	i.payable_minor, i.audit_status, ` + openFindings
+	i.payable_minor, i.audit_status, i.reaudit_since IS NOT NULL, ` + openFindings
 
 // invoiceSorts, istemcinin seçebileceği ORDER BY ifadelerinin izinli listesidir.
 var invoiceSorts = map[string]string{
@@ -73,7 +74,7 @@ const invoiceFrom = ` FROM invoices i JOIN vendors v ON v.tenant_id=i.tenant_id 
 
 func scanInvoice(row pgx.Row, r *InvoiceRow) error {
 	return row.Scan(&r.ID, &r.VendorID, &r.VendorName, &r.ETTN, &r.InvoiceNo, &r.IssueDate, &r.DueDate, &r.Currency,
-		&r.PayableMinor, &r.AuditStatus, &r.OpenFindings)
+		&r.PayableMinor, &r.AuditStatus, &r.ReauditPending, &r.OpenFindings)
 }
 
 // ListInvoices returns one page, the number of matches and the matches per status (ignoring f.Status).

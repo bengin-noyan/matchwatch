@@ -34,8 +34,10 @@ func (s *server) postLineMatch(w http.ResponseWriter, r *http.Request) {
 	tid := auth.TenantID(r.Context())
 	var invoiceID uuid.UUID
 	err = s.store.InTenant(r.Context(), tid, func(tx *repository.Tx) error {
-		invoiceID, err = tx.UpsertAlias(r.Context(), lineID, itemID, actor(r))
-		return err
+		if invoiceID, err = tx.UpsertAlias(r.Context(), lineID, itemID, actor(r)); err != nil {
+			return err
+		}
+		return tx.MarkReaudit(r.Context(), []uuid.UUID{invoiceID})
 	})
 	switch {
 	case errors.Is(err, repository.ErrVendorMismatch):
@@ -92,15 +94,17 @@ func (s *server) deleteAlias(w http.ResponseWriter, r *http.Request) {
 	tid := auth.TenantID(r.Context())
 	var invoices []uuid.UUID
 	err := s.store.InTenant(r.Context(), tid, func(tx *repository.Tx) (err error) {
-		invoices, err = tx.DeleteAlias(r.Context(), id, actor(r))
-		return
+		if invoices, err = tx.DeleteAlias(r.Context(), id, actor(r)); err != nil {
+			return err
+		}
+		return tx.MarkReaudit(r.Context(), invoices)
 	})
 	if err != nil {
 		fail(w, err)
 		return
 	}
-	// shortcut: yeniden denetimler silme commit edildikten sonra tek tek çalışıyor; biri başarısız olursa kalanlar olduğu
-	// gibi kalır (POST /invoices/{id}/audit ile düzeltilir), tıpkı denetimi başarısız olan bir yükleme gibi.
+	// Yeniden denetimler silme commit edildikten sonra tek tek çalışıyor; biri başarısız olursa kalanlar işaretli kalır ve
+	// RetryPending onları toparlar.
 	reaudited := []uuid.UUID{}
 	for _, inv := range invoices {
 		if _, err := s.auditor.AuditInvoice(r.Context(), tid, inv); err != nil {

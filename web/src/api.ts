@@ -13,6 +13,7 @@ export interface InvoiceRow {
   currency: string
   payable_minor: number
   audit_status: AuditStatus
+  reaudit_pending: boolean
   open_findings: number
 }
 
