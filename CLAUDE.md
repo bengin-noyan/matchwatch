@@ -134,7 +134,6 @@ The data flow is: parse XML → persist → load audit input → match → run r
 - **Next steps, in order:**
   1. Finish Faz 4 once the user picks the provider, the domain and the off-host backup target (TR region, encrypted at rest): provision the host, DNS, the first deploy following the runbook, the backup cron and the off-host sync.
   - Faz 4 also picks the SMTP provider (TR region, KVKK) for `MAIL_URL`; until then production has no invites or "Şifremi unuttum".
-  2. Recommended next, needs no outside decision: retry the audit of invoices left PENDING after a post-commit audit failure (today only `POST /invoices/{id}/audit` recovers them, so a finding can stay hidden).
   - Optional, not requested yet: a bound on summed allowance and tax totals; a contact/pricing section on the landing page (needs the user's pricing).
   - KVKK applies throughout (see the rulings below), and an LLM never computes amounts.
 - **Merging** is the user's call (`gh pr merge N --merge --delete-branch`). Claude merges only when the user explicitly asks (as with #11/#12 on 2026-11-10).
@@ -156,7 +155,7 @@ The data flow is: parse XML → persist → load audit input → match → run r
   - The `go` directive is 1.26.0 (pgx needs 1.25; `golang.org/x/crypto`, added for login in Faz 3a, raised it to 1.26).
 - **Known open minors:**
   - Summed allowance and tax totals are not bounded.
-  - A post-commit audit failure leaves the invoice PENDING; recover with `POST /invoices/{id}/audit`.
+  - A post-commit audit failure leaves the invoice PENDING until `audit.Service.RunRetries` picks it up (every 5 minutes, invoices older than 5 minutes; tenants come from `audit_tenants()`, migration `015`). A failed *re-audit* (despatch, receipt, alias) keeps the old status and is not retried; use `POST /invoices/{id}/audit`.
 - **Architect rulings (2026-11-03):**
   - Code 619 = 70.00 is verified against KDVGUT I/C-2.1.3.3.2.
   - GİB withholding list re-checked (2026-11-04) against "UBL-TR Kod Listeleri" V1.43 (27.07.2026, live 14.09.2026, from `UBLTR_1.2.1_Kilavuzlar.zip` on ebelge.gib.gov.tr). All 52 codes and rates match the V1.31 seed, and the V1.32–V1.43 changelog has no withholding entry, so no migration was needed. V1.43 also fixes the 619 typo (now 7/10). Future GİB changes still ship as a new migration, never as an edit to `002`.

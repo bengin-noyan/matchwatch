@@ -51,7 +51,9 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	handler := transporthttp.NewRouter(store, audit.New(store, emb, fx), cfg.StorageDir, cfg.JWTSecret, ai, cfg.AIExtractTimeout, cfg.CookieSecure, mailer, cfg.AppBaseURL)
+	auditor := audit.New(store, emb, fx)
+	go auditor.RunRetries(ctx)
+	handler := transporthttp.NewRouter(store, auditor, cfg.StorageDir, cfg.JWTSecret, ai, cfg.AIExtractTimeout, cfg.CookieSecure, mailer, cfg.AppBaseURL)
 	if cfg.WebDir != "" {
 		handler = transporthttp.WithWeb(handler, cfg.WebDir)
 	}
