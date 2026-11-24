@@ -104,7 +104,7 @@ many it issues for the same domain per week, so do not run this repeatedly.
 ## 5. Operations
 
 - Logs: `dc logs -f api`. Each container keeps at most 5 × 20 MB of logs.
-- Invoice stuck in PENDING after an audit error: `POST /api/v1/invoices/{id}/audit`.
+- Invoice stuck in PENDING after an audit error: the API retries it by itself every 5 minutes (failures are logged as `audit retry:`). To retry at once: `POST /api/v1/invoices/{id}/audit`.
 - Rotate `JWT_SECRET`: edit `deploy/.env`, then `dc up -d api`. Every user is logged out.
 - Rotate a database password: run `ALTER ROLE matchwatch_app PASSWORD '...'` (or `matchwatch_owner`) through
   `dc exec postgres psql -U postgres`, update `deploy/.env`, then `dc up -d`. The `*_PASSWORD` values in `.env` are

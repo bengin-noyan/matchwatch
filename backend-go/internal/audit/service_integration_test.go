@@ -2,8 +2,11 @@ package audit
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"testing"
 	"time"
 
@@ -394,4 +397,75 @@ func TestAuditInvoiceWithoutDespatchRefs(t *testing.T) {
 	if got := fmt.Sprint(sig(e.findings(t, id))); got != "[MATURITY_VIOLATION//9912 PRICE_MISMATCH/1/5000 QTY_EXCEEDS_DELIVERY/1/6500]" {
 		t.Fatalf("got %s", got)
 	}
+}
+
+type panicEmb struct{ on string }
+
+func (p panicEmb) Embed(_ context.Context, texts []string) (string, []json.RawMessage, error) {
+	for _, s := range texts {
+		if s == p.on {
+			panic("bozuk fatura")
+		}
+	}
+	return "", nil, errors.New("öneri yok")
+}
+
+// Denetimi yarım kalan faturalar toparlanır; yeni yüklenene ve denetlenmişe dokunulmaz, bozuk bir fatura da (panic
+// dahil) kalanları durdurmaz.
+func TestRetryPending(t *testing.T) {
+	e := setup(t)
+	ctx := context.Background()
+	owner, err := pgx.Connect(ctx, os.Getenv("MATCHWATCH_TEST_MIGRATE_URL"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		owner.Exec(ctx, `DELETE FROM users WHERE tenant_id=$1`, e.tid)
+		owner.Close(ctx)
+	})
+	if _, err := owner.Exec(ctx, `INSERT INTO users(tenant_id, email, password_hash) VALUES ($1,$2,'x')`,
+		e.tid, uuid.NewString()+"@example.com"); err != nil {
+		t.Fatal(err)
+	}
+	broken, stuck, fresh, done := e.ingest(t, false), e.ingest(t, false), e.ingest(t, false), e.ingest(t, false)
+	for i, id := range []uuid.UUID{broken, stuck, done} { // broken en eskisi, yani ilk sırada
+		e.exec(t, `UPDATE invoices SET created_at = now() - interval '1 hour' + $2 * interval '1 minute' WHERE id=$1`, id, i)
+	}
+	e.exec(t, `UPDATE invoices SET audit_status='GREEN' WHERE id=$1`, done)
+	name := uuid.NewString()
+	e.exec(t, `UPDATE invoice_lines SET item_code='', barcode='', item_name=$2 WHERE invoice_id=$1`, broken, name)
+	status := func(id uuid.UUID) (s string) {
+		t.Helper()
+		if err := e.store.InTenant(ctx, e.tid, func(tx *repository.Tx) error {
+			return tx.QueryRow(ctx, `SELECT audit_status FROM invoices WHERE id=$1`, id).Scan(&s)
+		}); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	check := func(wantBroken string) {
+		t.Helper()
+		got := []string{status(broken), status(stuck), status(fresh), status(done)}
+		if want := []string{wantBroken, "RED", "PENDING", "GREEN"}; !slices.Equal(got, want) {
+			t.Fatalf("got %v want %v", got, want)
+		}
+	}
+
+	e.svc = New(e.store, panicEmb{embedText(name)}, nil)
+	if err := e.svc.RetryPending(ctx); err != nil {
+		t.Fatal(err)
+	}
+	check("PENDING")
+	if len(e.findings(t, stuck)) == 0 {
+		t.Fatal("no findings on the retried invoice")
+	}
+
+	e.svc = New(e.store, nil, nil) // sorun geçince bozuk olan da toparlanır
+	if err := e.svc.RetryPending(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if status(broken) == "PENDING" {
+		t.Fatal("broken invoice was not retried")
+	}
+	check(status(broken))
 }
