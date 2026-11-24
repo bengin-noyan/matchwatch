@@ -91,6 +91,6 @@ func (tx *Tx) SaveAudit(ctx context.Context, invoiceID uuid.UUID, fs []domain.Fi
 			return wrap("set matched item", err)
 		}
 	}
-	_, err := tx.Exec(ctx, `UPDATE invoices SET audit_status=$1 WHERE tenant_id=$2 AND id=$3`, string(status), tx.tenantID, invoiceID)
+	_, err := tx.Exec(ctx, `UPDATE invoices SET audit_status=$1, reaudit_since=NULL WHERE tenant_id=$2 AND id=$3`, string(status), tx.tenantID, invoiceID)
 	return wrap("set audit status", err)
 }

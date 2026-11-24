@@ -26,8 +26,8 @@ func (s *Service) RunRetries(ctx context.Context) {
 	}
 }
 
-// RetryPending, fatura kaydedildikten sonra denetimi başarısız olan (PENDING kalan) faturaları bütün tenant'larda yeniden
-// denetler. Bir faturanın ya da tenant'ın hatası log'a yazılır, kalanları durdurmaz.
+// RetryPending, denetimi (PENDING kalan) ya da yeniden denetimi (reaudit_since) başarısız olan faturaları bütün
+// tenant'larda yeniden denetler. Bir faturanın ya da tenant'ın hatası log'a yazılır, kalanları durdurmaz.
 // shortcut: her turda bütün tenant'lar sırayla sorgulanır; tenant sayısı binleri bulunca tek sorguya çevir.
 func (s *Service) RetryPending(ctx context.Context) error {
 	tenants, err := s.store.AuditTenants(ctx)

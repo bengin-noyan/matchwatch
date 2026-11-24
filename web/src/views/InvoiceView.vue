@@ -65,7 +65,7 @@ const openCount = computed(() => inv.value?.findings.filter((f) => f.resolution_
       <div class="flex flex-wrap items-center gap-4">
         <div class="text-right">
           <p class="num text-2xl font-semibold">{{ formatMinor(inv.payable_minor, inv.currency) }}</p>
-          <p class="text-sm"><StatusMark :status="inv.audit_status" /></p>
+          <p class="text-sm"><StatusMark :status="inv.audit_status" :reaudit="inv.reaudit_pending" /></p>
         </div>
         <button type="button" class="btn-secondary" :disabled="busy" @click="reaudit">{{ busy ? 'Denetleniyor…' : 'Yeniden denetle' }}</button>
       </div>

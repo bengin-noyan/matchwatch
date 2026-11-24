@@ -57,6 +57,9 @@ git pull
 dc up -d --build    # rebuilds the image; migrate runs again (applied files are skipped), then api restarts
 ```
 
+Migration `017` marks every existing invoice for one re-audit; the API works through them in the background.
+Never start a new `api` before its migrations (`dc up -d --no-deps api` skips them): `016` adds a column it needs.
+
 Migrations only move forward. Take a backup before an update that adds a migration (section 3).
 
 ## 3. Backups
@@ -104,7 +107,8 @@ many it issues for the same domain per week, so do not run this repeatedly.
 ## 5. Operations
 
 - Logs: `dc logs -f api`. Each container keeps at most 5 × 20 MB of logs.
-- Invoice stuck in PENDING after an audit error: the API retries it by itself every 5 minutes (failures are logged as `audit retry:`). To retry at once: `POST /api/v1/invoices/{id}/audit`.
+- Invoice stuck in PENDING after an audit error, or not re-audited after a contract, despatch, receipt or alias change
+  (`reaudit_since` is set): the API retries it by itself every 5 minutes (failures are logged as `audit retry:`). To retry at once: `POST /api/v1/invoices/{id}/audit`.
 - Rotate `JWT_SECRET`: edit `deploy/.env`, then `dc up -d api`. Every user is logged out.
 - Rotate a database password: run `ALTER ROLE matchwatch_app PASSWORD '...'` (or `matchwatch_owner`) through
   `dc exec postgres psql -U postgres`, update `deploy/.env`, then `dc up -d`. The `*_PASSWORD` values in `.env` are

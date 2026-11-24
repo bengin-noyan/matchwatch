@@ -130,7 +130,7 @@ const aboveCount = (pts: PricePoint[], contract: string) => pts.filter((p) => p.
           </thead>
           <tbody>
             <tr v-for="i in invoices" :key="i.id" class="border-rule border-b last:border-b-0">
-              <td class="px-4 py-3"><StatusMark :status="i.audit_status" /></td>
+              <td class="px-4 py-3"><StatusMark :status="i.audit_status" :reaudit="i.reaudit_pending" /></td>
               <td class="px-4 py-3"><RouterLink :to="`/faturalar/${i.id}`" class="font-semibold underline-offset-4 hover:underline">{{ i.invoice_no }}</RouterLink></td>
               <td class="px-4 py-3">{{ formatDate(i.issue_date) }}</td>
               <td class="num px-4 py-3 text-right">{{ formatMinor(i.payable_minor, i.currency) }}</td>

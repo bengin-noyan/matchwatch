@@ -7,7 +7,7 @@ import { statusLabel } from '../labels'
 
 const row = (n: number): InvoiceRow => ({
   id: `id-${n}`, vendor_id: 'v1', vendor_name: 'Demir Bağlantı A.Ş.', invoice_no: `FTR${n}`, issue_date: '2026-10-01',
-  due_date: null, currency: 'TRY', payable_minor: 100000, audit_status: 'RED', open_findings: 2,
+  due_date: null, currency: 'TRY', payable_minor: 100000, audit_status: 'RED', reaudit_pending: n === 52, open_findings: 2,
 })
 
 async function mountAt(url: string) {
@@ -28,6 +28,7 @@ describe('InvoicesView', () => {
     })
     expect(w.text()).toContain('51–100 / 120')
     expect(w.text()).toContain('Tümü 150')
+    expect(w.text().split('Yeniden denetlenecek')).toHaveLength(2) // yalnızca bekleyen faturada
 
     await w.findAll('button').find((b) => b.text() === 'Sonraki')!.trigger('click')
     await flushPromises()
